@@ -45,7 +45,7 @@ CLI.
 This is a pure-debrid stack — the host holds nothing but config, so the whole backup story is
 one target: the **config directory** (everything under `$CONFIG_DIR` — `acme.json`, the Traefik
 configs, and each app's own state like the \*arr databases). Snapshot it frequently with whatever
-your storage offers (`zfs` on TrueNAS, a NAS app, ...; see `truenas.md`).
+backend your storage offers (provider snapshot API, a cron'd rsync to another disk, ...).
 
 Nothing in compose is precious — any container is one `just up` from a clean slate. The config
 directory is the only state you can't rebuild; if you snapshot exactly one thing, snapshot that.
@@ -168,8 +168,9 @@ These are the outstanding items from first bring-up — do them once, then forge
   paths look empty inside the containers, check mount propagation (see [Decypharr](decypharr)).
 - **Root folders** in Radarr/Sonarr must point at paths the containers can actually reach.
 - **Jellyfin transcoding** — point *Playback → Transcode path* at `/transcodes` (a tmpfs, so
-  transcode scratch never hits disk) and enable VAAPI/QSV hardware acceleration; `/dev/dri` is
-  already passed in (see [Hardware](index#hardware) if the host has no iGPU).
+  transcode scratch never hits disk). This edition ships no GPU passthrough, so Jellyfin
+  transcodes in **software**; keep the library direct-play friendly and transcoding stays the
+  exception rather than the rule (see [Services](services)).
 - **ACME/TLS** — confirm `*.DOMAIN` cert appears in Traefik's ACME panel after first up (needs a
   working `CLOUDFLARE_DNS_TOKEN` **and** a non-empty `ACME_EMAIL`; `just dirs` warns if it's blank).
   `$CONFIG_DIR/traefik/acme.json` must be a 0600 *file* — `just dirs` guarantees that, because a

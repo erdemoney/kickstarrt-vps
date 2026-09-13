@@ -28,11 +28,8 @@ services:
       - /mnt/debrid:/mnt:rslave
     tmpfs:
       - /transcodes
-    # Intel/AMD iGPU passthrough for hardware transcoding. REMOVE these two lines
-    # if the host has no /dev/dri (a VM, or a CPU without an iGPU) - the container
-    # will refuse to start otherwise. See docs/services.md.
-    devices:
-      - /dev/dri:/dev/dri
+    # No GPU passthrough here: VPS hosts are CPU-only, so Jellyfin transcodes in
+    # software. Keep the library direct-play friendly (see docs/services.md).
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.jellyfin.entrypoints=https"

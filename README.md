@@ -2,12 +2,12 @@
 
 # kickst**Arr**t
 
-**A self-hosted media stack that runs itself.** Jellyfin + the \*arrs + a debrid gateway, fronted
+**A public-IP media stack that runs itself.** Jellyfin + the \*arrs + a debrid gateway, fronted
 by Cloudflare, guarded by CrowdSec, terminated by Traefik — all defined in one repo and brought
 up with a single command.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/erdemoney/kickstarrt/ci.yml?logo=githubactions&logoColor=white&label=CI)](https://github.com/erdemoney/kickstarrt/actions)
-[![Docs](https://img.shields.io/badge/docs-wiki-blue?logo=readthedocs&logoColor=white)](https://erdemoney.github.io/kickstarrt/)
+[![CI](https://img.shields.io/github/actions/workflow/status/erdemoney/kickstarrt-vps/ci.yml?logo=githubactions&logoColor=white&label=CI)](https://github.com/erdemoney/kickstarrt-vps/actions)
+[![Docs](https://img.shields.io/badge/docs-wiki-blue?logo=readthedocs&logoColor=white)](https://erdemoney.github.io/kickstarrt-vps/)
 [![Stack](https://img.shields.io/badge/stack-Docker%20Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![TLS](https://img.shields.io/badge/tls-Let%27s%20Encrypt-2E8B57?logo=letsencrypt&logoColor=white)](https://letsencrypt.org)
 [![WAF](https://img.shields.io/badge/waf-CrowdSec-brightgreen)](https://www.crowdsec.net)
@@ -18,35 +18,34 @@ up with a single command.
 ---
 
 kickst**Arr**t wires together everything a media library needs — **instant, debrid-based streaming
-that keeps nothing on disk**, automatic TLS, and edge security — as code. The whole stack runs
-on one Docker host, and the same checkout deploys to a dedicated box, a VM, or a NAS appliance.
-
-> **Running on a VPS with a public IP instead?** The [VPS edition](https://github.com/erdemoney/kickstarrt-vps)
-> is a sibling repo: direct ingress by A-record, ufw/fail2ban hardening, no tunnel, no GPU.
+that keeps nothing on disk**, automatic TLS, and edge security — as code, on a VPS. This is the
+**VPS edition**: direct ingress by A-record, ufw/fail2ban hardening, no Cloudflare tunnel, no GPU.
+Hosting at home instead (LAN stage, tunnel ingress, hardware transcoding)? Use the
+[self-hosted edition](https://github.com/erdemoney/kickstarrt).
 
 ## Architecture
 
 ```
-             Internet
-                │
-                ▼
-  Cloudflare edge ─── CDN bypass for media · WAF geolock · Access auth
-                │
-                ▼
-      cloudflared (tunnel)
-                │
-                ▼
+              Internet
+                 │
+                 ▼
+  Cloudflare edge ─── DNS · WAF geolock · cache bypass for media · Access auth
+                 │
+                 ▼
+  ufw ───────────► :80/:443 only
+                 │
+                 ▼
   Traefik ────────► CrowdSec   edge WAF / IP blocking
-                │
-     ┌──────────┴──────────┐
-     ▼                     ▼
-LAN / VPN       Docker "internal" network
-(→ Traefik :443)   ┌─────────────────────────┐
-                   │ jellyfin     seerr      │
-                   │ radarr       sonarr     │
-                   │ prowlarr     bazarr     │
-                   │ profilarr    decypharr  │
-                   └─────────────────────────┘
+                 │
+                 └──────────────┐
+                                ▼
+                 Docker "internal" network
+                 ┌─────────────────────────┐
+                 │ jellyfin     seerr      │
+                 │ radarr       sonarr     │
+                 │ prowlarr     bazarr     │
+                 │ profilarr    decypharr  │
+                 └─────────────────────────┘
 ```
 
 **The media loop:** Prowlarr finds releases → Sonarr/Radarr grab them → Decypharr resolves the
@@ -59,7 +58,6 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 | ----------- | ---- |
 | `traefik`   | TLS edge & reverse proxy — routes every hostname, issues the wildcard Let's Encrypt cert |
 | `crowdsec`  | WAF / IP reputation — blocks scanners at the edge before they reach an app |
-| `cloudflared` | Cloudflare tunnel — public hostnames reach the box with no open ports |
 | `jellyfin`  | Media server & streaming to web, TV, and mobile clients |
 | `seerr`     | User request manager — "want this movie" in one click |
 | `radarr` / `sonarr` | Movies and TV automation — grabbing, renaming, library sync |
@@ -73,8 +71,8 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 - **Nothing stored locally** — imports are symlinks into the debrid mount: instant, near-zero
   disk usage
 - **Automatic TLS** — Traefik issues a `*.DOMAIN` Let's Encrypt wildcard via Cloudflare DNS-01;
-  every app UI ships on HTTPS over the internet and on LAN/VPN alike
-- **Edge security** — CrowdSec WAF inside Traefik, Cloudflare tunnel for ingress, and optional
+  every app UI ships on HTTPS from the public internet
+- **Edge security** — CrowdSec WAF inside Traefik, ufw firewall on the box, and optional
   Cloudflare Access identity fronting per-hostname
 - **Automated upkeep** — Renovate opens dependency PRs and CI validates every change (compose +
   pre-commit + a full secret-history scan)
@@ -85,28 +83,30 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 
 > **Note:** this repo is meant to be **forked** — fork it (keep the fork **private**), then
 > clone your fork. Your deployment secrets never touch the repo; they live in git-ignored
-> `.env` files that `just init` creates. The stack is **LAN-only until you expose it** — set up
-> every app first, add public hostnames last.
+> `.env` files that `just init` creates. Set up every app over the hosts-file preview (nothing
+> public yet), then open the ports and point DNS **last**.
 
 ```bash
-git clone git@github.com:<you>/kickstarrt.git
-cd kickstarrt
+git clone git@github.com:<you>/kickstarrt-vps.git
+cd kickstarrt-vps
 just init      # walks every secret; Enter accepts sensible defaults
 just up        # networks → config dirs → the whole stack
+just hosts     # preview every app on a workstation via /etc/hosts before DNS
 ```
 
 Requires [Docker](https://docs.docker.com/engine/install/) (check the
 [post-install steps](https://docs.docker.com/engine/install/linux-postinstall/) to run it
 non-root) and [just](https://just.systems/man/en/chapter_4.html) — your distro's package manager
 or a [release binary](https://github.com/casey/just/releases).
-The full walkthrough — Cloudflare zone, tunnel, DNS secrets, staging CA, first bring-up — is in
-the [Quickstart](https://erdemoney.github.io/kickstarrt/quickstart).
+The full walkthrough — hardening, env files, A records, staging CA, first bring-up — is in
+the [Quickstart](https://erdemoney.github.io/kickstarrt-vps/quickstart).
 
 ## Docs
 
-- [**Quickstart**](https://erdemoney.github.io/kickstarrt/quickstart) — prerequisites, fork, first bring-up
-- [**Services**](https://erdemoney.github.io/kickstarrt/services) · [**The \*arrs**](https://erdemoney.github.io/kickstarrt/arrs) · [**Decypharr**](https://erdemoney.github.io/kickstarrt/decypharr) · [**Indexers**](https://erdemoney.github.io/kickstarrt/indexers)
-- [**Ingress**](https://erdemoney.github.io/kickstarrt/ingress) — tunnel, TLS, geolock, media caching, Cloudflare Access auth
-- [**Security**](https://erdemoney.github.io/kickstarrt/security) — CrowdSec WAF
-- [**Maintenance**](https://erdemoney.github.io/kickstarrt/maintenance) — backups, restic, restores
-- [**Updates & CI**](https://erdemoney.github.io/kickstarrt/updates) — Renovate, validation, releases
+- [**Quickstart**](https://erdemoney.github.io/kickstarrt-vps/quickstart) — hardening, fork, env files, first bring-up
+- [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) — ufw, fail2ban, non-root Docker, SSH keys
+- [**Services**](https://erdemoney.github.io/kickstarrt-vps/services) · [**The \*arrs**](https://erdemoney.github.io/kickstarrt-vps/arrs) · [**Decypharr**](https://erdemoney.github.io/kickstarrt-vps/decypharr) · [**Indexers**](https://erdemoney.github.io/kickstarrt-vps/indexers)
+- [**Ingress**](https://erdemoney.github.io/kickstarrt-vps/ingress) — DNS, TLS, geolock, media caching, Cloudflare Access auth
+- [**Security**](https://erdemoney.github.io/kickstarrt-vps/security) — CrowdSec WAF
+- [**Maintenance**](https://erdemoney.github.io/kickstarrt-vps/maintenance) — backups, restic, restores
+- [**Updates & CI**](https://erdemoney.github.io/kickstarrt-vps/updates) — Renovate, validation, releases

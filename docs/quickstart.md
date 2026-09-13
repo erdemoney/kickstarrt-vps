@@ -5,16 +5,17 @@ nav_order: 2
 
 # Quickstart
 
-Bring the stack up on a fresh Docker host, from a git checkout of this repo (clone it into
-whatever directory will run the stack — e.g. `~/docker/kickstarrt`). Edit on a dev box, commit,
-and `git pull` on the server.
+Bring the stack up on a fresh VPS running Docker, from a git checkout of this repo (clone it
+into whatever directory will run the stack — e.g. `~/docker/kickstarrt-vps`). Edit on a dev box,
+commit, and `git pull` on the server.
 
 `just` and Docker are prerequisites. Need Docker? Follow the official
 [Docker Engine install guide](https://docs.docker.com/engine/install/) for your distro — it
 covers the `docker compose` plugin too — then the
 [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run
-`docker` as a non-root user (`usermod -aG docker` and a re-login). `just up`
-handles the ordering for you — it creates the
+`docker` as a non-root user (`usermod -aG docker` and a re-login). If the box is brand-new, run
+through [Hardening](hardening) **before** any of this — at minimum ufw + SSH keys + non-root
+Docker. `just up` handles the ordering for you — it creates the
 shared networks and the per-service config dirs (both idempotent), then brings every stack up.
 Why the networks and dirs matter is covered in [The \*arrs](arrs).
 
@@ -27,9 +28,9 @@ deploys this stack from your fork, and a misstep that commits a secret to a publ
 to the world:
 
 ```bash
-git clone git@github.com:<you>/kickstarrt.git ~/docker/kickstarrt
-cd ~/docker/kickstarrt
-git remote add upstream git@github.com:erdemoney/kickstarrt.git   # optional
+git clone git@github.com:<you>/kickstarrt-vps.git ~/docker/kickstarrt-vps
+cd ~/docker/kickstarrt-vps
+git remote add upstream git@github.com:erdemoney/kickstarrt-vps.git   # optional
 ```
 
 ## 1. Copy and fill the env files
@@ -49,9 +50,9 @@ Run `just init` — it creates each stack's `.env` and walks you through **every
   See [Ingress](ingress#there-is-no-lets-encrypt-account-to-create)
 - `CROWDSEC_BOUNCER_API_KEY` is generated automatically (random 32-byte key)
 - Prompts for a username/password and writes `TRAEFIK_DASHBOARD_CREDENTIALS`
-- Explains each Cloudflare secret, then **confirms before opening the page in your
+- Explains the Cloudflare secret, then **confirms before opening the page in your
   browser** (and just shows the URL on a headless box), then prompts you to paste
-  `CLOUDFLARE_DNS_TOKEN` and `CLOUDFLARE_TUNNEL_TOKEN` — leave empty to do them later
+  `CLOUDFLARE_DNS_TOKEN` — leave empty to do them later
 - You can skip anything; empty answers fall back to the current/default value
 - Finishes by asking whether to set up **restic repo backups to Cloudflare R2** — answer
   `y` to be prompted for the R2 account ID, bucket, API token, and encryption password
@@ -75,7 +76,6 @@ Set each variable (see `stacks/*/.env.example`):
 | `CLOUDFLARE_DNS_TOKEN`              | traefik        | DNS-01 ACME for wildcard certs (see below)                       |
 | `TRAEFIK_DASHBOARD_CREDENTIALS` | traefik        | dashboard basic-auth blob (see below)                            |
 | `CROWDSEC_BOUNCER_API_KEY`      | traefik        | CrowdSec ↔ Traefik shared key (see below)                       |
-| `CLOUDFLARE_TUNNEL_TOKEN`       | cloudflared    | remotely-managed tunnel token                                    |
 
 ## 2. Where the secrets come from
 
@@ -92,13 +92,11 @@ This token *is* the entire Let's Encrypt prerequisite — DNS-01 is how Traefik 
      `_acme-challenge` TXT records.
    - **Zone → DNS → Edit** — *the* DNS-01 permission: create and delete those TXT records.
 3. **Zone Resources** → **Include** → **Specific zone** → your `DOMAIN` (least privilege; not
-   "All zones"). **Skip Client IP Address Filtering** — your ISP can change your public IP at any
-   time, and this token is used from your server's outbound IP: the moment that IP stops matching
-   the filter, every ACME renewal fails until you fix it. Don't add "Use my IP" either — that's
-   the IP of whatever you're browsing from, not the server's. **TTL is optional**
-   (notBefore/notAfter dates; default: no expiry) — treat it as unset: nothing in this stack
-   rotates the token, so an expired one kills renewals until you replace it in
-   `stacks/traefik/.env`.
+   "All zones"). **Client IP Address Filtering is optional** — on a VPS the public IP is stable,
+   so locking it to the server's public IP is a fine belt-and-braces move, but skipping it is
+   equally correct. **TTL is optional** (notBefore/notAfter dates; default: no expiry) — treat it
+   as unset: nothing in this stack rotates the token, so an expired one kills renewals until you
+   replace it in `stacks/traefik/.env`.
 4. Traefik uses it to create and delete `_acme-challenge` TXT records for `*.DOMAIN` — nothing
    else; those records are short-lived (~120s TTL) and fully automatic.
 
@@ -145,12 +143,13 @@ Paste into `stacks/traefik/.env`. It must be set **before** `just up`; after cha
 recreate the `crowdsec` and `traefik` containers (`just update-all`). Details in
 [Security](security).
 
-### `CLOUDFLARE_TUNNEL_TOKEN` — Zero Trust tunnel
-
-dash.cloudflare.com → **Zero Trust** → **Networks → Tunnels** → create a tunnel and copy its
-token. How the tunnel's public hostnames route to Traefik is covered in [Ingress](ingress).
-
 ## 3. First boot
+
+Keep the firewall tight until setup is done — allow only SSH for now:
+
+```bash
+ufw allow 22/tcp
+```
 
 ```bash
 just up          # creates networks, config dirs, acme.json + traefik.yml, then brings up every stack
@@ -158,14 +157,25 @@ just ps          # confirm everything is running
 ```
 
 App UIs live at `https://<subdomain>.<DOMAIN>`: `jellyfin`, `seerr`, `radarr`, `sonarr`,
-`prowlarr`, `profilarr`, `bazarr`, `decypharr`, `traefik`.
+`prowlarr`, `profilarr`, `bazarr`, `decypharr`, `traefik`. The certs are issued by DNS-01, so
+they exist even before any A record points here.
 
-> **The stack is LAN-only until you add tunnel hostnames — use that window.** Nothing here is
-> public yet and nothing becomes public until you expose it in [Ingress](ingress), and that's
-> intentional: an app that's live on the internet *before* its setup is done is an app with no
-> login, claimable by anyone. Do all setup through [LAN access](lan-access), then expose apps as
-> the **last** step — see the
-> [security gate](ingress#security-gate--finish-setup-before-going-public) in Ingress.
+> **Reach it before DNS — that's the security window.** Nothing here is public yet: ufw allows
+> only SSH, and no DNS record points at this box. Use that window to do all first-run setup on
+> a workstation whose `/etc/hosts` (or Windows `hosts`) maps each subdomain to the VPS's public
+> IP. `just hosts` prints that block at whatever IP you pass (default: the server's own IP):
+
+```bash
+just hosts                          # on the VPS, or:
+just hosts <VPS_PUBLIC_IP>          # on your workstation to build the block for that IP
+```
+
+Copy it into `C:\Windows\System32\drivers\etc\hosts` (Windows, admin) or `/etc/hosts`
+(macOS/Linux). The apps then answer at `https://<subdomain>.<DOMAIN>` over the real TLS cert,
+before anything is exposed. The vault of every app is created during this stage, so no app ever
+exists on the public internet without a login. **Pointing DNS and opening the ports is the last,
+deliberate step** — see the [security gate](ingress#security-gate--finish-setup-before-going-public)
+in Ingress.
 
 ## 4. What to check right after boot
 
@@ -174,7 +184,18 @@ App UIs live at `https://<subdomain>.<DOMAIN>`: `jellyfin`, `seerr`, `radarr`, `
 - CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` — see [Security](security).
 - Jellyfin's admin account is created on first login (feed its key to Seerr later).
 
-Reach the stack first — [LAN access](lan-access) resolves every app's URL on a LAN/VPN client
-and verifies the cert — then run `just wiring` on the server (it probes the internal network and
-prints every URL + API key you need to paste) and continue to [The \*arrs](arrs) for the full
-walkthrough. All first-run setup happens over LAN, before anything is public.
+Reach the stack via your hosts-file block, verify the cert once, then run `just wiring` on the
+server (it probes the internal network and prints every URL + API key you need to paste) and
+continue to [The \*arrs](arrs) for the full walkthrough.
+
+### Going public (last)
+
+When every app is set up:
+
+1. `ufw allow 80/tcp` and `ufw allow 443/tcp`.
+2. In Cloudflare DNS, create an **A record for `DOMAIN`** and one for **`*.DOMAIN`**, both to
+   the VPS's public IP.
+
+From then on the stack is public — Traefik on `:443` answers every app subdomain, CrowdSec sits
+in front of all of it, and [Ingress](ingress) covers geolock and Cloudflare Access if you want
+tighter entry control.

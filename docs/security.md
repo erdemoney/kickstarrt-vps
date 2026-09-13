@@ -46,9 +46,10 @@ decisions per router.
 
 ## Behavior defaults
 
-- **Bypasses**: client IPs in RFC1918/CGNAT ranges (`clientTrustedIPs`) are never checked — LAN
-  and VPN users are exempt. The proxy chain is trusted (`forwardedHeadersTrustedIPs`) so the real
-  client IP is read from `X-Forwarded-For` behind cloudflared.
+- **Bypasses**: client IPs in RFC1918/CGNAT ranges (`clientTrustedIPs`) are never checked — a
+  VPN client reaching the server directly (or if you ever proxy a hostname direct) is exempt.
+  The proxy chain is trusted (`forwardedHeadersTrustedIPs`) so the real
+  client IP is read from `X-Forwarded-For` behind Cloudflare's proxy.
 - **Fail-open**: `updateMaxFailure: -1` — if LAPI is unreachable the edge lets traffic through
   rather than blocking everything. Startup is fail-open too (`streamStartupBlock: false`):
   with the middleware edge-wide, the "wait for CrowdSec before serving" default would stall all
