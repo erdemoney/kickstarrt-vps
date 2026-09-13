@@ -27,8 +27,12 @@ uses **Always Free** resources — no trial credits, no hourly charges.
 | **DNS Resolution** | keep **Use DNS hostnames in this VCN** checked (default) — instances get hostnames from the DNS label, which auto-fills from the name |
 | **Tags / security attributes** | none |
 
-Create. The console then generates the VCN's **default** route table, security list, and DHCP
-options automatically — but *not* an internet gateway; that's step 3.
+On the create page, select the wizard's **"Add internet connectivity"** option: it creates the
+**Internet Gateway** and the `0.0.0.0/0 → Internet Gateway` default route automatically (free) —
+that's everything the box needs for outbound internet, so there's no separate gateway step later.
+(If your console doesn't offer it, create the VCN, then add an Internet Gateway and a `0.0.0.0/0`
+route to it manually — the result is the same.) The VCN's **default** route table, security list,
+and DHCP options are created automatically either way.
 
 ## 2. Create the subnet
 
@@ -55,19 +59,7 @@ everything from inside the VCN. That's fine here — the real enforcement point 
 you want defense-in-depth at the OCI layer, delete the `22` ingress rule (it's never used for
 access) — but leave the VCN-internal and ICMP rules alone, and never forward `80`/`443`.
 
-## 3. Internet gateway + default route (don't skip)
-
-A "public" subnet has no internet until a route points at an **Internet Gateway**. Without this,
-`apt`, the Tailscale installer, and the tunnel all fail on a brand-new box:
-
-1. [Networking → Internet Gateways](https://cloud.oracle.com/networking/internet-gateways) →
-   **Create Internet Gateway** → name `igw` → create (in `kickstarrt-vcn`).
-2. `kickstarrt-vcn` → **Route Tables** → **Default Route Table** → **Add Route**:
-   - Target Type: **Internet Gateway**
-   - Destination: `0.0.0.0/0`
-   - Target: `igw`
-
-## 4. Create the compute instance
+## 3. Create the compute instance
 
 [Compute → Instances → Create instance](https://cloud.oracle.com/compute/instances/create):
 
