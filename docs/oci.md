@@ -60,7 +60,7 @@ Back on the [VCNs](https://cloud.oracle.com/networking/vcns) page → open `kick
 | **Subnet Type** | **Regional** (recommended) |
 | **IP Type** | **IPv4 CIDR Block** → `10.0.0.0/24` |
 | **Route Table** | the VCN's **Default Route Table** |
-| **Subnet Access** | **Public Subnet** — "Allow public IP addresses for instances in this subnet". Required: only a public subnet routes outbound through the free internet gateway; a private one would need a *paid* NAT gateway |
+| **Subnet Access** | **Public Subnet** — "Allow public IP addresses for instances in this subnet" |
 | **DNS Resolution** | keep **Use DNS hostnames in this subnet** checked |
 | **DHCP Options** | default |
 | **Security List** | the VCN's **Default Security List** — leave as-is (see note) |
