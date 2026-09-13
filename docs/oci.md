@@ -31,61 +31,33 @@ choose a **home region** (choose carefully — data residency is locked to it an
 herd lives there), verify the card, done. Everything after signup happens in the **Oracle Cloud
 console** at [cloud.oracle.com](https://cloud.oracle.com).
 
-## 1. Create the virtual cloud network (VCN)
+## 1. Virtual cloud network (VCN) — via the VCN wizard
 
-[Networking → VCNs](https://cloud.oracle.com/networking/vcns) → **Create VCN**:
-
-| Field | Fill in |
-| ----- | ------- |
-| **Name** | `kickstarrt-vcn` |
-| **Create In Compartment** | leave the default (root) compartment — use the same one for everything below |
-| **IPv4 CIDR Blocks** | `10.0.0.0/16` (one block; the subnet in step 2 sits inside it) |
-| **IPv6 Prefixes** | leave unchecked (not needed) |
-| **ULA Prefixes** | leave unchecked |
-| **DNS Resolution** | keep **Use DNS hostnames in this VCN** checked (default) — instances get hostnames from the DNS label, which auto-fills from the name |
-| **Tags / security attributes** | none |
-
-Create. The console then generates the VCN's **default** route table, security list, and DHCP
-options automatically — but *not* an internet gateway; that's step 3.
-
-## 2. Create the subnet
-
-Back on the [VCNs](https://cloud.oracle.com/networking/vcns) page → open `kickstarrt-vcn` →
-**Subnets** tab → **Create Subnet**:
+The console's [VCN wizard](https://cloud.oracle.com/networking/solutions/vcn) (**"Start VCN
+wizard"**) creates everything the box needs in one pass — the VCN, a public subnet, and the
+internet gateway + route that give it outbound internet:
 
 | Field | Fill in |
 | ----- | ------- |
-| **Name** | `kickstarrt-public` |
-| **Create In Compartment** | same compartment as the VCN |
-| **Subnet Type** | **Regional** (recommended) |
-| **IP Type** | **IPv4 CIDR Block** → `10.0.0.0/24` |
-| **Route Table** | the VCN's **Default Route Table** |
-| **Subnet Access** | **Public Subnet** — "Allow public IP addresses for instances in this subnet" |
-| **DNS Resolution** | keep **Use DNS hostnames in this subnet** checked |
-| **DHCP Options** | default |
-| **Security List** | the VCN's **Default Security List** — leave as-is (see note) |
-| **Resource logging** | off |
-| **Tags** | none |
+| **VCN name** | `kickstarrt-vcn` |
+| **Compartment** | leave the default (root) compartment — use the same one for everything below |
+| **VCN IPv4 CIDR block** | `10.0.0.0/16` |
+| **Enable IPv6** | leave unchecked (not needed) |
+| **Use DNS hostnames in this VCN** | keep checked (default) — instances get hostnames from the DNS label, which auto-fills from the name |
+| **Configure public subnet → IP address type** | IPv4 |
+| **Configure public subnet → IPv4 CIDR block** | `10.0.0.0/24` |
+| **Configure private subnet** | leave the defaults |
 
-**About the security list:** the default one permits SSH/`22` and ICMP from the internet and
-everything from inside the VCN. That's fine here — the real enforcement point is the OS firewall
-(ufw deny-all in [Hardening](hardening)), and sshd is only ever reachable from your tailnet. If
-you want defense-in-depth at the OCI layer, delete the `22` ingress rule (it's never used for
-access) — but leave the VCN-internal and ICMP rules alone, and never forward `80`/`443`.
+**Next** → review → **Create VCN**. The wizard builds the VCN, the public subnet, the **Internet
+Gateway**, and the `0.0.0.0/0 → Internet Gateway` default route automatically — no other networking
+steps are needed.
 
-## 3. Internet gateway + default route (don't skip)
+**About the security lists:** the ones the wizard attaches permit SSH/`22` and ICMP from the
+internet and everything from inside the VCN. Leave them alone — nothing here listens inbound.
+The real enforcement point is the OS firewall (ufw deny-all in [Hardening](hardening)); sshd is
+only ever reachable from your tailnet.
 
-A "public" subnet has no internet until a route points at an **Internet Gateway**. Without this,
-`apt`, the Tailscale installer, and the tunnel all fail on a brand-new box:
-
-1. [Networking → Internet Gateways](https://cloud.oracle.com/networking/internet-gateways) →
-   **Create Internet Gateway** → name `igw` → create (in `kickstarrt-vcn`).
-2. `kickstarrt-vcn` → **Route Tables** → **Default Route Table** → **Add Route**:
-   - Target Type: **Internet Gateway**
-   - Destination: `0.0.0.0/0`
-   - Target: `igw`
-
-## 4. Create the compute instance
+## 2. Create the compute instance
 
 [Compute → Instances → Create instance](https://cloud.oracle.com/compute/instances/create):
 
@@ -99,7 +71,7 @@ A "public" subnet has no internet until a route points at an **Internet Gateway*
 | **Management** | defaults; **Initialization script** empty — first-run setup happens over the console per [Hardening](hardening) |
 | **Availability configuration** | defaults (live migration auto; restore lifecycle default) |
 | **Oracle Cloud Agent** | leave enabled |
-| **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and subnet `kickstarrt-public`; private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets a public IP for *outbound* internet only; ufw is deny-all, nothing listens inbound, so nothing is exposed |
+| **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and its **public subnet** (the one the wizard created); private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets a public IP for *outbound* internet only; ufw is deny-all, nothing listens inbound, so nothing is exposed |
 | **Add SSH keys** | **No SSH keys — leave it empty.** You never SSH over the public internet: bootstrap is via the console, then everything rides the Tailscale tailnet (see [Hardening](hardening)) |
 | **Storage → Boot volume** | default (≈ 46.6 GB, Oracle-managed encryption, in-transit encryption on) — no extra block volumes |
 
