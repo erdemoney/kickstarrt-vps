@@ -68,12 +68,12 @@ only ever reachable from your tailnet.
 | **Placement → Availability domain** | leave the default — regions differ (some have a single AD, others several); it doesn't matter for this stack |
 | **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 26.04 Minimal aarch64** — the Minimal **aarch64** build, for this Arm shape (don't pick the x86 variant). Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
 | **Shape** | **Change shape** → **VM.Standard.A1.Flex** (Ampere, Arm) → **2 OCPU / 12 GB**, the Always-Free ARM allotment. The only valid shape for this stack: every image in `stacks/` publishes `arm64` builds, and the x86 shapes (e.g. `VM.Standard.E2.1.Micro` at 1 GB) are not a valid choice. The shape must show **Always Free-eligible** |
-| **Management** | defaults; **Initialization script** empty — first-run setup happens over the console per [Hardening](hardening) |
-| **Availability configuration** | defaults (live migration auto; restore lifecycle default) |
-| **Oracle Cloud Agent** | leave enabled |
 | **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and its **public subnet** (the one the wizard created); private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets a public IP for *outbound* internet only; ufw is deny-all, nothing listens inbound, so nothing is exposed |
 | **Add SSH keys** | **No SSH keys — leave it empty.** You never SSH over the public internet: bootstrap is via the console, then everything rides the Tailscale tailnet (see [Hardening](hardening)) |
 | **Storage → Boot volume** | default (≈ 46.6 GB, Oracle-managed encryption, in-transit encryption on) — no extra block volumes |
+
+**Advanced options** (expand it; everything defaults): keep the **Initialization script empty** —
+first-run setup happens over the console per [Hardening](hardening), not via a bootstrap script.
 
 **Create**, then wait a few minutes for provisioning.
 
