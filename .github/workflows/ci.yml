@@ -32,7 +32,7 @@ jobs:
           # Mirrors `just validate`: no .env is written, CONFIG_DIR comes from the
           # environment (which outranks .env in compose interpolation).
           export CONFIG_DIR=/tmp/ci-config
-          for stack in traefik media-server; do
+          for stack in traefik cloudflared media-server; do
             echo "::group::docker compose config stacks/$stack"
             docker compose -f "stacks/$stack/compose.yaml" config -q
             echo "::endgroup::"

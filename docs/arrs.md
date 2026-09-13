@@ -5,7 +5,7 @@ nav_order: 4
 
 # The \*arrs: networking and app wiring
 
-> **Before you start:** reach the stack first. The [hosts-file window](quickstart#3-first-boot)
+> **Before you start:** reach the stack first. The [SSH port-forward window](quickstart#3-first-boot)
 > gets every app's URL resolving on your workstation and verifies the cert — none of the wiring
 > below (or any first-run setup) can happen before you can open the apps. All of it is done from
 > those URLs while nothing is public; exposing the stack is the **last** step ([Ingress](ingress)).
@@ -154,7 +154,7 @@ disk, it streams from the debrid provider at playback. (FUSE debrid mounts can't
 **Ruddarr** ([ruddarr.com](https://ruddarr.com)) is a free, open-source **iOS companion app** for
 Radarr and Sonarr — browse the library and calendar, kick off searches, and act on the queue or
 history. It's a *client*, not a service: nothing runs on the server. Point it at each instance's
-**Application URL** — those admin panels stay out of the public A records anyway (see
-[Keep the public surface minimal](ingress#exposing-a-hostname-dns)), and Ruddarr connects to
+**Application URL** — those admin panels stay out of the public tunnel hostnames anyway (see
+[Keep the public surface minimal](ingress#keep-the-public-surface-minimal)), and Ruddarr connects to
 them at their public URLs (optionally behind Cloudflare Access), handling HTTPS and
 reverse-proxy headers, so the admin panels stay admin-only — the app is just another client.

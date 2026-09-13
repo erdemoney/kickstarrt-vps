@@ -3,60 +3,71 @@ title: Ingress
 nav_order: 8
 ---
 
-# Ingress: Traefik, direct from the public IP
+# Ingress: Traefik + Cloudflare tunnel (zero inbound ports)
 
-Public traffic path: Cloudflare edge (proxied A records) → ufw `:80/:443` → Traefik → CrowdSec →
-service on `internal`. Traefik routes purely by its own `Host()` labels; the A records just map
-each hostname to this box's public IP, and ufw decides who reaches the server at all.
+Public traffic path: Cloudflare edge → cloudflared tunnel (on `external`) → Traefik `:443` →
+service on `internal`. Traefik routes purely by its own `Host()` labels; the tunnel is a
+transparent pipe.
+
+**The VPS never opens 80/443.** The tunnel only dials *out* to Cloudflare, so nothing inbound
+needs to be reachable for the stack to be public — ufw stays deny-all plus 22 ([Hardening](hardening))
+for the entire life of the box. There is no "direct to the IP" path to protect: if it's not a
+tunnel hostname, it isn't reachable.
 
 ## Security gate: finish setup before going public
 
-Because the box is on a public IP, an app is on the internet the moment DNS points at it and the
-ports are open — and until its first-run setup is done the app has **no login**, so anyone who
-finds the subdomain can create the admin account or reconfigure the app for you. Because of that
-the order is fixed:
+Adding a tunnel hostname opens that app to the whole internet **instantly** — and until its
+first-run setup is done the app has **no login**, so anyone who finds the subdomain can create
+the admin account or reconfigure the app for you. Because of that the order is fixed:
 
-1. **Set up every app first via the hosts-file window** — [Quickstart](quickstart#3-first-boot)
-   maps every URL to the VPS without any DNS or ports open, so nothing is public while the
-   full [The \*arrs](arrs) walkthrough happens.
+1. **Set up every app first over SSH** — an SSH port-forward gives you working URLs with no
+   exposure, and it's where the full [The \*arrs](arrs) walkthrough happens
+   ([Quickstart](quickstart#3-first-boot--the-security-window)).
 2. **Minimum before exposing each app: its setup is finished** — admin account exists and auth is
    on: Jellyfin (admin created on first login), Sonarr/Radarr/Prowlarr/Bazarr/Profilarr (Settings →
    General → Authentication), Seerr (admin on first login), Decypharr (wizard completed).
-3. **Only then expose it** — open `:80`/`:443` and point the A records (last step of the
-   [Quickstart](quickstart#going-public-last)).
+3. **Only then expose it** — add the public hostnames below.
 
-## Exposing a hostname (DNS)
+## Adding a public hostname (GUI)
 
-Every app subdomain already has a Traefik router (compose labels), so "exposing" an app is a
-DNS decision, not a per-app config:
+This cloudflared tunnel is **remotely-managed (token-only)** — public hostnames are configured in
+the Cloudflare dashboard, not in files.
 
-1. In the Cloudflare zone's **DNS** tab, create an **A record** for `DOMAIN` and `*.DOMAIN`,
-   both pointing at the VPS's public IP.
-2. **Proxy status: orange-cloud (Proxied)** for the zone — every hostname then reaches Traefik
-   through the Cloudflare edge, which is where [geolock](#geolock-optional-eg-usa-only) and
-   [Cloudflare Access](#authentication-with-cloudflare-access) apply. Media traffic is exempted
-   from caching below instead of being sent direct.
-3. Keep **TLS mode** at **Full (strict)** (SSL/TLS → Edge Certificates) so the edge → Traefik leg
-   uses the real cert.
-
-The active public hostnames are simply: which `*.DOMAIN` A records you've created (plus which
-subdomains the routers accept). Deleting the A record removes the hostname from the internet.
+1. [Networks → Tunnels](https://dash.cloudflare.com/?to=/:account/tunnels) → open this server's
+   tunnel.
+2. **Public Hostname** tab → **Add a public hostname**.
+3. **Subdomain** (e.g. `jellyfin`) and **Domain** (`DOMAIN`) — this is the public URL.
+4. **Type: HTTPS**, **URL: `traefik:443`** — the tunnel container and Traefik are both on the
+   `external` network, and every public hostname terminates at Traefik.
+5. Save.
 
 **Keep the public surface minimal.** The only hostnames users actually need are
 `seerr.<DOMAIN>` (so they can request) and `jellyfin.<DOMAIN>` (so they can watch). Everything else
 — Radarr, Sonarr, Prowlarr, Bazarr, Profilarr, Decypharr, the Traefik dashboard — is an admin
-panel: leave it out of the public A records. If you need to administer from elsewhere, get in over
-a **VPN** to the server rather than publishing a panel — and if you do expose any panel, put
+panel: reach it over the SSH port-forward ([Quickstart](quickstart#3-first-boot--the-security-window))
+and leave it out of the public hostnames. If you need to administer from elsewhere, get in over a **VPN**
+to the server rather than publishing a panel — and if you do expose any panel, put
 [Cloudflare Access](#authentication-with-cloudflare-access) in front of it.
+
+For a hostname to actually work, two things must line up:
+
+- The **Traefik router** already accepts the subdomain (compose label
+  `traefik.http.routers.<svc>.rule=Host(${SUB_DOMAIN_<SVC>}.${DOMAIN})`, with `tls=true`),
+  and the DNS record for that hostname is proxied (orange-cloud) in the zone's DNS tab.
+- **TLS mode** is **Full (strict)** (SSL/TLS → Edge Certificates), so the edge → Traefik leg
+  uses the real cert.
+
+Removing a hostname from Public Hostnames removes it from the internet; the SSH port-forward goes
+straight to Traefik on `:443` and is unaffected.
 
 ## Certificates (automatic)
 
 HTTPS is one-time setup, then handled for you. Traefik's ACME provider creates the
 `_acme-challenge` TXT record via the Cloudflare API (`CLOUDFLARE_DNS_TOKEN`, from
 [Quickstart](quickstart)) and issues a **Let's Encrypt wildcard cert for `*.DOMAIN`** — one cert
-covering every hostname that terminates at Traefik. Because it's the **DNS-01** challenge, certs
-issue before any A record exists or any port is open on the firewall — DNS is the only thing the
-challenge touches. Renewals and per-app HTTPS are automatic (`tls=true` on every router).
+covering every hostname that terminates at Traefik, whether via the tunnel or an SSH port-forward.
+Because it's the **DNS-01** challenge, certs issue before the tunnel or any app hostname exists; no
+inbound ports are required. Renewals and per-app HTTPS are automatic (`tls=true` on every router).
 Confirm issuance in the Traefik dashboard's ACME panel (`https://traefik.<DOMAIN>`).
 
 There is **no Let's Encrypt account to create** — no signup, dashboard, or email verification.
@@ -87,11 +98,11 @@ template, never the rendered file** — `just up` overwrites the output every ru
 and `crowdsec-acquis.yaml` need no rendering and are mounted as tracked files (`dynamic.yml`
 resolves its one secret at runtime with Traefik's Go templating).
 
-## Media through Cloudflare (no CDN caching)
+## Media through the tunnel (no CDN caching)
 
 Cloudflare's content restriction (historically "Section 2.8") only applies to the **CDN
-service** — caching and serving content at the edge. Serving media on a proxied hostname is fine
-as long as the edge does **not cache** the video.
+service** — caching and serving content at the edge. Proxying media through a tunnel is fine as
+long as the edge does **not cache** the video.
 
 1. Cloudflare dashboard for the zone → **Caching → Cache Rules** → **Create rule**.
 2. When: **Hostname** equals `jellyfin.<DOMAIN>` (add `/Videos/*` for path-level matching if
@@ -109,8 +120,8 @@ Expect `cf-cache-status: DYNAMIC` (or `BYPASS`) and no meaningful `Age` on media
 
 ## Geolock (optional, e.g. USA only)
 
-Do this in Cloudflare, not Traefik: Cloudflare sees the real visitor IP at the edge; Traefik
-only sees Cloudflare's proxy IP, so a Traefik-side geoblock would be unreliable without trusting
+Do this in Cloudflare, not Traefik: Cloudflare sees the real visitor IP at the edge; Traefik only
+sees the cloudflared container, so a Traefik-side geoblock would be unreliable without trusting
 `X-Forwarded-For` (which reopens spoofing).
 
 1. Zone dashboard → **Security → WAF → Custom rules** → **Create rule**.
@@ -148,8 +159,8 @@ Caveats and how it fits the stack:
 - It composes with CrowdSec at different layers: Access filters unauthenticated humans at the
   edge while CrowdSec still blocks scanner IPs inside Traefik. Enable both; neither interferes
   with the other's bypasses.
-- CrowdSec on the box still matters for **non-proxied** traffic and for IPs that Access lets
-  through — keep both.
+- CrowdSec on the box still matters for IPs that Access lets through and for anything else that
+  reaches Traefik — keep both.
 
 ## Traefik dashboard
 

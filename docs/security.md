@@ -47,7 +47,7 @@ decisions per router.
 ## Behavior defaults
 
 - **Bypasses**: client IPs in RFC1918/CGNAT ranges (`clientTrustedIPs`) are never checked — a
-  VPN client reaching the server directly (or if you ever proxy a hostname direct) is exempt.
+  client reaching the server from such an address is exempt.
   The proxy chain is trusted (`forwardedHeadersTrustedIPs`) so the real
   client IP is read from `X-Forwarded-For` behind Cloudflare's proxy.
 - **Fail-open**: `updateMaxFailure: -1` — if LAPI is unreachable the edge lets traffic through

@@ -7,19 +7,22 @@ nav_order: 1
 
 A public-IP media stack run through Docker on a VPS, with a single GitHub repo as the source of
 truth for compose files, configs that live in code, and all setup/ops documentation. This is the
-**VPS edition** — direct ingress by A-record, no Cloudflare tunnel, no GPU passthrough. If you're
-hosting on a home box behind NAT instead (LAN stage, tunnel ingress, hardware transcoding), use
-the [self-hosted edition](https://github.com/erdemoney/kickstarrt). Everything here stays
+**VPS edition** — Cloudflare tunnel ingress (zero inbound ports), no GPU passthrough. If you're
+hosting on a home box behind NAT instead (LAN stage, hardware transcoding), use the
+[self-hosted edition](https://github.com/erdemoney/kickstarrt). Everything here stays
 host-agnostic.
 
 ```text
                      Internet
                         |
                         v
-       Cloudflare DNS (A/AAAA records -> this box)
+              Cloudflare edge (TLS, WAF, geolock)
                         |
                         v
-    Traefik :80/:443 (ufw) ----> CrowdSec (WAF / IP blocking)
+    cloudflared tunnel (dial-out, no inbound ports) ----+   ufw: deny-all, 22 only
+                        |                               |
+                        v                               v
+     Traefik :443 ----> CrowdSec (WAF / IP blocking)   SSH
                         |
                         v
             Docker "internal" network
@@ -38,7 +41,7 @@ the library on the debrid mount → Jellyfin streams to clients; Seerr handles r
 **HTTPS comes out of the box.** Traefik's ACME provider creates the DNS-01 challenge through
 Cloudflare (`CLOUDFLARE_DNS_TOKEN`) and issues a **Let's Encrypt wildcard certificate for
 `*.DOMAIN`**, automatically renewed — so every service's UI is served over TLS from the public
-internet. No per-app TLS configuration is involved.
+internet (once you add its [tunnel hostname](ingress)). No per-app TLS configuration is involved.
 
 ## VPS sizing
 
@@ -62,6 +65,7 @@ see [Hardening](hardening) for ufw/fail2ban/non-root Docker before anything goes
 
 ```text
 stacks/                  compose files (one folder per stack) + .env per stack
+  cloudflared/           Cloudflare tunnel edge (dial-out; zero inbound ports)
   traefik/               edge router, CrowdSec container, plugin + ACME
   media-server/          jellyfin, seerr, radarr, sonarr, prowlarr,
                          profilarr, bazarr, decypharr
@@ -76,12 +80,12 @@ justfile                 ops recipes (just up, just update-all, ...)
 
 | Page                         | What it covers                                                        |
 | ---------------------------- | --------------------------------------------------------------------- |
-| [Quickstart](quickstart)     | env files, where every secret comes from, A records, first `just up`  |
-| [Hardening](hardening)       | ufw, fail2ban, non-root Docker, SSH keys                              |
+| [Quickstart](quickstart)     | env files, where every secret comes from, SSH port-forward gate, first `just up` |
+| [Hardening](hardening)       | ufw deny-all (22 only), fail2ban, non-root Docker, SSH keys                   |
 | [The \*arrs](arrs)           | shared networks, internal DNS names, API-key wiring between all apps  |
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
 | [Decypharr](decypharr)       | debrid gateway: wizard, arr integration, mounts                       |
-| [Ingress](ingress)           | Traefik direct: certificates, geolock, Access auth, caching          |
+| [Ingress](ingress)           | tunnel hostnames: certificates, geolock, Access auth, caching        |
 | [Security](security)         | CrowdSec WAF and IP blocking, fail-open/bypass behavior               |
 | [Services](services)         | recommended debrid/Usenet subscriptions                               |
 | [Updates](updates)           | Renovate PR pipeline + CI checks end to end                           |

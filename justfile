@@ -1,7 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := false
 
-stack_list := "traefik media-server"
+stack_list := "traefik cloudflared media-server"
 restic_image := "restic/restic:0.19.1"
 
 # Show available recipes
@@ -68,8 +68,9 @@ init:
     echo
 
     TRAEFIK_ENV=stacks/traefik/.env
+    CLOUDFLARED_ENV=stacks/cloudflared/.env
     MEDIA_ENV=stacks/media-server/.env
-    ALL_ENVS=("$TRAEFIK_ENV" "$MEDIA_ENV")
+    ALL_ENVS=("$TRAEFIK_ENV" "$CLOUDFLARED_ENV" "$MEDIA_ENV")
 
     for s in {{ stack_list }}; do
         if [ -f "stacks/$s/.env" ]; then
@@ -309,6 +310,29 @@ init:
     fi
     echo
 
+    hdr "cloudflared"
+    chip "CLOUDFLARE_TUNNEL_TOKEN"
+    if [ -n "$(get_var "$CLOUDFLARED_ENV" CLOUDFLARE_TUNNEL_TOKEN)" ]; then
+        ok "already set (stacks/cloudflared/.env)"
+    else
+        printf '%s\n' \
+    '  Needs a Cloudflare Tunnel token for WAN ingress.' \
+    '    1. The link opens the Networks -> Tunnels page for your account (deep link).' \
+    '    2. Create a tunnel (Type: Cloudflared) and copy its token.' \
+    '    3. Paste it below (hidden). Leave empty to skip; set it later.'
+        show_or_open_url "https://dash.cloudflare.com/?to=/:account/tunnels"
+        ask "CLOUDFLARE_TUNNEL_TOKEN (hidden)"
+        read -rs token || token=""
+        printf '\n'
+        if [ -n "$token" ]; then
+            set_var "$CLOUDFLARED_ENV" CLOUDFLARE_TUNNEL_TOKEN "$token"
+            ok "set"
+        else
+            muted "skipped"
+        fi
+    fi
+    echo
+
     hdr "media-server"
     sid=$(id -u); sgid=$(id -g)
     if [ "$sid" -eq 0 ]; then
@@ -415,7 +439,8 @@ init:
     hr
     printf '%s\n' "  ${B}${GRN}${DONE}${R} ${B}init complete${R}"
     muted "Review stacks/*/.env, then run 'just up'."
-    muted "Point DOMAIN + *.DOMAIN A records at this box's public IP first (docs/quickstart.md)."
+    muted "Keep ufw deny-all (only 22 open) - the stack stays private until you add"
+    muted "public hostnames in the Cloudflare dashboard (docs/ingress.md)."
     hr
 
 # Create the shared Docker networks (idempotent)
@@ -472,6 +497,7 @@ check-updates:
 
     COMPOSE_FILES = (
         "stacks/traefik/compose.yaml",
+        "stacks/cloudflared/compose.yaml",
         "stacks/media-server/compose.yaml",
     )
     VERSION_RE = re.compile(r"^v?[0-9]+(\.[0-9]+){1,4}$")
@@ -768,13 +794,14 @@ wiring CONFIG_DIR="":
     echo
     echo "done. Paste URL + key pairs from the sections above; test each connection in the UI."
 
-# Print a ready-to-paste hosts-file block for checking the stack before DNS
-# propagates: maps DOMAIN + every SUB_DOMAIN_* from the stack .env files to the
-# server's public IP (detected via the "src" on its default route; hostname -I as a
-# fallback). Override the address positionally to generate for another machine:
-# just hosts 203.0.113.5. Read-only — copy the block into /etc/hosts (macOS/Linux)
-# or C:\Windows\System32\drivers\etc\hosts (Windows), then run `just hosts` again
-# once the A records point here.
+# Print a ready-to-paste hosts-file block for the SSH port-forward window: maps DOMAIN +
+# every SUB_DOMAIN_* from the stack .env files to a local address while the forward runs.
+# With no argument it uses the server's own detected IP (pass one positionally to override).
+# During the private setup window the invocation is:
+#   just hosts 127.0.0.1                      (on the VPS)
+#   ssh -N -L 8443:127.0.0.1:443 <you>@<VPS_IP>   (on your workstation, keep running)
+# then browse https://<subdomain>.<DOMAIN>:8443 (see docs/quickstart.md). Read-only — copy
+# the block into /etc/hosts (macOS/Linux) or C:\Windows\System32\drivers\etc\hosts (Windows).
 hosts IP="auto":
     #!/usr/bin/env bash
     set -uo pipefail
@@ -813,7 +840,7 @@ hosts IP="auto":
         HOSTS="$HOSTS $sub.$DOMAIN"
     done <<< "$SUBS"
 
-    echo "# kickstArrt hostnames block (before DNS propagates)"
+    echo "# kickstArrt hostnames block (SSH port-forward setup window)"
     echo "# edit: /etc/hosts (macOS/Linux, admin) | C:\\Windows\\System32\\drivers\\etc\\hosts (Windows)"
     echo "$HOSTS"
     echo "# flush: macOS  sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
