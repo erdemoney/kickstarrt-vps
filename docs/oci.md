@@ -76,8 +76,8 @@ A "public" subnet has no internet until a route points at an **Internet Gateway*
 | **Name** | `kickstarrt` |
 | **Creation In Compartment** | same compartment |
 | **Placement → Availability domain** | AD 1 (default) |
-| **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 24.04 LTS**. OCI ships no Debian platform image; Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
-| **Shape** | leave **VM.Standard.E2.1.Micro** — it must show **Always Free-eligible** (1 OCPU, 1 GB RAM). RAM reality check below |
+| **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 24.04 LTS**. OCI ships no Debian and no Ubuntu 26.04 image yet — 24.04 is the current Ubuntu LTS here. Use the **standard** Ubuntu image, not Minimal: OCI documents Minimal as unsuitable for its Arm shapes. Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
+| **Shape** | **Change shape** → **VM.Standard.A1.Flex** (Ampere, Arm) → **2 OCPU / 12 GB**, the Always-Free ARM allotment. The only valid shape for this stack: every image in `stacks/` publishes `arm64` builds, and the x86 shapes (e.g. `VM.Standard.E2.1.Micro` at 1 GB) are not a valid choice. The shape must show **Always Free-eligible** |
 | **Management** | defaults; **Initialization script** empty — first-run setup happens over the console per [Hardening](hardening) |
 | **Availability configuration** | defaults (live migration auto; restore lifecycle default) |
 | **Oracle Cloud Agent** | leave enabled |
@@ -96,14 +96,13 @@ every later login goes over the tailnet, not the console.
 
 Notes:
 
-- **1 GB RAM is tight for this stack.** Jellyfin + the \*arrs + CrowdSec comfortably exceed a
-  gigabyte once they're working. The micro is fine for a light, direct-play, few-users setup —
-  don't expect CPU transcoding. If your region has capacity, the **Always-Free ARM (Ampere A1)**
-  shapes are the better home (current limit: 2 OCPU / 12 GB) — before switching, confirm every
-  container image in `stacks/` publishes an `arm64` build (a few, like Decypharr's, may not).
+- **This stack fits the A1 comfortably.** Debrid streaming keeps nothing on disk and the
+  Always-Free allotment is 12 GB RAM — plenty for Jellyfin, the \*arrs, and CrowdSec, with the two
+  cores leaving room for occasional CPU transcode.
 - Oracle **reclaims Always-Free instances it considers idle** (low CPU/network for a while). This
-  stack mostly benches idle between streams, so the box can vanish; the common fix is to upgrade
-  the account to **Pay As You Go** — Always-Free resources stay free, but the account stops being
-  flagged as an unused free tier and the reaper leaves it alone.
-- **"Out of capacity"** creating the micro happens; try a different availability domain or region.
-  The Always Free tag must show on the shape, or you'll be billed.
+  stack mostly benches idle between streams, so the box can vanish without warning; the common fix
+  is to upgrade the account to **Pay As You Go** — Always-Free resources stay free, but the account
+  stops being flagged as an unused free tier and the reaper leaves it alone.
+- **"Out of capacity"** creating an A1 is common — Always-Free ARM is the most contended shape on
+  OCI. Try a different availability domain or region, and keep the Always Free tag on the shape, or
+  you'll be billed.
