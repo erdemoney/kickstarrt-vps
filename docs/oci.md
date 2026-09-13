@@ -10,8 +10,26 @@ match this repo's access model: **no public ports at all**. Bootstrap via the pr
 manage via Tailscale, serve apps via the Cloudflare tunnel — there is no SSH-on-the-internet step
 anywhere in it.
 
-Sign up for Oracle Cloud **Free Tier** first (dash.cloud.oracle.com). Everything on this page
-uses **Always Free** resources — no trial credits, no hourly charges.
+## 0. About the Oracle Cloud free tier
+
+Oracle Cloud has offered a genuinely free VPS gift since 2020: the **Free Tier** bundles a
+few things that are *always* free — no trial credits, no expiry — including exactly what this
+stack needs:
+
+- **Compute**: Always-Free **Ampere A1** (ARM) shapes, currently **2 OCPU / 12 GB** of RAM.
+- **Storage**: block volumes, plus object storage for backups.
+- **Networking**: a **public IPv4**, a VCN with an internet gateway, and the security
+  list/route-table plumbing. Use it for *outbound* internet only — this stack opens zero ports.
+
+The catch: Oracle will **reclaim** Always-Free instances it considers idle, and ARM capacity is
+frequently "out of capacity" in busy regions. Both are covered later on this page. Oracle also
+asks for a card at signup to verify identity (a hold, not a charge) — the Always-Free resources
+never bill you.
+
+**Sign up** → [oracle.com/cloud/free](https://www.oracle.com/cloud/free/): pick your name/email,
+choose a **home region** (choose carefully — data residency is locked to it and the A1 thundering
+herd lives there), verify the card, done. Everything after signup happens in the **Oracle Cloud
+console** at [cloud.oracle.com](https://cloud.oracle.com).
 
 ## 1. Create the virtual cloud network (VCN)
 
