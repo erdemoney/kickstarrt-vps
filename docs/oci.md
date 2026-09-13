@@ -46,7 +46,7 @@ internet gateway + route that give it outbound internet:
 | **Use DNS hostnames in this VCN** | keep checked (default) — instances get hostnames from the DNS label, which auto-fills from the name |
 | **Configure public subnet → IP address type** | IPv4 |
 | **Configure public subnet → IPv4 CIDR block** | `10.0.0.0/24` |
-| **Configure private subnet** | leave the defaults |
+| **Configure private subnet** | leave the defaults — the wizard always creates one, but it isn't used by this stack |
 
 **Next** → review → **Create VCN**. The wizard builds the VCN, the public subnet, the **Internet
 Gateway**, and the `0.0.0.0/0 → Internet Gateway` default route automatically — no other networking
