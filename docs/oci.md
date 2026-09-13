@@ -75,11 +75,8 @@ access) — but leave the VCN-internal and ICMP rules alone, and never forward `
 
 ## 3. Internet gateway + default route (don't skip)
 
-A "public" subnet has no internet until a route points at an **Internet Gateway** — free, and the
-right choice here, because our subnet is public and the instance gets a public IP for outbound
-traffic. You do *not* want a **NAT gateway** (billed hourly; it exists only to give private
-subnets outbound internet) or a **service gateway** (reaches only Oracle's own services). Without
-this route, `apt`, the Tailscale installer, and the tunnel all fail on a brand-new box:
+A "public" subnet has no internet until a route points at an **Internet Gateway**. Without this,
+`apt`, the Tailscale installer, and the tunnel all fail on a brand-new box:
 
 1. [Networking → Internet Gateways](https://cloud.oracle.com/networking/internet-gateways) →
    **Create Internet Gateway** → name `igw` → create (in `kickstarrt-vcn`).
