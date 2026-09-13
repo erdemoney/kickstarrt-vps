@@ -58,7 +58,9 @@ you'll rarely transcode at all.
 ## Operating system
 
 **Debian** (stable) is the safe default — minimal, long support cycles, and every Docker guide
-assumes it. Most providers offer a Debian 12 image out of the box. Get the basics right first;
+assumes it. Most providers offer a Debian 12 image out of the box. Oracle Cloud doesn't — use
+**Ubuntu 24.04 LTS** there (every `apt`/`ufw`/`fail2ban` command in this wiki is identical); the
+[Oracle Cloud (free tier)](oci) page walks the full creation. Get the basics right first;
 see [Hardening](hardening) for Tailscale (console bootstrap), ufw deny-all, fail2ban, and
 non-root Docker before anything goes public.
 
@@ -81,6 +83,7 @@ justfile                 ops recipes (just up, just update-all, ...)
 
 | Page                         | What it covers                                                        |
 | ---------------------------- | --------------------------------------------------------------------- |
+| [Oracle Cloud (free tier)](oci) | free VPS: VCN, subnet, instance, console bootstrap  |
 | [Quickstart](quickstart)     | env files, where every secret comes from, tailnet SSH gate, first `just up` |
 | [Hardening](hardening)       | Tailscale, ufw deny-all (tailnet-only 22), fail2ban, non-root Docker, SSH keys |
 | [The \*arrs](arrs)           | shared networks, internal DNS names, API-key wiring between all apps  |

@@ -108,6 +108,7 @@ is in the [Quickstart](https://erdemoney.github.io/kickstarrt-vps/quickstart).
 ## Docs
 
 - [**Quickstart**](https://erdemoney.github.io/kickstarrt-vps/quickstart) — hardening, fork, env files, first bring-up
+- [**Oracle Cloud (free tier)**](https://erdemoney.github.io/kickstarrt-vps/oci) — free VPS: VCN, subnet, instance, console bootstrap
 - [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) — Tailscale, ufw deny-all, fail2ban, non-root Docker
 - [**Services**](https://erdemoney.github.io/kickstarrt-vps/services) · [**The \*arrs**](https://erdemoney.github.io/kickstarrt-vps/arrs) · [**Decypharr**](https://erdemoney.github.io/kickstarrt-vps/decypharr) · [**Indexers**](https://erdemoney.github.io/kickstarrt-vps/indexers)
 - [**Ingress**](https://erdemoney.github.io/kickstarrt-vps/ingress) — tunnel hostnames, TLS, geolock, media caching, Cloudflare Access auth

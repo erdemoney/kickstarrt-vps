@@ -1,6 +1,6 @@
 ---
 title: Hardening
-nav_order: 3
+nav_order: 4
 ---
 
 # Hardening (do this before anything is public)
@@ -17,7 +17,7 @@ provider's out-of-band console.
 
 Install and authenticate from the provider's **web console** (the hypervisor-level console in your
 provider's panel, unaffected by the firewall — no port on it, so not even `22` is exposed while
-bootstrap happens):
+bootstrap happens; [Oracle Cloud](oci) is the worked example):
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh

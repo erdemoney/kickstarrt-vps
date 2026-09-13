@@ -1,11 +1,15 @@
 ---
 title: Quickstart
-nav_order: 2
+nav_order: 3
 ---
 
 # Quickstart
 
-Bring the stack up on a fresh VPS running Docker, from a git checkout of this repo (clone it
+No VPS yet? [Oracle Cloud (free tier)](oci) gets you a free one in about ten minutes — VCN,
+subnet, instance, console access, all with zero publicly open ports.
+
+Otherwise: bring the stack up on a fresh VPS running Docker, from a git checkout of this repo
+(clone it
 into whatever directory will run the stack — e.g. `~/docker/kickstarrt-vps`). Edit on a dev box,
 commit, and `git pull` on the server.
 

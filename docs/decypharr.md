@@ -1,6 +1,6 @@
 ---
 title: Decypharr
-nav_order: 6
+nav_order: 7
 ---
 
 # Decypharr (debrid gateway)

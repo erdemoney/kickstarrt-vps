@@ -1,6 +1,6 @@
 ---
 title: Indexers
-nav_order: 5
+nav_order: 6
 ---
 
 # Indexers: Prowlarr, Torrentio, and AltHub

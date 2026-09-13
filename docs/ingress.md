@@ -1,6 +1,6 @@
 ---
 title: Ingress
-nav_order: 8
+nav_order: 9
 ---
 
 # Ingress: Traefik + Cloudflare tunnel (zero inbound ports)
