@@ -19,7 +19,8 @@ up with a single command.
 
 kickst**Arr**t wires together everything a media library needs — **instant, debrid-based streaming
 that keeps nothing on disk**, automatic TLS, and edge security — as code, on a VPS. This is the
-**VPS edition**: Cloudflare tunnel ingress (zero inbound ports), ufw/fail2ban hardening, no GPU.
+**VPS edition**: Cloudflare tunnel ingress (zero inbound ports), Tailscale + ufw/fail2ban
+hardening, no GPU.
 Hosting at home instead (LAN stage, hardware transcoding)? Use the
 [self-hosted edition](https://github.com/erdemoney/kickstarrt).
 
@@ -32,7 +33,7 @@ Hosting at home instead (LAN stage, hardware transcoding)? Use the
   Cloudflare edge ─── DNS · WAF geolock · cache bypass for media · Access auth
                  │
                  ▼
-  cloudflared tunnel ── dials out; ufw stays deny-all (22 only)
+  cloudflared tunnel ── dials out; ufw deny-all, SSH in the tailnet only
                  │
                  ▼
   Traefik ────────► CrowdSec   edge WAF / IP blocking
@@ -73,8 +74,9 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
   disk usage
 - **Automatic TLS** — Traefik issues a `*.DOMAIN` Let's Encrypt wildcard via Cloudflare DNS-01;
   every app UI ships on HTTPS from the public internet
-- **Edge security** — CrowdSec WAF inside Traefik, a **deny-all ufw (only `22` open)** with the
-  tunnel as the sole inbound path, and optional Cloudflare Access identity fronting per-hostname
+- **Edge security** — CrowdSec WAF inside Traefik, a **deny-all ufw** (SSH only inside your
+  tailnet) with the
+  tunnel as the sole public path, and optional Cloudflare Access identity fronting per-hostname
 - **Automated upkeep** — Renovate opens dependency PRs and CI validates every change (compose +
   pre-commit + a full secret-history scan)
 - **One command to deploy** — `just init` fills the secrets, `just up` creates networks and
@@ -93,7 +95,7 @@ cd kickstarrt-vps
 just init             # walks every secret; Enter accepts sensible defaults
 just up               # networks → config dirs → the whole stack
 just hosts 127.0.0.1  # app URLs mapped to localhost (run on the VPS), then:
-ssh -N -L 8443:127.0.0.1:443 <you>@<VPS_IP>   # browse https://<subdomain>.DOMAIN:8443
+ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   # browse https://<subdomain>.DOMAIN:8443
 ```
 
 Requires [Docker](https://docs.docker.com/engine/install/) (check the
@@ -106,7 +108,7 @@ is in the [Quickstart](https://erdemoney.github.io/kickstarrt-vps/quickstart).
 ## Docs
 
 - [**Quickstart**](https://erdemoney.github.io/kickstarrt-vps/quickstart) — hardening, fork, env files, first bring-up
-- [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) — ufw, fail2ban, non-root Docker, SSH keys
+- [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) — Tailscale, ufw deny-all, fail2ban, non-root Docker
 - [**Services**](https://erdemoney.github.io/kickstarrt-vps/services) · [**The \*arrs**](https://erdemoney.github.io/kickstarrt-vps/arrs) · [**Decypharr**](https://erdemoney.github.io/kickstarrt-vps/decypharr) · [**Indexers**](https://erdemoney.github.io/kickstarrt-vps/indexers)
 - [**Ingress**](https://erdemoney.github.io/kickstarrt-vps/ingress) — tunnel hostnames, TLS, geolock, media caching, Cloudflare Access auth
 - [**Security**](https://erdemoney.github.io/kickstarrt-vps/security) — CrowdSec WAF

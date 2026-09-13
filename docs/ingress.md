@@ -10,9 +10,9 @@ service on `internal`. Traefik routes purely by its own `Host()` labels; the tun
 transparent pipe.
 
 **The VPS never opens 80/443.** The tunnel only dials *out* to Cloudflare, so nothing inbound
-needs to be reachable for the stack to be public — ufw stays deny-all plus 22 ([Hardening](hardening))
-for the entire life of the box. There is no "direct to the IP" path to protect: if it's not a
-tunnel hostname, it isn't reachable.
+needs to be reachable for the stack to be public — ufw stays deny-all, with SSH allowed only from
+your tailnet, for the entire life of the box ([Hardening](hardening)). There is no "direct to the
+IP" path to protect: if it's not a tunnel hostname, it isn't reachable.
 
 ## Security gate: finish setup before going public
 
@@ -20,8 +20,8 @@ Adding a tunnel hostname opens that app to the whole internet **instantly** — 
 first-run setup is done the app has **no login**, so anyone who finds the subdomain can create
 the admin account or reconfigure the app for you. Because of that the order is fixed:
 
-1. **Set up every app first over SSH** — an SSH port-forward gives you working URLs with no
-   exposure, and it's where the full [The \*arrs](arrs) walkthrough happens
+1. **Set up every app first over the tailnet** — a Tailscale SSH port-forward gives you working
+   URLs with no exposure, and it's where the full [The \*arrs](arrs) walkthrough happens
    ([Quickstart](quickstart#3-first-boot--the-security-window)).
 2. **Minimum before exposing each app: its setup is finished** — admin account exists and auth is
    on: Jellyfin (admin created on first login), Sonarr/Radarr/Prowlarr/Bazarr/Profilarr (Settings →
@@ -44,9 +44,9 @@ the Cloudflare dashboard, not in files.
 **Keep the public surface minimal.** The only hostnames users actually need are
 `seerr.<DOMAIN>` (so they can request) and `jellyfin.<DOMAIN>` (so they can watch). Everything else
 — Radarr, Sonarr, Prowlarr, Bazarr, Profilarr, Decypharr, the Traefik dashboard — is an admin
-panel: reach it over the SSH port-forward ([Quickstart](quickstart#3-first-boot--the-security-window))
-and leave it out of the public hostnames. If you need to administer from elsewhere, get in over a **VPN**
-to the server rather than publishing a panel — and if you do expose any panel, put
+panel: reach it over the tailnet ([Quickstart](quickstart#3-first-boot--the-security-window))
+and leave it out of the public hostnames. If you need to administer from elsewhere, get in over the **Tailscale
+tailnet** rather than publishing a panel — and if you do expose any panel, put
 [Cloudflare Access](#authentication-with-cloudflare-access) in front of it.
 
 For a hostname to actually work, two things must line up:
@@ -57,15 +57,16 @@ For a hostname to actually work, two things must line up:
 - **TLS mode** is **Full (strict)** (SSL/TLS → Edge Certificates), so the edge → Traefik leg
   uses the real cert.
 
-Removing a hostname from Public Hostnames removes it from the internet; the SSH port-forward goes
-straight to Traefik on `:443` and is unaffected.
+Removing a hostname from Public Hostnames removes it from the internet; the tailnet port-forward
+goes straight to Traefik on `:443` and is unaffected.
 
 ## Certificates (automatic)
 
 HTTPS is one-time setup, then handled for you. Traefik's ACME provider creates the
 `_acme-challenge` TXT record via the Cloudflare API (`CLOUDFLARE_DNS_TOKEN`, from
 [Quickstart](quickstart)) and issues a **Let's Encrypt wildcard cert for `*.DOMAIN`** — one cert
-covering every hostname that terminates at Traefik, whether via the tunnel or an SSH port-forward.
+covering every hostname that terminates at Traefik, whether via the tunnel or the tailnet
+port-forward.
 Because it's the **DNS-01** challenge, certs issue before the tunnel or any app hostname exists; no
 inbound ports are required. Renewals and per-app HTTPS are automatic (`tls=true` on every router).
 Confirm issuance in the Traefik dashboard's ACME panel (`https://traefik.<DOMAIN>`).

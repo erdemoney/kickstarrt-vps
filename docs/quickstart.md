@@ -14,7 +14,7 @@ commit, and `git pull` on the server.
 covers the `docker compose` plugin too — then the
 [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run
 `docker` as a non-root user (`usermod -aG docker` and a re-login). If the box is brand-new, run
-through [Hardening](hardening) **before** any of this — at minimum ufw + SSH keys + non-root
+through [Hardening](hardening) **before** any of this — at minimum Tailscale + ufw + non-root
 Docker. `just up` handles the ordering for you — it creates the
 shared networks and the per-service config dirs (both idempotent), then brings every stack up.
 Why the networks and dirs matter is covered in [The \*arrs](arrs).
@@ -148,17 +148,16 @@ recreate the `crowdsec` and `traefik` containers (`just update-all`). Details in
 
 dash.cloudflare.com → **Zero Trust** → **Networks → Tunnels** → create a tunnel (Type: Cloudflared)
 and copy its token. The tunnel container dials **out** to Cloudflare, so you never open inbound
-ports for the stack — ufw stays deny-all plus 22. The tunnel's public hostnames are configured in
-the dashboard, not in files; how they route to Traefik (and the SSH-port-forward window that
+ports for the stack — ufw stays deny-all, with SSH reachable only from your tailnet. The tunnel's
+public hostnames are configured in
+the dashboard, not in files; how they route to Traefik (and the Tailscale port-forward window that
 stands in for a LAN) is covered in [Ingress](ingress).
 
 ## 3. First boot
 
-Keep the firewall tight for the box's **whole life** — SSH only, nothing else, ever:
-
-```bash
-ufw allow 22/tcp
-```
+By now [Hardening](hardening) has run: Tailscale is up (bootstrapped through the provider
+console — no port was ever opened) and ufw is deny-all with SSH allowed only from the tailnet.
+Nothing else is reachable, ever:
 
 ```bash
 just up          # creates networks, config dirs, acme.json + traefik.yml, then brings up every stack
@@ -171,14 +170,14 @@ they exist even before any tunnel hostname does.
 
 > **The stack is private until you add tunnel hostnames — use that window.** Nothing here is
 > public yet, and nothing becomes public until you add hostnames in [Ingress](ingress); until
-> then, the only way in is SSH. That's intentional: an app that's live on the internet *before*
-> its setup is done is an app with no login, claimable by anyone. Do all first-run setup through
-> an **SSH port-forward** — every app's URL works with nothing exposed, no hostnames, no open
-> ports:
+> then, the only way in is the tailnet. That's intentional: an app that's live on the internet
+> *before* its setup is done is an app with no login, claimable by anyone. Do all first-run
+> setup through an **SSH port-forward over the tailnet** — every app's URL works with nothing
+> exposed, no hostnames, no open ports:
 
 ```bash
 just hosts 127.0.0.1        # on the VPS: prints the app URLs mapped to 127.0.0.1
-ssh -N -L 8443:127.0.0.1:443 <you>@<VPS_IP>   # on your workstation, keep running
+ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   # on your workstation, keep running
 ```
 
 Copy the block from `just hosts 127.0.0.1` into `/etc/hosts` (macOS/Linux, admin) or
@@ -196,7 +195,8 @@ see the [security gate](ingress#security-gate--finish-setup-before-going-public)
 - CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` — see [Security](security).
 - Jellyfin's admin account is created on first login (feed its key to Seerr later).
 
-Reach the stack through the SSH port-forward, verify the cert once, then run `just wiring` on the
+Reach the stack through the tailnet SSH port-forward, verify the cert once, then run
+`just wiring` on the
 server (it probes the internal network and prints every URL + API key you need to paste) and
 continue to [The \*arrs](arrs) for the full walkthrough.
 
@@ -207,9 +207,9 @@ When every app is set up:
 1. In Cloudflare **Networks → Tunnels**, open this server's tunnel and add **public hostnames**
    for `seerr.<DOMAIN>` and `jellyfin.<DOMAIN>` (Type HTTPS, URL `traefik:443`) — full steps in
    [Ingress → Adding a public hostname](ingress#adding-a-public-hostname-gui).
-2. **Leave ufw as-is** — only `22` is open, and it stays that way. There are no `80`/`443`
-   rules, ever.
+2. **Leave ufw as-is** — SSH stays tailnet-only; there are no `80`/`443` rules, ever.
 
 From then on the stack is public over those hostnames only: Cloudflare edge → tunnel → Traefik,
 with CrowdSec in front of all of it; [Ingress](ingress) covers geolock and Cloudflare Access if
-you want tighter entry control. Admin panels stay private behind the SSH port-forward (or a VPN).
+you want tighter entry control. Admin panels stay private behind the tailnet SSH port-forward
+(or directly over the tailnet).

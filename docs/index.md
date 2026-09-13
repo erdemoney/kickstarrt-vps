@@ -19,10 +19,10 @@ host-agnostic.
               Cloudflare edge (TLS, WAF, geolock)
                         |
                         v
-    cloudflared tunnel (dial-out, no inbound ports) ----+   ufw: deny-all, 22 only
+    cloudflared tunnel (dial-out, no inbound ports) ----+   ufw: deny-all; 22 = tailnet only
                         |                               |
                         v                               v
-     Traefik :443 ----> CrowdSec (WAF / IP blocking)   SSH
+     Traefik :443 ----> CrowdSec (WAF / IP blocking)   Tailscale (console bootstrap → daily ops)
                         |
                         v
             Docker "internal" network
@@ -59,7 +59,8 @@ you'll rarely transcode at all.
 
 **Debian** (stable) is the safe default — minimal, long support cycles, and every Docker guide
 assumes it. Most providers offer a Debian 12 image out of the box. Get the basics right first;
-see [Hardening](hardening) for ufw/fail2ban/non-root Docker before anything goes public.
+see [Hardening](hardening) for Tailscale (console bootstrap), ufw deny-all, fail2ban, and
+non-root Docker before anything goes public.
 
 ## Repository layout
 
@@ -80,8 +81,8 @@ justfile                 ops recipes (just up, just update-all, ...)
 
 | Page                         | What it covers                                                        |
 | ---------------------------- | --------------------------------------------------------------------- |
-| [Quickstart](quickstart)     | env files, where every secret comes from, SSH port-forward gate, first `just up` |
-| [Hardening](hardening)       | ufw deny-all (22 only), fail2ban, non-root Docker, SSH keys                   |
+| [Quickstart](quickstart)     | env files, where every secret comes from, tailnet SSH gate, first `just up` |
+| [Hardening](hardening)       | Tailscale, ufw deny-all (tailnet-only 22), fail2ban, non-root Docker, SSH keys |
 | [The \*arrs](arrs)           | shared networks, internal DNS names, API-key wiring between all apps  |
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
 | [Decypharr](decypharr)       | debrid gateway: wizard, arr integration, mounts                       |

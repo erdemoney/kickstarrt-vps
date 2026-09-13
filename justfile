@@ -439,7 +439,7 @@ init:
     hr
     printf '%s\n' "  ${B}${GRN}${DONE}${R} ${B}init complete${R}"
     muted "Review stacks/*/.env, then run 'just up'."
-    muted "Keep ufw deny-all (only 22 open) - the stack stays private until you add"
+    muted "Keep ufw deny-all (SSH only on the tailnet) - the stack stays private until you add"
     muted "public hostnames in the Cloudflare dashboard (docs/ingress.md)."
     hr
 
@@ -799,7 +799,7 @@ wiring CONFIG_DIR="":
 # With no argument it uses the server's own detected IP (pass one positionally to override).
 # During the private setup window the invocation is:
 #   just hosts 127.0.0.1                      (on the VPS)
-#   ssh -N -L 8443:127.0.0.1:443 <you>@<VPS_IP>   (on your workstation, keep running)
+#   ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   (on your workstation, keep running)
 # then browse https://<subdomain>.<DOMAIN>:8443 (see docs/quickstart.md). Read-only — copy
 # the block into /etc/hosts (macOS/Linux) or C:\Windows\System32\drivers\etc\hosts (Windows).
 hosts IP="auto":
