@@ -5,7 +5,7 @@ nav_order: 2
 
 # Oracle Cloud free-tier VPS
 
-The walkthrough from zero to a running Ubuntu 24.04 box on Oracle Cloud **Always Free**, built to
+The walkthrough from zero to a running Ubuntu 26.04 box on Oracle Cloud **Always Free**, built to
 match this repo's access model: **no public ports at all**. Bootstrap via the provider console,
 manage via Tailscale, serve apps via the Cloudflare tunnel — there is no SSH-on-the-internet step
 anywhere in it.
@@ -65,8 +65,8 @@ only ever reachable from your tailnet.
 | ----- | ------- |
 | **Name** | `kickstarrt` |
 | **Creation In Compartment** | same compartment |
-| **Placement → Availability domain** | AD 1 (default) |
-| **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 24.04 LTS**. OCI ships no Debian and no Ubuntu 26.04 image yet — 24.04 is the current Ubuntu LTS here. Use the **standard** Ubuntu image, not Minimal: OCI documents Minimal as unsuitable for its Arm shapes. Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
+| **Placement → Availability domain** | leave the default — regions differ (some have a single AD, others several); it doesn't matter for this stack |
+| **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 26.04 Minimal aarch64** — the Minimal **aarch64** build, for this Arm shape (don't pick the x86 variant). Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
 | **Shape** | **Change shape** → **VM.Standard.A1.Flex** (Ampere, Arm) → **2 OCPU / 12 GB**, the Always-Free ARM allotment. The only valid shape for this stack: every image in `stacks/` publishes `arm64` builds, and the x86 shapes (e.g. `VM.Standard.E2.1.Micro` at 1 GB) are not a valid choice. The shape must show **Always Free-eligible** |
 | **Management** | defaults; **Initialization script** empty — first-run setup happens over the console per [Hardening](hardening) |
 | **Availability configuration** | defaults (live migration auto; restore lifecycle default) |

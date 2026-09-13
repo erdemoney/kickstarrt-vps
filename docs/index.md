@@ -59,9 +59,9 @@ you'll rarely transcode at all.
 
 **Debian** (stable) is the safe default — minimal, long support cycles, and every Docker guide
 assumes it. Most providers offer a Debian 12 image out of the box. Oracle Cloud doesn't — use
-**Ubuntu 24.04 LTS** there (every `apt`/`ufw`/`fail2ban` command in this wiki is identical); the
-[Oracle Cloud (free tier)](oci) page walks the full creation. Get the basics right first;
-see [Hardening](hardening) for Tailscale (console bootstrap), ufw deny-all, fail2ban, and
+**Ubuntu 26.04 Minimal aarch64** there (every `apt`/`ufw`/`fail2ban` command in this wiki is
+identical); the [Oracle Cloud (free tier)](oci) page walks the full creation. Get the basics right
+first; see [Hardening](hardening) for Tailscale (console bootstrap), ufw deny-all, fail2ban, and
 non-root Docker before anything goes public.
 
 ## Repository layout
