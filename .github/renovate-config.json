@@ -1,0 +1,63 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "datasourceTemplate": "docker",
+      "managerFilePatterns": [
+        "/^justfile$/"
+      ],
+      "matchStrings": [
+        "restic_image\\s*:=\\s*\"(?<depName>[^:\"]+):(?<currentValue>[^\"]+)\""
+      ]
+    }
+  ],
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "kickstArrt dependency dashboard",
+  "enabledManagers": [
+    "docker-compose",
+    "github-actions",
+    "pre-commit"
+  ],
+  "extends": [
+    "config:recommended"
+  ],
+  "gitAuthor": "renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>",
+  "labels": [
+    "renovate"
+  ],
+  "onboarding": false,
+  "packageRules": [
+    {
+      "automerge": false,
+      "groupName": "media-stack minor/patch",
+      "groupSlug": "media-stack-minor-patch",
+      "labels": [
+        "renovate",
+        "minor/patch"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ]
+    },
+    {
+      "automerge": false,
+      "groupName": "media-stack major",
+      "groupSlug": "media-stack-major",
+      "labels": [
+        "renovate",
+        "major"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ]
+    }
+  ],
+  "repositories": [
+    "erdemoney/kickstarrt"
+  ],
+  "separateMajorMinor": true,
+  "separateMultipleMajor": true,
+  "timezone": "UTC"
+}

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Syntax + formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Pre-commit hooks
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --all-files
+
+      - name: Compose files are valid
+        run: |
+          set -euo pipefail
+          # Mirrors `just validate`: no .env is written, CONFIG_DIR comes from the
+          # environment (which outranks .env in compose interpolation).
+          export CONFIG_DIR=/tmp/ci-config
+          for stack in traefik cloudflared media-server; do
+            echo "::group::docker compose config stacks/$stack"
+            docker compose -f "stacks/$stack/compose.yaml" config -q
+            echo "::endgroup::"
+          done
+
+  gitleaks-history:
+    name: Secrets (git history)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false

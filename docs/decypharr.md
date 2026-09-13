@@ -1,0 +1,114 @@
+---
+title: Decypharr
+nav_order: 6
+---
+
+# Decypharr (debrid gateway)
+
+Decypharr mounts your debrid provider as a FUSE filesystem and exposes qBittorrent- and
+SABnzbd-compatible APIs, so Sonarr/Radarr see "instant" debrid files instead of a download
+queue. It runs from the media-server stack (`cy01/blackhole:v2.5`) with the fuse mount plumbing
+in the compose (`/mnt/debrid:/mnt:rshared`, `/dev/fuse`, `SYS_ADMIN`, `apparmor:unconfined`).
+
+## First-run setup wizard
+
+Visit `https://decypharr.<DOMAIN>` once:
+
+- **Authentication** — create admin username/password. The **API token is shown once** after
+  setup completes: save it (it is the "password" in the arr download-client config below).
+- **Debrid providers** — add at least one (Real-Debrid, AllDebrid, Debrid-Link, Torbox,
+  Premiumize) with its API key. Torbox also provides Usenet (see [Services](services)).
+- **Usenet (optional)** — add NNTP server details only if downloading from Usenet.
+- **Mount configuration** — pick **DFS**, mount path `/mnt/decypharr` (what the \*arrs will import
+  from), and a cache dir.
+
+Config is written to `$CONFIG_DIR/decypharr/configs/config.json`.
+
+## Visibility of the mount
+
+Decypharr creates its FUSE mount *inside* its own container: `:rshared` pushes it out to the host
+at `/mnt/debrid/decypharr`, and `jellyfin`/`sonarr`/`radarr`/`bazarr` receive it with `:rslave`.
+Both halves ship in the compose — nothing to add.
+
+The propagation surface is a **dedicated host directory**, `/mnt/debrid`, bound into every
+consumer *as* `/mnt` (`/mnt/debrid:/mnt:rslave`). The FUSE mount lands at host
+`/mnt/debrid/decypharr`, but inside the containers it still appears at `/mnt/decypharr` — so no
+app-side path changes. This indirection exists so the containers never see the host's real
+`/mnt`: anything else mounted there (backup drives at `/mnt/backups`, other disks) stays
+invisible and unwritable to five media containers that would otherwise hold it read-write.
+
+Two details make this work, and both are easy to get wrong:
+
+- **Bind the parent, not the mountpoint.** The consumers bind `/mnt/debrid` (as `/mnt`), not
+  `/mnt/decypharr:/mnt/decypharr`. A mount appearing *at* `/mnt/decypharr` belongs to its parent
+  mount, so it propagates to anyone watching the parent — but a bind of the mountpoint itself
+  captures whatever was there at container start and never sees the FUSE mount arrive.
+- **The flags are asymmetric.** The producer shares (`:rshared`), the consumers receive
+  (`:rslave`). A plain bind with no flag propagates nothing in either direction.
+
+Together these mean **there is no startup order to respect**: consumers can boot before Decypharr,
+and the mount shows up inside them when it's created. Restarting Decypharr re-propagates too,
+instead of leaving the others with a stale `Transport endpoint is not connected` handle.
+
+The host directory must exist before `just up` (docker would auto-create it root-owned, which
+also works, but explicit is cleaner):
+
+```bash
+sudo mkdir -p /mnt/debrid
+```
+
+If Decypharr's container is killed uncleanly, the host mountpoint can be left stale. Clear it
+before restarting:
+
+```bash
+sudo fusermount -u -z /mnt/debrid/decypharr
+```
+
+The one host-side prerequisite: `/mnt/debrid`'s covering mount must be shared. systemd makes `/`
+rshared at boot, so this is normally already true — only worth checking if the consumers come up
+empty:
+
+```bash
+findmnt -o TARGET,PROPAGATION /mnt/debrid   # want "shared"
+sudo mount --make-rshared /mnt/debrid       # if it isn't
+```
+
+### Migrating from the old `/mnt` bind
+
+Earlier revisions bound the host's real `/mnt` into the containers. To move an existing
+deployment:
+
+```bash
+just down                                    # or stop the media-server stack
+sudo fusermount -u -z /mnt/decypharr         # clear a stale FUSE mount if present
+sudo mkdir -p /mnt/debrid
+git pull && just up
+```
+
+No app reconfiguration is needed — every container path (`/mnt/decypharr`, root folders,
+libraries) is unchanged; only the host-side location moves. Update any host-side scripts or
+habits that referenced `/mnt/decypharr` to `/mnt/debrid/decypharr`.
+
+## Integration with Sonarr/Radarr
+
+1. **Download clients** (see also [The \*arrs](arrs)) — with both protocols configured, add
+   Decypharr **twice** in each arr:
+   - **qBittorrent** (`Decypharr (debrid)`) — debrid downloads.
+   - **SABnzbd** (`Decypharr (usenet)`) — only if you're using Usenet; set **URL base
+     `/sabnzbd`**.
+   - Both share the same values: host `decypharr`, port `8282`, username = the **arr's own URL**
+     (`http://sonarr:8989` / `http://radarr:7878`), password = the **arr's own API key**,
+     category `sonarr` / `radarr`. Set different priorities to prefer one protocol over the
+     other.
+2. **Outbound** — Decypharr → Settings → **Arrs**: it auto-detects apps that hit it; give each
+   arr's host (`http://sonarr:8989`, not the public URL) and API key.
+3. **Path mapping** — not needed in this stack: Decypharr's mount path and the arrs' bind are the
+   same absolute path (`/mnt/decypharr`), so the path it reports is the path they can open. Add a
+   remote path mapping only if you deviate — a different mount path in Decypharr's config, a
+   different container path in the bind, or Decypharr running on another host.
+4. **Repair worker / queue cleanup** — enable in Settings → Arrs (the blacklist + research
+   defaults are sensible) so failed grabs don't clog the queue.
+
+## Reference
+
+- Decypharr docs: <https://decypharr.com/guides> (wizard, arr integration, mounts, troubleshooting)

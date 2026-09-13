@@ -1,0 +1,79 @@
+services:
+  traefik:
+    image: traefik:v3.7.13
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      CF_DNS_API_TOKEN: ${CLOUDFLARE_DNS_TOKEN}
+      TRAEFIK_DASHBOARD_CREDENTIALS: ${TRAEFIK_DASHBOARD_CREDENTIALS}
+    # dynamic.yml resolves the CrowdSec key with {{ env "..." }}, so the variable
+    # has to exist in Traefik's own environment - env_file injects the whole file.
+    env_file:
+      - path: .env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/traefik.yml:/traefik.yml:ro
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/acme.json:/acme.json
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/logs:/var/log/traefik
+    networks:
+      - external
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=http"
+      - "traefik.http.routers.traefik.rule=Host(`${SUB_DOMAIN_TRAEFIK}.${DOMAIN}`)"
+      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_CREDENTIALS}"
+      - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
+      - "traefik.http.routers.traefik-secure.entrypoints=https"
+      - "traefik.http.routers.traefik-secure.rule=Host(`${SUB_DOMAIN_TRAEFIK}.${DOMAIN}`)"
+      - "traefik.http.routers.traefik-secure.middlewares=dashboardAcl@file,traefik-auth"
+      - "traefik.http.routers.traefik-secure.tls=true"
+      - "traefik.http.routers.traefik-secure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].main=${DOMAIN}"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].sans=*.${DOMAIN}"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  crowdsec:
+    image: crowdsecurity/crowdsec:v1.8.1
+    container_name: crowdsec
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      COLLECTIONS: "crowdsecurity/traefik crowdsecurity/http-cve"
+      GID: "0"
+      BOUNCER_KEY_TRAEFIK: ${CROWDSEC_BOUNCER_API_KEY}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/crowdsec/config:/etc/crowdsec
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/crowdsec/data:/var/lib/crowdsec/data
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/logs:/logs:ro
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/crowdsec-acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+    networks:
+      - internal
+    labels:
+      - "traefik.enable=false"
+
+networks:
+  external:
+    external: true
+  internal:
+    external: true

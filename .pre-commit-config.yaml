@@ -1,0 +1,21 @@
+repos:
+  # Syntax / hygiene checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        args: ["--unsafe"]
+      - id: check-json
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: pretty-format-json
+        args: ["--autofix"]
+
+  # Scan staged changes for hardcoded secrets / API keys (auto-downloads via Go)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        pass_filenames: false
