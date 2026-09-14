@@ -70,6 +70,11 @@ step of [Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp`
 allow 80/tcp`. Until those run, nothing on the box answers from the internet, DNS records or not
 (Traefik listens on `:443` the whole time; the firewall just doesn't let traffic in).
 
+Now that the tailnet is your door, also close the provider-side `22` ingress rule that was left
+open as the first-boot rescue window — on **Oracle Cloud**, VCN → Default Security List →
+delete the `TCP 22 / 0.0.0.0/0` rule ([OCI §1](oci#1-virtual-cloud-network-vcn--via-the-vcn-wizard)).
+SSH has exactly one way in from here: your tailnet.
+
 ## 4. SSH keys, no password auth
 
 Even with sshd only on the tailnet, authenticate by key:

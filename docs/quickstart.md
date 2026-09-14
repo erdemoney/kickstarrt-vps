@@ -29,7 +29,10 @@ provider's first-boot automation:
   pasted at creation did it, with your SSH key pasted right next to it. There was no console login
   involved (Ubuntu's console can't log in anyway — no password is configured). Find the
   `kickstarrt` node in the Tailscale admin console, note its tailnet address, and SSH in; skip
-  ahead to [§3 Finish hardening](#3-finish-hardening-the-box).
+  ahead to [§3 Finish hardening](#3-finish-hardening-the-box). If the node doesn't show up within
+  a few minutes, a bounded **rescue window** is still open: the provider's `22` ingress rule isn't
+  removed until §3, so `ssh ubuntu@<PUBLIC-IP>` with your key gets you in to fix the join
+  ([OCI → After creation](oci#after-creation)).
 - **On any other provider**, open its **out-of-band console** and run the bootstrap one-liner
   below. It's **idempotent** (safe to re-run — anything present is skipped), **cross-distro**
   (Debian/Ubuntu, Fedora/RHEL, openSUSE, Arch, Alpine), and installs Tailscale **plus** everything
@@ -121,6 +124,11 @@ sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
 sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
 sudo ufw enable
 ```
+
+Also close the setup-time SSH window at the provider: on **Oracle Cloud**, delete the wizard's
+default `22` ingress rule (VCN → Default Security List → the `TCP 22 / 0.0.0.0/0` rule → Delete —
+[OCI §1](oci#1-virtual-cloud-network-vcn--via-the-vcn-wizard)). It was a rescue door for the
+first login only; from here SSH has exactly one way in, your tailnet.
 
 Then, over at [Hardening](hardening): switch SSH to key-only auth (§4) and add fail2ban (§6,
 optional belt-and-suspenders). After that it's safe to run `just init` and `just up` as yourself.

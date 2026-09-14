@@ -58,14 +58,17 @@ redirect) happen right after, below.
 
 **After the VCN wizard creates the public subnet**, open its **Security List** (Public subnet →
 Security Lists, or Networking → Virtual cloud networks → `kickstarrt-vcn` → Security Lists →
-`Default Security List for kickstarrt-vcn`) and make **two** changes: add an **Ingress Rule** for
+`Default Security List for kickstarrt-vcn`) and make **two additions**: an **Ingress Rule** for
 **TCP, destination port `443`, source `0.0.0.0/0`** ("Allow public HTTPS to Traefik") and one for
 **TCP, destination port `80`, source `0.0.0.0/0`** ("Allow public HTTP − serves only the
-`http → https` redirect"). Leave the rest alone — but the wizard's default `22` ingress rule can
-be **deleted** too: sshd is only ever reachable from your tailnet ([Hardening](hardening)), so a
-VCN hole for `22` adds nothing. The real per-port enforcement point, though, is the **OS
-firewall**: ufw stays deny-incoming and the stack doesn't answer from the internet until the
-deliberate [Going public](quickstart#going-public-last) step runs `sudo ufw allow 443/tcp` and
+`http → https` redirect"). Leave the rest alone — including the wizard's default `22` ingress
+rule, **for now**: it's a deliberate rescue window, so that if the tailnet join ever misfires on a
+fresh box, key-only SSH over the public IP still gets you in. Ubuntu sets no password for its
+user, so only your key can log in anyway. The window is **closed in
+[Hardening → Firewall](hardening#3-firewall--ufw)** — the step that locks SSH to the tailnet. The
+real per-port enforcement point, though, is the **OS firewall**: ufw stays deny-incoming and the
+stack doesn't answer from the internet until the deliberate
+[Going public](quickstart#going-public-last) step runs `sudo ufw allow 443/tcp` and
 `sudo ufw allow 80/tcp`.
 
 ## 2. Create the compute instance
@@ -118,6 +121,13 @@ in ([Quickstart → 1. Get in](quickstart#1-get-in-set-up-tailscale)):
    ssh ubuntu@100.x.y.z
    ```
 3. Continue at [Quickstart → 2. Fork and clone](quickstart#2-fork-and-clone). git, just, Docker and the tailnet join all came from the Initialization script, so there's nothing left to install — the re-run story in Quickstart §1 is for boxes you bootstrap by hand.
+
+> **Rescue window.** If `kickstarrt` hasn't appeared in the Tailscale admin console within a few
+> minutes of boot, use the VCN's `22` rule — still present during initial setup, by design:
+> `ssh ubuntu@<PUBLIC-IP>` (the instance's **Public IP address** on its details page) with the key
+> you pasted. From there, check the join (`tailscale status`) or redo it (`sudo tailscale up` and
+> approve the URL it prints). The `22` rule is **removed** in [Hardening → Firewall](hardening#3-firewall--ufw)
+> once the tailnet is your working door, so the window is only ever open for the first access.
 
 Every later login goes over the tailnet, not the console. And about the **Console connection**: it
 *is* there (a hypervisor-level shell that ignores the firewall), but Canonical Ubuntu images

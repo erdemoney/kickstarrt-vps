@@ -22,3 +22,15 @@ export TARGET_USER=ubuntu                # OCI's default user - it owns the dock
 export TS_AUTH_KEY='PASTE-YOUR-EPHEMERAL-AUTH-KEY'
 
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | bash
+
+if ! tailscale ip -4 >/dev/null 2>&1; then
+    printf '\n[rescue] tailnet join FAILED. The VCN 22 rule is still present for initial setup, so\n'
+    printf '         log in over the public IP (OCI console -> instance details -> Public IP\n'
+    printf '         address) with the key you pasted at creation:\n'
+    printf '           ssh ubuntu@<PUBLIC-IP>\n'
+    printf '         then join by hand:\n'
+    printf '           sudo tailscale up     # approve the URL it prints\n'
+    printf '           tailscale ip -4       # the tailnet address to keep\n'
+    printf '         Delete the VCN 22 ingress rule once the tailnet is your working door\n'
+    printf '         (Hardening -> Firewall, in the quickstart).\n'
+fi
