@@ -5,10 +5,11 @@ nav_order: 5
 
 # The \*arrs: networking and app wiring
 
-> **Before you start:** reach the stack first. The [SSH port-forward window](quickstart#6-first-boot)
-> gets every app's URL resolving on your workstation and verifies the cert — none of the wiring
-> below (or any first-run setup) can happen before you can open the apps. All of it is done from
-> those URLs while nothing is public; exposing the stack is the **last** step ([Ingress](ingress)).
+> **Before you start:** reach the stack first. The admin panels resolve by name on your tailnet
+> right after first boot ([Tailnet DNS](tailnet) — set up in [Quickstart §6](quickstart#6-first-boot)),
+> so open `https://radarr.<DOMAIN>` from any tailnet device and verify the cert. All first-run
+> setup happens over those URLs while nothing is public; exposing the stack is the **last** step
+> ([Ingress](ingress)).
 
 ## Docker networking (shared networks)
 

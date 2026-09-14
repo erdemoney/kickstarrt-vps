@@ -94,8 +94,9 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 > login, then over the tailnet only, so get **in first** and join the tailnet:
 > [Quickstart → Get in](https://erdemoney.github.io/kickstarrt-vps/quickstart#1-get-in-set-up-tailscale).
 > Your deployment secrets never touch the repo; they live in git-ignored
-> `.env` files that `just init` creates. Set up every app over an SSH port-forward (nothing
-> public yet), then add the A records and open `:443` **last**.
+> `.env` files that `just init` creates. Set up every app over the tailnet — panels resolve by
+> name there via [Tailnet DNS](https://erdemoney.github.io/kickstarrt-vps/tailnet), public DNS
+> records and `:443` open **last**.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash   # git, just, docker + tailscale join (idempotent); prints your SSH address
@@ -103,7 +104,8 @@ git clone git@github.com:<you>/kickstarrt-vps.git
 cd kickstarrt-vps
 just init             # walks every secret; Enter accepts sensible defaults
 just up               # networks → config dirs → the whole stack
-just hosts 127.0.0.1  # app URLs mapped to localhost (run on the VPS), then:
+# after that, https://<subdomain>.DOMAIN opens on any tailnet device (Tailnet DNS — one-time nameserver setup, see the docs)
+just hosts 127.0.0.1  # optional fallback: app URLs mapped to localhost (run on the VPS), then:
 ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   # browse https://<subdomain>.DOMAIN:8443
 ```
 
@@ -111,7 +113,7 @@ Requires [Docker](https://docs.docker.com/engine/install/) (check the
 [post-install steps](https://docs.docker.com/engine/install/linux-postinstall/) to run it
 non-root) and [just](https://just.systems/man/en/chapter_4.html) — your distro's package manager
 or a [release binary](https://github.com/casey/just/releases).
-The full walkthrough — hardening, env files, SSH port-forward gate, staging CA, first bring-up —
+The full walkthrough — get in, hardening, env files, the security gate, first bring-up —
 is in the [Quickstart](https://erdemoney.github.io/kickstarrt-vps/quickstart).
 
 ## Docs

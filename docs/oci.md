@@ -65,7 +65,7 @@ Security Lists, or Networking → Virtual cloud networks → `kickstarrt-vcn` �
 `http → https` redirect"). Leave the rest alone — the wizard's default `22` ingress rule stays
 **for now**: that's the door you `ssh` in through during setup (key-only — Ubuntu sets no
 password for its user, so only the key you paste can log in). It is **closed at
-[Hardening → Firewall](hardening#3-firewall--ufw)**, the step that locks SSH to the tailnet. The
+[Hardening → Firewall](hardening#3-firewall--ufw-deny-incoming-public-443-opens-last)**, the step that locks SSH to the tailnet. The
 real per-port enforcement point, though, is the **OS firewall**: ufw stays deny-incoming and the
 stack doesn't answer from the internet until the deliberate
 [Going public](quickstart#going-public-last) step runs `sudo ufw allow 443/tcp` and
@@ -107,7 +107,7 @@ ssh ubuntu@<PUBLIC-IP>     # key you pasted at creation; proceed even if a "host
 Then follow [Quickstart → 1. Get in](quickstart#1-get-in-set-up-tailscale): the bootstrap one-liner
 installs the stack's prerequisites and joins the box to your tailnet — approve the auth URL it
 prints, and it hands you the tailnet address that becomes your SSH address from then on. Once the
-tailnet is confirmed working, [Hardening → Firewall](hardening#3-firewall--ufw) closes the `22`
+tailnet is confirmed working, [Hardening → Firewall](hardening#3-firewall--ufw-deny-incoming-public-443-opens-last) closes the `22`
 door (delete the VCN ingress rule, lock ufw to tailnet-only) and every later login goes over the
 tailnet.
 

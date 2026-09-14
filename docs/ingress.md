@@ -23,9 +23,10 @@ from your tailnet ([Hardening](hardening)). Everything on `:443` is fronted by C
 
 Inbound is blocked until *you* allow it — nothing here is accidentally public. The order is fixed:
 
-1. **Set up every app first over the tailnet** — either directly at the server's tailnet IP or
-   through the [SSH port-forward window](quickstart#6-first-boot). That's
-   where the first-run walkthrough in [The \*arrs](arrs) happens.
+1. **Set up every app first over the tailnet** — the panels resolve by name there right after
+   first boot ([Tailnet DNS](tailnet), set up in [Quickstart §6](quickstart#6-first-boot)); the
+   [SSH port-forward](quickstart#6-first-boot) is only the fallback for devices that don't use
+   the resolver. That's where the first-run walkthrough in [The \*arrs](arrs) happens.
 2. **Minimum before exposing each app: its setup is finished** — admin account exists and auth is
    on: Jellyfin (admin created on first login), Sonarr/Radarr/Prowlarr/Bazarr/Profilarr (Settings →
    General → Authentication), Seerr (admin on first login), Decypharr (wizard completed).

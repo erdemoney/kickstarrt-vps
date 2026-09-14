@@ -11,7 +11,10 @@ and before anything is public.
 This edition opens **exactly one port to the public internet: TCP `443` (Traefik)** — and not even
 that at first: it stays closed behind ufw until you deliberately open it as the last step of
 setup ([Going public](quickstart#going-public-last)). Everything else — including `80` and `22` —
-is closed from the internet. The **Tailscale tailnet** is how you reach the box itself. A
+is closed from the internet. The **Tailscale tailnet** is how you reach the box itself — and the
+buffer where all setup happens: from the firewall step on, the box answers sshd, the DNS resolver
+and Traefik `:443` on the tailnet ([Firewall §3](#3-firewall--ufw-deny-incoming-public-443-opens-last)),
+while the public internet sees nothing until [Going public](quickstart#going-public-last). A
 brand-new box starts life reachable over **public SSH** — the delivery door for the first login —
 and joins the tailnet as the very first setup step ([Quickstart §1](quickstart#1-get-in-set-up-tailscale));
 from then on, the tailnet is your only way in and the public `22` door is closed.
@@ -46,7 +49,7 @@ rescue (detach the boot volume, mount it on a second instance, and fix the node)
 sudo apt update && sudo apt upgrade -y
 ```
 
-## 3. Firewall — ufw (deny-incoming; `443` opens only at the end)
+## 3. Firewall — ufw (deny-incoming; public `:443` opens last)
 
 ```bash
 sudo apt install ufw
@@ -55,23 +58,26 @@ sudo ufw default allow outgoing
 sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp
 sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
 sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
+sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
 sudo ufw enable
 ```
 
 The `allow from 100.64.0.0/10` rules let nothing but your tailnet (`100.64.0.0/10` is the CGNAT
-range Tailscale uses) reach sshd **and the tailnet DNS resolver** (the CoreDNS container in the
-traefik stack — see [Tailnet DNS](tailnet)): `22` for SSH, `53` so tailnet devices can resolve
-`*.DOMAIN` to the box's tailnet address. There is **no `22` rule from the internet and no
-`80`/`443` rule yet**. The public surface of this stack is Traefik on `443` plus a `80` rule that
-exists only for the `http → https` redirect — and it all stays **closed** through setup; the last
-step of [Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp` and `sudo ufw
-allow 80/tcp`. Until those run, nothing on the box answers from the internet, DNS records or not
-(Traefik listens on `:443` the whole time; the firewall just doesn't let traffic in).
+range Tailscale uses) reach sshd, the tailnet DNS resolver, and Traefik: `22` for SSH; `53` so
+tailnet devices can resolve `*.DOMAIN` to the box's tailnet address (the CoreDNS container in the
+traefik stack — see [Tailnet DNS](tailnet)); and `443` so the admin panels are reachable **by name
+on the tailnet** — that's a first-boot setup thing, not a going-public thing (Tailnet DNS just
+needs the resolver registered; it never exposes anything to the internet). There is still **no
+`22`, `80` or `443` rule from the internet** — the public surface of this stack (Traefik on `443`
+plus a `80` rule that exists only for the `http → https` redirect) stays **closed** through setup,
+and the last step of [Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp` and
+`sudo ufw allow 80/tcp` — those are `from Any`, the actual door to the internet. Until they run,
+nothing on the box answers **from the internet**, DNS records or not (Traefik listens on `:443`
+the whole time; the firewall just doesn't let the internet in).
 
 Now that the tailnet is your door, close the delivery door you walked in through: on **Oracle
 Cloud**, delete the provider-side `22` ingress rule (VCN → Default Security List → the
 `TCP 22 / 0.0.0.0/0` rule → Delete — [OCI §1](oci#1-virtual-cloud-network-vcn--via-the-vcn-wizard)).
-SSH has exactly one way in from here: your tailnet.
 SSH has exactly one way in from here: your tailnet.
 
 ## 4. SSH keys, no password auth

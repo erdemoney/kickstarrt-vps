@@ -26,11 +26,16 @@ serve your own domain. Tailscale's supported mechanism for that is **split DNS**
    rides the WireGuard mesh straight to Traefik `:443` → routed by `Host()` → served with the real
    cert. No extra auth: **being on the tailnet *is* the gate.**
 
-It's steady-state: it kicks in once ufw has opened `:443` ([Going public](quickstart#going-public-last)).
-During the setup window the only way in stays the SSH port-forward — ufw blocks tailnet `:443` too
-until then.
+It's available from **first boot**, not from going public: ufw already lets the tailnet reach
+`:53` and Traefik's `:443` ([Hardening §3](hardening#3-firewall--ufw-deny-incoming-public-443-opens-last)),
+so the moment you register the resolver (next section) the panels resolve by name — during setup,
+with no DNS records and nothing public. [Going public](quickstart#going-public-last) only adds the
+A records and opens `:443` from the internet; it doesn't change how the tailnet reaches the
+panels.
 
-## One-time Tailscale admin console setup
+## One-time Tailscale admin console setup (right after first boot)
+
+Do this once, after `just up` (Quickstart §6):
 
 1. [Tailscale Admin → DNS](https://login.tailscale.com/admin/dns) → **Nameservers** →
    **Add nameserver** → **Custom**.
@@ -50,7 +55,8 @@ Already handled by the standard flow:
 - `just dirs` (part of `just up`) renders `$CONFIG_DIR/coredns/Corefile` from the tracked template
   and `just up` starts the CoreDNS container, bound to `TAILNET_IP:53` **only** (it deliberately
   doesn't bind `0.0.0.0:53` — systemd-resolved already holds the loopback).
-- ufw allows DNS **from the tailnet only** (`100.64.0.0/10 … port 53`), added in
+- ufw allows DNS (`53`) **and Traefik (`:443`)** from the tailnet only
+  (`100.64.0.0/10`), added in
   [Hardening](hardening).
 - Check it: `just dnscheck` queries the resolver directly (`radarr.<DOMAIN>` → your tailnet IP),
   and `just dns` prints the exact nameserver value to enter in the admin console.
@@ -79,8 +85,10 @@ panels, by design.
 - **Tailnet IP changed** (the box was rebuilt as a new node) — re-run `just init` (Enter accepts
   the new detection), then update the nameserver IP in the Tailscale admin console.
 - **You skipped the console step** — `just dns` prints exactly what to paste in.
-- **Panels resolve but don't load** — you're before [Going public](quickstart#going-public-last):
-  ufw hasn't opened `:443` yet. Use the SSH port-forward (`just hosts 127.0.0.1`) until then.
+- **Panels resolve but don't load from a tailnet device** — `:443` from the tailnet is allowed
+  since the hardening step, so check `just dnscheck`, that CoreDNS is up, and that the device is
+  actually on the tailnet. From the **public internet**, nothing works until
+  [Going public](quickstart#going-public-last) — that's by design.
 
 The `/etc/hosts` block (`just hosts <tailnet-ip>`) still works as a no-CoreDNS fallback on any
 machine that can't or won't use the resolver.

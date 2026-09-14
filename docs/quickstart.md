@@ -105,8 +105,8 @@ just --version
 ```
 
 Update the OS and lock the firewall down while the box is still reachable only from your
-tailnet. SSH — and the tailnet DNS resolver, [Tailnet DNS](tailnet) — get in from **only** the
-tailnet; `80`/`443` stay closed until [Going public](#going-public-last):
+tailnet. The tailnet gets sshd, the DNS resolver ([Tailnet DNS](tailnet)) **and Traefik's `:443`**;
+the internet gets nothing until [Going public](#going-public-last):
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -116,6 +116,7 @@ sudo ufw default allow outgoing
 sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp
 sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
 sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
+sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
 sudo ufw enable
 ```
 
@@ -243,9 +244,9 @@ recreate the `crowdsec` and `traefik` containers (`just update-all`). Details in
 
 ## 6. First boot
 
-By now Tailscale is up and [Hardening](hardening) has run: ufw is deny-incoming with SSH allowed
-only from the tailnet. Ports `443` and `80` are still closed, so the stack answers only inside the
-tailnet:
+By now Tailscale is up and [Hardening](hardening) has run: ufw is deny-incoming, with sshd, the
+DNS resolver and Traefik's `:443` reachable **from the tailnet only**. The internet still can't
+touch `80`/`443` — that stays true until [Going public](#going-public-last). Bring the stack up:
 
 ```bash
 just up          # creates networks, config dirs, acme.json + traefik.yml, then brings up every stack
@@ -260,13 +261,33 @@ App UIs live at `https://<subdomain>.<DOMAIN>`: `jellyfin`, `seerr`, `radarr`, `
 `prowlarr`, `profilarr`, `bazarr`, `decypharr`, `traefik`. The certs are issued by DNS-01, so
 they exist even before any DNS record points at the box.
 
-> **The stack is private until you open the door — use that window.** Nothing here is public yet,
-> and nothing becomes public until you add the A records *and* open `:443`
-> ([Ingress](ingress)); until then, the only way in is the tailnet. That's intentional: an app
-> that's live on the internet *before* its setup is done is an app with no login, claimable by
-> anyone. Do all first-run
-> setup through an **SSH port-forward over the tailnet** — every app's URL works with nothing
-> exposed, no DNS records, no open ports:
+**Reach the panels by name — [Tailnet DNS](tailnet).** The admin panels are private (no DNS
+records), but they resolve on your tailnet by name: `https://radarr.<DOMAIN>`,
+`https://sonarr.<DOMAIN>`, … — with the real wildcard cert. ufw already opened `:53` and `:443`
+to the tailnet in [Hardening §3](hardening#3-firewall--ufw-deny-incoming-public-443-opens-last);
+one one-time step in the Tailscale admin console switches it on:
+
+```bash
+just dns     # prints the exact nameserver value to paste — the box's TAILNET_IP
+```
+
+1. [Tailscale Admin → DNS](https://login.tailscale.com/admin/dns) → **Nameservers** → **Add nameserver** → **Custom**.
+2. Enter the value `just dns` printed (a `100.x.y.z`).
+3. Constrain it: **"Only send names in these domains"** → add your `DOMAIN` (*not* the `.ts.net` name).
+4. Save, then refresh DNS on a device — rejoin the tailnet or flush: `sudo dscacheutil -flushcache` (macOS), `sudo systemctl restart systemd-resolved` (Linux), `ipconfig /flushdns` (Windows).
+
+Then `radarr.<DOMAIN>` opens from **any** tailnet device — laptop, phone, server — before any A
+record exists. `just dnscheck` verifies the resolver from the box; full mechanics in
+[Tailnet DNS](tailnet).
+
+> **The stack is still private until you open the door — use that window.** Nothing here is public
+> yet, and nothing becomes public until you add the A records *and* open `:443` from the internet
+> ([Ingress](ingress)); until then, the only way in is the tailnet — and on the tailnet the panels
+> now resolve by name (above). That's intentional: an app that's live on the internet *before* its
+> setup is done is an app with no login, claimable by anyone. Do all first-run setup over the
+> tailnet. Where a machine doesn't use the resolver, fall back to an **SSH port-forward over the
+> tailnet** — every app's URL works with nothing exposed, no DNS records, no opened internet
+> ports:
 
 ```bash
 just hosts 127.0.0.1        # on the VPS: prints the app URLs mapped to 127.0.0.1
@@ -285,11 +306,12 @@ see the [security gate](ingress#security-gate--finish-setup-before-going-public)
 - Traefik downloaded the CrowdSec plugin on first start (needs outbound internet); a
   `Certificate` appears in the ACME panel for `*.DOMAIN`.
 - Every app answers on its internal hostname over the tailnet; nothing answers from the
-  internet yet (ufw closed, no DNS records).
+  internet yet (ufw blocks everything outside the tailnet, no DNS records).
 - CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` — see [Security](security).
 - Jellyfin's admin account is created on first login (feed its key to Seerr later).
 
-Reach the stack through the tailnet SSH port-forward, verify the cert once, then run
+Reach the stack from your workstation — panels by name over the tailnet ([Tailnet DNS](tailnet),
+or the port-forward fallback from §6) — verify the cert once, then run
 `just wiring` on the
 server (it probes the internal network and prints every URL + API key you need to paste) and
 continue to [The \*arrs](arrs) for the full walkthrough.
@@ -308,7 +330,9 @@ When every app is set up:
    sudo ufw allow 80/tcp
    ```
 
-   `443` is the real way in; `80` exists only for the `http → https` redirect (Traefik's
+   `443` is the real way in — a new `from Any` rule layered over the tailnet-only `443` allow from
+   the hardening step (reversible on its own: `sudo ufw delete allow 443/tcp` leaves the tailnet
+   door intact). `80` exists only for the `http → https` redirect (Traefik's
    entrypoint-level rule — nothing is served on it), and the HSTS header means browsers skip `:80`
    after their first https visit. The matching provider-side ingress rules (`443` **and** `80`) are
    part of [instance creation](oci) in the free-tier guide. SSH stays tailnet-only.
@@ -316,6 +340,6 @@ When every app is set up:
 From then on the stack is public on those hostnames only: Cloudflare DNS → VPS `:443` → Traefik,
 with CrowdSec in front of all of it. (Typing `http://` in a browser bounces to https; every other
 request already speaks https.) Reversible either way — delete the records, or `sudo ufw delete
-allow 443/tcp` (and `allow 80/tcp`). Admin panels stay out of the public DNS and are reached
-over the tailnet **by name** — once `:443` is open, set up [Tailnet DNS](tailnet) and they resolve
-as `https://<app>.<DOMAIN>` on every tailnet device. [Ingress](ingress) covers the details.
+allow 443/tcp` (and `allow 80/tcp`). Admin panels stay out of the public DNS and are reached over
+the tailnet **by name** — that's [Tailnet DNS](tailnet), set up back in §6; it needed no public
+exposure then and nothing about it changes now. [Ingress](ingress) covers the details.
