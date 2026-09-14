@@ -18,10 +18,11 @@ then, the only way in is the provider's out-of-band console.
 
 This is the **first** thing you do with a brand-new box — the walkthrough lives in
 [Quickstart §1](quickstart#1-get-in-set-up-tailscale), where a [bootstrap script](quickstart#1-get-in-set-up-tailscale)
-installs this for you (with `git`, `just` and Docker in one idempotent run). The short form,
-installed and authenticated from the provider's **web console** (the hypervisor-level console
-in your provider's panel, unaffected by the firewall — no port on it, so not even `22` is
-exposed while bootstrap happens; [Oracle Cloud](oci) is the worked example):
+installs this for you (with `git`, `just` and Docker in one idempotent run, and joins the
+tailnet). The short form, installed and authenticated from the provider's **web console** (the
+hypervisor-level console in your provider's panel, unaffected by the firewall — no port on it,
+so not even `22` is exposed while bootstrap happens; [Oracle Cloud](oci) is the worked
+example):
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh

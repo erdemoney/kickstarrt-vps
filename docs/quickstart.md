@@ -36,22 +36,20 @@ with the compose plugin, and your user in the `docker` group:
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
 ```
 
-(The URL points at the public upstream repo, so it runs before you've cloned anything.) Tailscale
-is installed but **not joined** — the join is yours to make:
+(The URL points at the public upstream repo, so it runs before you've cloned anything.) The
+script installs Tailscale **and joins the box to your tailnet**: it prints an **auth URL**, waits
+up to two minutes for you to approve the node in your browser, then prints the box's tailnet
+address. Approval is always yours — if the window passes before you approve, join it yourself:
 
 ```bash
 sudo tailscale up
+tailscale ip -4        # e.g. 100.64.0.3 — a 100.x.y.z from Tailscale's CGNAT range
 ```
 
 `tailscale up` prints an **auth URL** — open it in your browser and approve the node.
 
-Confirm you're joined, and write down the address:
-
-```bash
-tailscale ip -4        # e.g. 100.64.0.3 — a 100.x.y.z from Tailscale's CGNAT range
-```
-
-That address is the **only place SSH ever answers** — and how you get in from your workstation:
+That tailnet address is the **only place SSH ever answers** — and how you get in from your
+workstation:
 
 ```bash
 ssh ubuntu@100.64.0.3    # OCI's default user; your provider may differ
@@ -66,8 +64,9 @@ Notes:
   answers at `vps.<tailnet>.ts.net` — fine for SSH, though the stack routes on `.DOMAIN` host
   names, so the `TAILNET_IP` [env value](#4-copy-and-fill-the-env-files) is the address that
   matters.
-- Replacing the box later? The address changes — re-run `sudo tailscale up` on the new box, then
-  point `TAILNET_IP` at it again ([Tailnet DNS](tailnet)).
+- Replacing the box later? The address changes — re-run the bootstrap script (it rejoins with a
+  fresh wait), or `sudo tailscale up` on the new box, then point `TAILNET_IP` at the new address
+  via `just init` ([Tailnet DNS](tailnet)).
 - The provider console stays available as the **break-glass** door for the box's whole life: it
   rides the provider's network, not yours, so a tailnet hiccup can never lock you out.
 

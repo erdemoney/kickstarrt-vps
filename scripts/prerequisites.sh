@@ -9,8 +9,10 @@
 #
 #     curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
 #
-# Tailscale is installed but NOT joined: `sudo tailscale up` stays a manual
-# step so you approve the auth URL yourself.
+# At the end the script joins the box to your tailnet: it prints the auth URL
+# and waits up to 120s for you to approve it, then prints the box's tailnet
+# address - your only SSH address. Approval is always yours; if the window
+# passes, it falls back to printing the manual `sudo tailscale up` step.
 
 set -euo pipefail
 
@@ -32,6 +34,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 REAL_USER="${SUDO_USER:-root}"
+TS_IP=""
 
 PM=""
 PM_DEPS=()
@@ -162,6 +165,33 @@ ensure_docker_group() {
     ok "$REAL_USER added to docker - re-login (or 'newgrp docker') before 'just up'"
 }
 
+join_tailnet() {
+    msg "Tailscale join"
+    if ! has tailscale; then
+        warn "tailscale not installed - nothing to join"
+        return
+    fi
+    if tailscale ip -4 >/dev/null 2>&1; then
+        TS_IP="$(tailscale ip -4 | head -n 1)"
+        ok "already joined - tailnet address $TS_IP"
+        return
+    fi
+    if [ "$PM" = apk ]; then
+        rc-update add tailscaled default >/dev/null 2>&1 || true
+        service tailscaled start >/dev/null 2>&1 || true
+    fi
+    flags=()
+    if tailscale up --help 2>/dev/null | grep -q -- --timeout; then
+        flags+=(--timeout=120s)
+    fi
+    if ! tailscale up "${flags[@]}"; then
+        warn "not joined within 120s - run 'sudo tailscale up' and approve the URL it prints"
+        return
+    fi
+    TS_IP="$(tailscale ip -4 2>/dev/null | head -n 1)"
+    ok "joined - tailnet address $TS_IP"
+}
+
 main() {
     msg "prerequisites for $(hostname) ($(uname -m))"
     detect_pm
@@ -170,10 +200,18 @@ main() {
     install_just
     install_docker
     ensure_docker_group
+    join_tailnet
     printf '\n'
-    msg "done - next:"
-    printf '   1. sudo tailscale up    # approve the printed URL in your browser\n'
-    printf '   2. tailscale ip -4      # your only SSH address\n'
+    if [ -n "$TS_IP" ]; then
+        if [ "$REAL_USER" = root ]; then
+            printf '   ssh <you>@%s   # your only SSH address (OCI default: ubuntu)\n' "$TS_IP"
+        else
+            printf '   ssh %s@%s   # your only SSH address\n' "$REAL_USER" "$TS_IP"
+        fi
+    else
+        printf '   1. sudo tailscale up   # approve the URL it prints\n'
+        printf '   2. tailscale ip -4     # your only SSH address\n'
+    fi
     msg 'then continue with docs/quickstart.md (Sections 2 and 3).'
 }
 main "$@"
