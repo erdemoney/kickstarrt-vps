@@ -11,36 +11,34 @@ and before anything is public.
 This edition opens **exactly one port to the public internet: TCP `443` (Traefik)** — and not even
 that at first: it stays closed behind ufw until you deliberately open it as the last step of
 setup ([Going public](quickstart#going-public-last)). Everything else — including `80` and `22` —
-is closed from the internet. The **Tailscale tailnet** is how you reach the box itself. Joining
-the tailnet is always the first thing that happens on a brand-new box — either a cloud-init seed
-at creation ([Oracle Cloud](oci)) or a manual join from the provider console
-([Quickstart §1](quickstart#1-get-in-set-up-tailscale)).
+is closed from the internet. The **Tailscale tailnet** is how you reach the box itself. A
+brand-new box starts life reachable over **public SSH** — the delivery door for the first login —
+and joins the tailnet as the very first setup step ([Quickstart §1](quickstart#1-get-in-set-up-tailscale));
+from then on, the tailnet is your only way in and the public `22` door is closed.
 
 ## 1. Tailscale — your only way in (no public port)
 
-This is the **first** thing that happens on a brand-new box — the walkthrough lives in
-[Quickstart §1](quickstart#1-get-in-set-up-tailscale). An [Oracle Cloud](oci) box joins during
-first boot (the Initialization script seeds it with an ephemeral auth key, so no console login is
-involved). Everywhere else, bootstrap it from the provider's **out-of-band console** — the
-hypervisor-level shell that rides the provider's network (no port on it, so not even `22` is
-exposed while bootstrap happens):
+This is the **first** setup step on a brand-new box — the walkthrough lives in
+[Quickstart §1](quickstart#1-get-in-set-up-tailscale). You're on the box already, over the public
+SSH door every provider offers for the first login (on [Oracle Cloud](oci), the VCN keeps a `22`
+rule for exactly that). From there run the bootstrap one-liner — it installs everything
+(Tailscale, `git`, `just`, Docker) and joins the tailnet:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
 ```
 
-The script installs everything (Tailscale, `git`, `just`, Docker) and joins the tailnet: it
-prints an **auth URL**, waits up to two minutes for you to approve the node, then prints the box's
-tailnet address. Authenticate with the printed URL in your browser, then note the node's address
-(`tailscale ip -4` — or enable **MagicDNS** in the admin console and use its hostname). That
-address, a `100.x.y.z` from Tailscale's CGNAT range, is the only place SSH is ever reachable.
+The script prints an **auth URL**, waits up to two minutes for you to approve the node, then
+prints the box's tailnet address. Authenticate with the printed URL in your browser, then note
+the node's address (`tailscale ip -4` — or enable **MagicDNS** in the admin console and use its
+hostname). That address, a `100.x.y.z` from Tailscale's CGNAT range, is the only place SSH is
+reachable going forward — the public `22` door gets closed in §3.
 
 Keep the provider console in mind as the **break-glass** path: if the tailnet node ever needs
-fixing from outside, the console is still there — it's port-free and always available. One
-caveat: Canonical Ubuntu images on [OCI](oci) configure **no console password**, so the console
-there can't log you in by design — the reason access is seeded at creation rather than delivered
-over the console. Recovering a tailnet-locked Ubuntu box happens from a rescue: detach the boot
-volume, mount it on a second instance, and fix (or re-seed) the node.
+fixing from outside, the console is still there on most images — it's port-free and always
+available. Caveat: Canonical Ubuntu images on [OCI](oci) configure **no console password**, so
+the console there can't log in; recovery for a tailnet-locked Ubuntu box is the volume-attach
+rescue (detach the boot volume, mount it on a second instance, and fix the node).
 
 ## 2. Keep packages up to date
 
@@ -70,9 +68,10 @@ step of [Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp`
 allow 80/tcp`. Until those run, nothing on the box answers from the internet, DNS records or not
 (Traefik listens on `:443` the whole time; the firewall just doesn't let traffic in).
 
-Now that the tailnet is your door, also close the provider-side `22` ingress rule that was left
-open as the first-boot rescue window — on **Oracle Cloud**, VCN → Default Security List →
-delete the `TCP 22 / 0.0.0.0/0` rule ([OCI §1](oci#1-virtual-cloud-network-vcn--via-the-vcn-wizard)).
+Now that the tailnet is your door, close the delivery door you walked in through: on **Oracle
+Cloud**, delete the provider-side `22` ingress rule (VCN → Default Security List → the
+`TCP 22 / 0.0.0.0/0` rule → Delete — [OCI §1](oci#1-virtual-cloud-network-vcn--via-the-vcn-wizard)).
+SSH has exactly one way in from here: your tailnet.
 SSH has exactly one way in from here: your tailnet.
 
 ## 4. SSH keys, no password auth

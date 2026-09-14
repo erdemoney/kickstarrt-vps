@@ -6,39 +6,33 @@ nav_order: 3
 # Quickstart
 
 No VPS yet? [Oracle Cloud (free tier)](oci) gets you a free one in about ten minutes — VCN,
-subnet, instance, console access, all with zero publicly open ports.
+subnet, instance, SSH in and get going, all with zero publicly open ports to keep.
 
 Otherwise: bring the stack up on a fresh VPS running Docker, from a git checkout of this repo
 (clone it
 into whatever directory will run the stack — e.g. `~/docker/kickstarrt-vps`). Edit on a dev box,
 commit, and `git pull` on the server.
 
-The steps below are the whole setup, in the order they have to happen. A box in this guide is
-reachable from **exactly one place: your Tailscale tailnet**. Every other door is closed by
-design ([Hardening](hardening)) and stays closed until you deliberately open `:443` at the very
-end. So the first thing that happens on a brand-new box is its **join to the tailnet** — an
-[Oracle Cloud](oci) box does it *at creation* (a cloud-init seed), any other box does it the
-moment you bootstrap it. Only then can you log in at all.
+The steps below are the whole setup, in the order they have to happen. A box in this guide starts
+life reachable over **public SSH** — that's the delivery door for the very first login, on any
+provider. The first setup step joins the box to your **Tailscale tailnet**; from then on the box
+is reachable from **exactly one place: your tailnet**, every other door closed by design
+([Hardening](hardening)) until you deliberately open `:443` at the very end. Get in over SSH,
+join the tailnet, lock the tailnet in.
 
 ## 1. Get in: set up Tailscale
 
-Do this the moment the instance is up; nothing else works until it does. How depends on the
-provider's first-boot automation:
+Do this the moment the instance is up; nothing else works until it does. Get onto the fresh box
+over **public SSH** — on [Oracle Cloud](oci) that's `ssh ubuntu@<PUBLIC-IP>` with the key you
+pasted at creation; on any other provider, however you normally SSH to a new box (the management
+console's SSH, a key you injected, or whatever the provider gave you). This guide assumes the
+same baseline for every provider: **you have SSH access to the box.**
 
-- **On an [Oracle Cloud](oci) box the join already happened** — the Initialization script you
-  pasted at creation did it, with your SSH key pasted right next to it. There was no console login
-  involved (Ubuntu's console can't log in anyway — no password is configured). Find the
-  `kickstarrt` node in the Tailscale admin console, note its tailnet address, and SSH in; skip
-  ahead to [§3 Finish hardening](#3-finish-hardening-the-box). If the node doesn't show up within
-  a few minutes, a bounded **rescue window** is still open: the provider's `22` ingress rule isn't
-  removed until §3, so `ssh ubuntu@<PUBLIC-IP>` with your key gets you in to fix the join
-  ([OCI → After creation](oci#after-creation)).
-- **On any other provider**, open its **out-of-band console** and run the bootstrap one-liner
-  below. It's **idempotent** (safe to re-run — anything present is skipped), **cross-distro**
-  (Debian/Ubuntu, Fedora/RHEL, openSUSE, Arch, Alpine), and installs Tailscale **plus** everything
-  later steps need — `git`, `just`, Docker with the compose plugin, and your user in the `docker`
-  group:
-  [`scripts/prerequisites.sh`](https://github.com/erdemoney/kickstarrt-vps/blob/main/scripts/prerequisites.sh)
+Then bootstrap it with this repo's setup script. It's **idempotent** (safe to re-run — anything
+present is skipped), **cross-distro** (Debian/Ubuntu, Fedora/RHEL, openSUSE, Arch, Alpine), and
+installs Tailscale **plus** everything later steps need — `git`, `just`, Docker with the compose
+plugin, and your user in the `docker` group:
+[`scripts/prerequisites.sh`](https://github.com/erdemoney/kickstarrt-vps/blob/main/scripts/prerequisites.sh)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
@@ -56,7 +50,7 @@ tailscale ip -4        # e.g. 100.64.0.3 — a 100.x.y.z from Tailscale's CGNAT 
 
 `tailscale up` prints an **auth URL** — open it in your browser and approve the node.
 
-That tailnet address is the **only place SSH ever answers** — and how you get in from your
+That tailnet address is the **only place SSH answers from now on** — and how you get in from your
 workstation:
 
 ```bash
@@ -65,10 +59,10 @@ ssh ubuntu@100.64.0.3    # OCI's default user; your provider may differ
 
 Notes:
 
-- The first `ssh` needs your key on the box — a cloud-init seed (OCI) has it from creation; on a
-  box you bootstrapped by hand, add your workstation's public key to `~/.ssh/authorized_keys`
-  while you're still in the console (it rides the console shell, which isn't limited by sshd;
-  details in [Hardening §4](hardening#4-ssh-keys-no-password-auth)).
+- That first `ssh` walked in over the **public IP**; the box's provider-side `22` rule is still
+  open by design until §3 closes it ([OCI](oci) keeps the wizard's rule for exactly this). Only
+  your key can log in — Ubuntu configures no password for its user (other providers: turn
+  password auth off in [Hardening §4](hardening#4-ssh-keys-no-password-auth)).
 - If you enabled **MagicDNS** (Tailscale admin console → DNS, on by default), the box also
   answers at `vps.<tailnet>.ts.net` — fine for SSH, though the stack routes on `.DOMAIN` host
   names, so the `TAILNET_IP` [env value](#4-copy-and-fill-the-env-files) is the address that
@@ -77,12 +71,12 @@ Notes:
   fresh wait), or `sudo tailscale up` on the new box, then point `TAILNET_IP` at the new address
   via `just init` ([Tailnet DNS](tailnet)).
 - The provider console stays available as the **break-glass** door for the box's whole life: it
-  rides the provider's network, not yours, so a tailnet hiccup can never lock you out. One
-  caveat: on [OCI](oci), Canonical Ubuntu images configure no console password, so the console
-  can't log you in by design — recovery there is the volume-attach rescue, which is why access is
-  seeded at creation.
+  rides the provider's network, not yours, so a tailnet hiccup can never lock you out. Caveat: on
+  [OCI](oci), Canonical Ubuntu images configure no console password, so the console can't log you
+  in — recovery there is the volume-attach rescue, which is why the setup key is your primary
+  door.
 
-Everything from here on happens over SSH — the console isn't needed again.
+Everything from here on happens over SSH — and after §3, over the tailnet.
 
 ## 2. Fork and clone
 
@@ -102,7 +96,7 @@ git remote add upstream git@github.com:erdemoney/kickstarrt-vps.git   # optional
 
 `git`, `just`, Docker and Tailscale all came from the bootstrap script in
 [§1](#1-get-in-set-up-tailscale). `git` works straight away; the `docker` group from that script
-only takes effect in a **new SSH session** — log out and back in (or `newgrp docker`), then
+only takes effect in a **new SSH session** — log out and back in, then
 verify:
 
 ```bash
@@ -125,10 +119,10 @@ sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
 sudo ufw enable
 ```
 
-Also close the setup-time SSH window at the provider: on **Oracle Cloud**, delete the wizard's
+Also close the setup-time SSH door at the provider: on **Oracle Cloud**, delete the wizard's
 default `22` ingress rule (VCN → Default Security List → the `TCP 22 / 0.0.0.0/0` rule → Delete —
-[OCI §1](oci#1-virtual-cloud-network-vcn--via-the-vcn-wizard)). It was a rescue door for the
-first login only; from here SSH has exactly one way in, your tailnet.
+[OCI §1](oci#1-virtual-cloud-network-vcn--via-the-vcn-wizard)). It was the delivery door for the
+first login; from here SSH has exactly one way in, your tailnet.
 
 Then, over at [Hardening](hardening): switch SSH to key-only auth (§4) and add fail2ban (§6,
 optional belt-and-suspenders). After that it's safe to run `just init` and `just up` as yourself.

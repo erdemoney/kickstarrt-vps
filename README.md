@@ -90,8 +90,9 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 ## Quick start
 
 > **Note:** this repo is meant to be **forked** — fork it (keep the fork **private**), then
-> clone your fork onto the box. A box in this guide is reachable only over your tailnet, so get
-> **in first**: [Quickstart → Get in](https://erdemoney.github.io/kickstarrt-vps/quickstart#1-get-in-set-up-tailscale).
+> clone your fork onto the box. A box here is reachable over public SSH only for the very first
+> login, then over the tailnet only, so get **in first** and join the tailnet:
+> [Quickstart → Get in](https://erdemoney.github.io/kickstarrt-vps/quickstart#1-get-in-set-up-tailscale).
 > Your deployment secrets never touch the repo; they live in git-ignored
 > `.env` files that `just init` creates. Set up every app over an SSH port-forward (nothing
 > public yet), then add the A records and open `:443` **last**.
@@ -116,7 +117,7 @@ is in the [Quickstart](https://erdemoney.github.io/kickstarrt-vps/quickstart).
 ## Docs
 
 - [**Quickstart**](https://erdemoney.github.io/kickstarrt-vps/quickstart) — get in via Tailscale, fork, hardening, env files, first bring-up
-- [**Oracle Cloud (free tier)**](https://erdemoney.github.io/kickstarrt-vps/oci) — free VPS: VCN, subnet, instance, tailnet join at creation
+- [**Oracle Cloud (free tier)**](https://erdemoney.github.io/kickstarrt-vps/oci) — free VPS: VCN, subnet, instance; SSH in, then join the tailnet
 - [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) — Tailscale, ufw deny-incoming, fail2ban, non-root Docker
 - [**Services**](https://erdemoney.github.io/kickstarrt-vps/services) · [**The \*arrs**](https://erdemoney.github.io/kickstarrt-vps/arrs) · [**Decypharr**](https://erdemoney.github.io/kickstarrt-vps/decypharr) · [**Indexers**](https://erdemoney.github.io/kickstarrt-vps/indexers)
 - [**Ingress**](https://erdemoney.github.io/kickstarrt-vps/ingress) — direct `:443`: DNS records, TLS, security gate, dashboard

@@ -7,8 +7,9 @@ nav_order: 2
 
 The walkthrough from zero to a running Ubuntu 26.04 box on Oracle Cloud **Always Free**, built to
 match this repo's access model: **one serving port (`443`, opened last) plus `80` as a `http →
-https` redirect**. Provisioned through a cloud-init seed, managed via Tailscale, serve the apps
-straight off the VPS's public IP — there is no SSH-on-the-internet step anywhere in it.
+https` redirect**. Bootstrap over SSH, manage via Tailscale, serve the apps straight off the VPS's
+public IP — the box's only wide-open door is `:443`, opened last; a short public-SSH window during
+setup is closed the moment [Hardening](hardening) locks SSH to the tailnet.
 
 ## 0. About the Oracle Cloud free tier
 
@@ -61,11 +62,10 @@ Security Lists, or Networking → Virtual cloud networks → `kickstarrt-vcn` �
 `Default Security List for kickstarrt-vcn`) and make **two additions**: an **Ingress Rule** for
 **TCP, destination port `443`, source `0.0.0.0/0`** ("Allow public HTTPS to Traefik") and one for
 **TCP, destination port `80`, source `0.0.0.0/0`** ("Allow public HTTP − serves only the
-`http → https` redirect"). Leave the rest alone — including the wizard's default `22` ingress
-rule, **for now**: it's a deliberate rescue window, so that if the tailnet join ever misfires on a
-fresh box, key-only SSH over the public IP still gets you in. Ubuntu sets no password for its
-user, so only your key can log in anyway. The window is **closed in
-[Hardening → Firewall](hardening#3-firewall--ufw)** — the step that locks SSH to the tailnet. The
+`http → https` redirect"). Leave the rest alone — the wizard's default `22` ingress rule stays
+**for now**: that's the door you `ssh` in through during setup (key-only — Ubuntu sets no
+password for its user, so only the key you paste can log in). It is **closed at
+[Hardening → Firewall](hardening#3-firewall--ufw)**, the step that locks SSH to the tailnet. The
 real per-port enforcement point, though, is the **OS firewall**: ufw stays deny-incoming and the
 stack doesn't answer from the internet until the deliberate
 [Going public](quickstart#going-public-last) step runs `sudo ufw allow 443/tcp` and
@@ -83,56 +83,38 @@ stack doesn't answer from the internet until the deliberate
 | **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 26.04 Minimal aarch64** — the Minimal **aarch64** build, for this Arm shape (don't pick the x86 variant). Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
 | **Shape** | **Change shape** → **VM.Standard.A1.Flex** (Ampere, Arm): **2 OCPU / 12 GB / 2 Gbps** — the console spells it "2 core OCPU, 12 GB memory, 2 Gbps network bandwidth", the Always-Free ARM allotment. The only valid shape for this stack: every image in `stacks/` publishes `arm64` builds, and the x86 shapes (e.g. `VM.Standard.E2.1.Micro` at 1 GB) are not a valid choice. The shape must show **Always Free-eligible** |
 | **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and its **public subnet** (the one the wizard created); private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets its public IP here; with ufw deny-incoming and the security list closed except `443`, nothing is reachable until the [going-public](quickstart#going-public-last) step |
-| **Add SSH keys** | paste your **workstation's public key** (`~/.ssh/id_ed25519.pub`) — the key you'll `ssh` with over the tailnet. Canonical Ubuntu images configure **no console password**, so the console can't log you in; this key plus the Initialization script below are the only door the box ever opens. Never leave it empty |
+| **Add SSH keys** | paste your **workstation's public key** (`~/.ssh/id_ed25519.pub`) — it's how you get in: during setup over the public IP, and over the tailnet afterwards. Canonical Ubuntu images configure **no console password**, so this key is the only way onto the box. Never leave it empty |
 | **Storage → Boot volume** | default (≈ 46.6 GB, Oracle-managed encryption, in-transit encryption on) — no extra block volumes |
 
-**Advanced options** (expand it): replace the **Initialization script** (empty by default) with
-the seed below, adapted from [`scripts/oci-cloud-init.sh`](https://github.com/erdemoney/kickstarrt-vps/blob/main/scripts/oci-cloud-init.sh)
-in this repo. It joins the box to your tailnet on first boot and installs the stack's
-prerequisites — there is **no console login anywhere** ([Quickstart §1](quickstart#1-get-in-set-up-tailscale)):
-
-```bash
-export TS_HOSTNAME=kickstarrt
-export TARGET_USER=ubuntu
-export TS_AUTH_KEY='PASTE-YOUR-EPHEMERAL-AUTH-KEY'
-curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | bash
-```
-
-Generate the **ephemeral** auth key in the Tailscale admin console
-([login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys)) →
-**Generate auth key**, tick **Ephemeral** (it expires, and the `kickstarrt` node disappears with
-the instance, so a recreated box re-joins cleanly with a fresh key), then paste it in place of
-`PASTE-YOUR-EPHEMERAL-AUTH-KEY`. The **Security** section stays off as well — **Secure Boot**,
-**Measured Boot**, and **Trusted Platform Module** are all disabled by default; shielding guards
-boot integrity for shared tenancy and this box gains nothing from it.
+**Advanced options** (expand it): keep the **Initialization script empty** — there is no
+cloud-init bootstrap; first-run setup happens over SSH, exactly like any other VPS
+([Quickstart §1](quickstart#1-get-in-set-up-tailscale)). The **Security** section stays off as
+well — **Secure Boot**, **Measured Boot**, and **Trusted Platform Module** are all disabled by
+default; shielding guards boot integrity for shared tenancy and this box gains nothing from it.
 
 **Create**, then wait a few minutes for provisioning.
 
 ## After creation
 
-The instance is up, and it joined your tailnet during first boot — that's what the Initialization
-script did. Nothing on it is reachable from the internet yet, and that's the point. The **first
-thing** you do is find the box and log in over the tailnet, because the tailnet is your only way
-in ([Quickstart → 1. Get in](quickstart#1-get-in-set-up-tailscale)):
+The instance is up, and you get in over SSH like any other VPS — the VCN's `22` rule is still in
+place, which is the point: that's the door for the **first login**. From the instance's details
+page note the **Public IP address**, then:
 
-1. In the **Tailscale admin console** ([login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines)) find the new `kickstarrt` node (it appears within a minute or two of boot) and note its **tailnet address** — a `100.x.y.z` from Tailscale's CGNAT range.
-2. SSH in with the key you pasted at creation:
-   ```bash
-   ssh ubuntu@100.x.y.z
-   ```
-3. Continue at [Quickstart → 2. Fork and clone](quickstart#2-fork-and-clone). git, just, Docker and the tailnet join all came from the Initialization script, so there's nothing left to install — the re-run story in Quickstart §1 is for boxes you bootstrap by hand.
+```bash
+ssh ubuntu@<PUBLIC-IP>     # key you pasted at creation; proceed even if a "host key" prompt appears
+```
 
-> **Rescue window.** If `kickstarrt` hasn't appeared in the Tailscale admin console within a few
-> minutes of boot, use the VCN's `22` rule — still present during initial setup, by design:
-> `ssh ubuntu@<PUBLIC-IP>` (the instance's **Public IP address** on its details page) with the key
-> you pasted. From there, check the join (`tailscale status`) or redo it (`sudo tailscale up` and
-> approve the URL it prints). The `22` rule is **removed** in [Hardening → Firewall](hardening#3-firewall--ufw)
-> once the tailnet is your working door, so the window is only ever open for the first access.
+Then follow [Quickstart → 1. Get in](quickstart#1-get-in-set-up-tailscale): the bootstrap one-liner
+installs the stack's prerequisites and joins the box to your tailnet — approve the auth URL it
+prints, and it hands you the tailnet address that becomes your SSH address from then on. Once the
+tailnet is confirmed working, [Hardening → Firewall](hardening#3-firewall--ufw) closes the `22`
+door (delete the VCN ingress rule, lock ufw to tailnet-only) and every later login goes over the
+tailnet.
 
-Every later login goes over the tailnet, not the console. And about the **Console connection**: it
-*is* there (a hypervisor-level shell that ignores the firewall), but Canonical Ubuntu images
-configure **no console password**, so the console never accepts a login — which is exactly why
-your SSH key and the tailnet join are seeded at creation rather than delivered over the console.
+The **Console connection** can't help here: Canonical Ubuntu images configure **no console
+password**, so the console never accepts a login. Your SSH key — pasted at creation — is the only
+way onto the box. Keep it as the break-glass door where your provider's image allows it; on
+Ubuntu it's the volume-attach rescue instead.
 
 Notes:
 
