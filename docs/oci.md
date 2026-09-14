@@ -97,8 +97,9 @@ The instance is up, but nothing on it is reachable yet — that's the point. The
 you do is join it to your tailnet, because the tailnet is your only way in
 ([Quickstart → 1. Get in](quickstart#1-get-in-set-up-tailscale)). From the instance's details
 page, open **Console connection** (a hypervisor-level shell — it works with no SSH keys and
-regardless of ufw), run the two Tailscale commands from that section, and every later login goes
-over the tailnet, not the console.
+regardless of ufw), run the bootstrap one-liner from that section (it installs Tailscale plus
+the stack's prerequisites) and approve the tailnet join — every later login goes over the
+tailnet, not the console.
 
 Notes:
 

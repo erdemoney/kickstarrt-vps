@@ -97,6 +97,8 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 > public yet), then add the A records and open `:443` **last**.
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash   # git, just, docker, tailscale (idempotent)
+sudo tailscale up                                       # approve the URL, then: tailscale ip -4
 git clone git@github.com:<you>/kickstarrt-vps.git
 cd kickstarrt-vps
 just init             # walks every secret; Enter accepts sensible defaults

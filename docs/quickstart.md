@@ -21,17 +21,29 @@ you log in at all.
 
 ## 1. Get in: set up Tailscale
 
-Do this the moment the instance is up; nothing else works until it does.
+Do this the moment the instance is up; nothing else works until it does. First open a shell on
+the box — on an [Oracle Cloud](oci) box that's the instance's **Console connection** (a
+hypervisor-level shell in the provider panel: it works with no SSH keys and regardless of the
+firewall); on any other provider, use its out-of-band console.
+
+Then bootstrap the box with this repo's setup script. It's **idempotent** (safe to re-run —
+anything present is skipped), **cross-distro** (Debian/Ubuntu, Fedora/RHEL, openSUSE, Arch,
+Alpine), and installs Tailscale **plus** everything later steps need — `git`, `just`, Docker
+with the compose plugin, and your user in the `docker` group:
+[`scripts/prerequisites.sh`](https://github.com/erdemoney/kickstarrt-vps/blob/main/scripts/prerequisites.sh)
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
+```
+
+(The URL points at the public upstream repo, so it runs before you've cloned anything.) Tailscale
+is installed but **not joined** — the join is yours to make:
+
+```bash
 sudo tailscale up
 ```
 
-On an [Oracle Cloud](oci) box, open the instance's **Console connection** first (a
-hypervisor-level shell in the provider panel — it works with no SSH keys and regardless of the
-firewall), then run those two commands there; on any other provider, use its out-of-band
-console. `tailscale up` prints an **auth URL** — open it in your browser and approve the node.
+`tailscale up` prints an **auth URL** — open it in your browser and approve the node.
 
 Confirm you're joined, and write down the address:
 
@@ -75,28 +87,24 @@ cd ~/docker/kickstarrt-vps
 git remote add upstream git@github.com:erdemoney/kickstarrt-vps.git   # optional
 ```
 
-## 3. Install prerequisites and harden the box
+## 3. Finish hardening the box
 
-You're in over SSH now, and the box is still reachable only from your tailnet — keep it that way.
-Full detail for each item is on [Hardening](hardening).
+`git`, `just`, Docker and Tailscale all came from the bootstrap script in
+[§1](#1-get-in-set-up-tailscale). `git` works straight away; the `docker` group from that script
+only takes effect in a **new SSH session** — log out and back in (or `newgrp docker`), then
+verify:
 
-Update the OS, then install the two tools everything else runs on:
+```bash
+docker run --rm hello-world     # no sudo needed once the group is active
+just --version
+```
+
+Update the OS and lock the firewall down while the box is still reachable only from your
+tailnet. SSH — and the tailnet DNS resolver, [Tailnet DNS](tailnet) — get in from **only** the
+tailnet; `80`/`443` stay closed until [Going public](#going-public-last):
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-```
-
-- [Docker Engine](https://docs.docker.com/engine/install/) for your distro (covers the `docker
-  compose` plugin), then the
-  [post-install steps](https://docs.docker.com/engine/install/linux-postinstall/) so Docker runs
-  without `sudo` (`usermod -aG docker` + re-login; [Hardening §5](hardening#5-non-root-docker))
-- [`just`](https://just.systems/) — your distro's package, or the
-  [release binary](https://github.com/casey/just/releases)
-
-Lock the firewall down. SSH — and the tailnet DNS resolver, [Tailnet DNS](tailnet) — get in from
-**only** the tailnet; `80`/`443` stay closed until [Going public](#going-public-last):
-
-```bash
 sudo apt install ufw
 sudo ufw default deny incoming
 sudo ufw default allow outgoing

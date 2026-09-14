@@ -13,6 +13,13 @@ repos:
       - id: pretty-format-json
         args: ["--autofix"]
 
+  # Shell check for the bootstrap script
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: ^scripts/
+
   # Scan staged changes for hardcoded secrets / API keys (auto-downloads via Go)
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
