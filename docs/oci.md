@@ -95,7 +95,12 @@ Notes:
 - Oracle **reclaims Always-Free instances it considers idle** (low CPU/network for a while). This
   stack mostly benches idle between streams, so the box can vanish without warning; the common fix
   is to upgrade the account to **Pay As You Go** — Always-Free resources stay free, but the account
-  stops being flagged as an unused free tier and the reaper leaves it alone.
+  stops being flagged as an unused free tier and the reaper leaves it alone. To upgrade: navigation
+  menu → **Billing & Cost Management** → **Upgrade and Manage Payment** → tick the terms box →
+  **Upgrade your account** (your signup card is the default payment method; a refundable card
+  authorization is placed at upgrade, exactly like the ~$1 signup hold). PAYG accounts also get
+  different, higher **capacity limits** than the Always-Free pool — which is what makes the
+  "out of capacity" problem in the next note mostly go away.
 - **"Out of capacity"** creating an A1 is the norm, not the exception — Always-Free ARM is the
   most contended shape on OCI. Capacity frees up continually, so: hit **Create** again (retries
   often succeed in minutes), try a different availability domain if your region has more than one,
