@@ -49,10 +49,11 @@ sudo ufw enable
 ```
 
 The `allow from 100.64.0.0/10` rule lets nothing but your tailnet (`100.64.0.0/10` is the CGNAT
-range Tailscale uses) reach sshd. There is **no `22` rule from the internet — and no `80` rule
-ever**. Port `443` is the one public port this stack uses, but it stays **closed** through setup;
-the last step of [Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp`. Until
-that command runs, nothing on the box answers from the internet, DNS records or not (Traefik
+range Tailscale uses) reach sshd. There is **no `22` rule from the internet and no `80`/`443`
+rule yet**. The public surface of this stack is Traefik on `443` plus a `80` rule that exists only
+for the `http → https` redirect — and it all stays **closed** through setup; the last step of
+[Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp` and `sudo ufw allow
+80/tcp`. Until those run, nothing on the box answers from the internet, DNS records or not (Traefik
 listens on `:443` the whole time; the firewall just doesn't let traffic in).
 
 ## 4. SSH keys, no password auth
@@ -94,9 +95,9 @@ Defaults are fine: it watches sshd and bans repeated bad logins. Check it after 
 
 ## 7. Keep-a-lid-it-on principles
 
-- **Public surface = one port: Traefik on `443`** (opened last — see
-  [Going public](quickstart#going-public-last)) **plus the tailnet**. `80` never opens; `22` is
-  reachable only from your tailnet.
+- **Public surface = Traefik on `443`, plus `80` as a pure `http → https` redirect**
+  (both opened last — see [Going public](quickstart#going-public-last)) **plus the tailnet**.
+  `22` is reachable only from your tailnet.
 - CrowdSec inside the stack ([Security](security)) blocks scanner IPs at the Traefik layer;
   fail2ban backs up sshd — together they cover everything that can reach this box.
 - Don't run random scripts as root; `just` and `docker` are the only privileged entry points

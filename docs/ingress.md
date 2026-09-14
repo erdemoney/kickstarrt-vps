@@ -12,8 +12,11 @@ things: DNS records and the DNS-01 challenge that issues the wildcard cert. Neit
 video, which keeps the stack clearly on the right side of Cloudflare's CDN terms (more on
 [why](#why-not-proxy-media-via-cloudflare)).
 
-**The VPS opens exactly one public port: TCP `443` (Traefik).** Port `80` never opens; SSH reaches
-sshd only from your tailnet ([Hardening](hardening)). Everything on `:443` is fronted by CrowdSec
+**The VPS serves the internet from exactly one port: TCP `443` (Traefik).** TCP `80` is open only
+to bounce `http://` to `https://` — the entrypoint-level redirect in `traefik.template.yml`, with
+nothing served on it — and the HSTS header (`secHeaders@file`, sent on every https response) makes
+repeat browsers upgrade on their own and skip `:80` after the first visit. SSH reaches sshd only
+from your tailnet ([Hardening](hardening)). Everything on `:443` is fronted by CrowdSec
 ([Security](security)).
 
 ## Security gate: finish setup before going public
@@ -26,9 +29,10 @@ Inbound is blocked until *you* allow it — nothing here is accidentally public.
 2. **Minimum before exposing each app: its setup is finished** — admin account exists and auth is
    on: Jellyfin (admin created on first login), Sonarr/Radarr/Prowlarr/Bazarr/Profilarr (Settings →
    General → Authentication), Seerr (admin on first login), Decypharr (wizard completed).
-3. **Only then go public** — the last step is adding DNS records *and* opening `:443` at the
-   firewall (see [Going public last](quickstart#going-public-last)). Reversible either way: delete
-   the records, or `sudo ufw delete allow 443/tcp`.
+3. **Only then go public** — the last step is adding DNS records *and* opening `:443` (and its
+   `:80` https-redirect companion) at the firewall (see [Going public last](quickstart#going-public-last)).
+   Reversible either way: delete the records, or `sudo ufw delete allow 443/tcp` and
+   `allow 80/tcp`.
 
 ## Adding a public hostname (DNS record)
 

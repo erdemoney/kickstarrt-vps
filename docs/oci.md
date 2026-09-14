@@ -6,9 +6,9 @@ nav_order: 2
 # Oracle Cloud free-tier VPS
 
 The walkthrough from zero to a running Ubuntu 26.04 box on Oracle Cloud **Always Free**, built to
-match this repo's access model: **one public port (`443`, opened last)**. Bootstrap via the
-provider console, manage via Tailscale, serve the apps straight off the VPS's public IP — there
-is no SSH-on-the-internet step anywhere in it.
+match this repo's access model: **one serving port (`443`, opened last) plus `80` as a `http →
+https` redirect**. Bootstrap via the provider console, manage via Tailscale, serve the apps
+straight off the VPS's public IP — there is no SSH-on-the-internet step anywhere in it.
 
 ## 0. About the Oracle Cloud free tier
 
@@ -19,9 +19,10 @@ stack needs:
 - **Compute**: Always-Free **Ampere A1** (ARM) shapes, currently **2 OCPU / 12 GB** of RAM.
 - **Storage**: block volumes, plus object storage for backups.
 - **Networking**: a **public IPv4**, a VCN with an internet gateway, and the security
-  list/route-table plumbing. That IP is this stack's ingress — it serves `:443` on it
-  (opened last, [Hardening](hardening)) — so it should stay **stable**: once you add DNS
-  records, the IP needs to survive stop/start and rebuilds (see "Reserve the public IP" below).
+  list/route-table plumbing. That IP is this stack's ingress — it serves `:443` on it (plus the
+  `:80` `http → https` redirect; both opened last, [Hardening](hardening)) — so it should stay
+  **stable**: once you add DNS records, the IP needs to survive stop/start and rebuilds (see
+  "Reserve the public IP" below).
 
 The catch: Oracle will **reclaim** Always-Free instances it considers idle, and ARM capacity is
 frequently "out of capacity" in busy regions. Both are covered later on this page. Oracle also
@@ -52,18 +53,20 @@ internet gateway + route that give it outbound internet:
 
 **Next** → review → **Create VCN**. The wizard builds the VCN, the public subnet, the **Internet
 Gateway**, and the `0.0.0.0/0 → Internet Gateway` default route automatically — nothing else to
-wire up. The one networking edit this stack needs (the `:443` ingress rule) happens right after,
-below.
+wire up. The two networking additions this stack needs (`:443`, plus `:80` for the https
+redirect) happen right after, below.
 
 **After the VCN wizard creates the public subnet**, open its **Security List** (Public subnet →
 Security Lists, or Networking → Virtual cloud networks → `kickstarrt-vcn` → Security Lists →
-`Default Security List for kickstarrt-vcn`) and make **one** change: add an **Ingress Rule** for
-**TCP, destination port `443`, source `0.0.0.0/0`** ("Allow public HTTPS to Traefik"). Leave the
-rest alone — but the wizard's default `22` ingress rule can be **deleted** too: sshd is only ever
-reachable from your tailnet ([Hardening](hardening)), so a VCN hole for `22` adds nothing. The
-real per-port enforcement point, though, is the **OS firewall**: ufw stays deny-incoming and the
-stack's `:443` doesn't answer from the internet until the deliberate
-[Going public](quickstart#going-public-last) step runs `sudo ufw allow 443/tcp`.
+`Default Security List for kickstarrt-vcn`) and make **two** changes: add an **Ingress Rule** for
+**TCP, destination port `443`, source `0.0.0.0/0`** ("Allow public HTTPS to Traefik") and one for
+**TCP, destination port `80`, source `0.0.0.0/0`** ("Allow public HTTP − serves only the
+`http → https` redirect"). Leave the rest alone — but the wizard's default `22` ingress rule can
+be **deleted** too: sshd is only ever reachable from your tailnet ([Hardening](hardening)), so a
+VCN hole for `22` adds nothing. The real per-port enforcement point, though, is the **OS
+firewall**: ufw stays deny-incoming and the stack doesn't answer from the internet until the
+deliberate [Going public](quickstart#going-public-last) step runs `sudo ufw allow 443/tcp` and
+`sudo ufw allow 80/tcp`.
 
 ## 2. Create the compute instance
 

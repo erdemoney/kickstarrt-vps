@@ -33,7 +33,7 @@ Hosting at home instead (LAN stage, hardware transcoding)? Use the
  Cloudflare DNS (grey-cloud A records + DNS-01 certs; no video traffic)
                  │
                  ▼
-  VPS public IP :443 (ufw: 443 opened last; 80 never; 22 tailnet-only)
+  VPS public IP :443 (ufw: 443 opened last; 80 = https-redirect only; 22 tailnet-only)
                  │
                  ▼
   Traefik ────────► CrowdSec   edge WAF / IP blocking
@@ -74,8 +74,9 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 - **Automatic TLS** — Traefik issues a `*.DOMAIN` Let's Encrypt wildcard via Cloudflare DNS-01;
   every app UI ships on HTTPS from the public internet
 - **Edge security** — CrowdSec WAF inside Traefik, a **deny-incoming ufw** that opens exactly one
-  public port (`443`, the last step of setup; SSH stays inside your tailnet), and the public
-  hostnames are DNS-only records — media never rides a third-party edge
+  *serving* port (`443`, the last step of setup; `80` is open only for the `http → https`
+  redirect; SSH stays inside your tailnet), and the public hostnames are DNS-only records — media
+  never rides a third-party edge
 - **Automated upkeep** — Renovate opens dependency PRs and CI validates every change (compose +
   pre-commit + a full secret-history scan)
 - **One command to deploy** — `just init` fills the secrets, `just up` creates networks and

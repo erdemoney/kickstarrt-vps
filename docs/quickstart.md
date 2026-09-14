@@ -152,7 +152,7 @@ recreate the `crowdsec` and `traefik` containers (`just update-all`). Details in
 
 By now [Hardening](hardening) has run: Tailscale is up (bootstrapped through the provider
 console — no port was ever opened) and ufw is deny-incoming with SSH allowed only from the
-tailnet. Port `443` is still closed, so the stack answers only inside the tailnet:
+tailnet. Ports `443` and `80` are still closed, so the stack answers only inside the tailnet:
 
 ```bash
 just up          # creates networks, config dirs, acme.json + traefik.yml, then brings up every stack
@@ -204,17 +204,21 @@ When every app is set up:
 1. Add **A records** in Cloudflare DNS for `seerr.<DOMAIN>` and `jellyfin.<DOMAIN>`, **Proxy
    status: DNS only** (grey cloud — never proxied), pointing at the VPS's public IP — full
    steps in [Ingress → Adding a public hostname](ingress#adding-a-public-hostname-dns-record).
-2. Open the one public port — the last thing you do:
+2. Open the public ports — the last thing you do:
 
    ```bash
    sudo ufw allow 443/tcp
+   sudo ufw allow 80/tcp
    ```
 
-   (The matching provider-side `443` ingress rule is part of
-   [instance creation](oci) in the free-tier guide.) SSH stays tailnet-only; port `80` never
-   opens.
+   `443` is the real way in; `80` exists only for the `http → https` redirect (Traefik's
+   entrypoint-level rule — nothing is served on it), and the HSTS header means browsers skip `:80`
+   after their first https visit. The matching provider-side ingress rules (`443` **and** `80`) are
+   part of [instance creation](oci) in the free-tier guide. SSH stays tailnet-only.
 
 From then on the stack is public on those hostnames only: Cloudflare DNS → VPS `:443` → Traefik,
-with CrowdSec in front of all of it. Reversible either way — delete the records, or
-`sudo ufw delete allow 443/tcp`. Admin panels stay out of the public DNS and are reached over the
-tailnet (directly, or through the SSH port-forward); [Ingress](ingress) covers the details.
+with CrowdSec in front of all of it. (Typing `http://` in a browser bounces to https; every other
+request already speaks https.) Reversible either way — delete the records, or `sudo ufw delete
+allow 443/tcp` (and `allow 80/tcp`). Admin panels stay out of the public DNS and are reached
+over the tailnet (directly, or through the SSH port-forward); [Ingress](ingress) covers the
+details.

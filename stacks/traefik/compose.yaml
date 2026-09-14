@@ -16,6 +16,11 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
+      # :80 serves one thing: the entrypoint-level http -> https redirect (in
+      # traefik.template.yml). No router is on http, CrowdSec stays on the https
+      # entrypoint, and secHeaders@file's HSTS makes browsers skip :80 after the
+      # first https visit.
+      - 80:80
       - 443:443
     volumes:
       - /etc/localtime:/etc/localtime:ro

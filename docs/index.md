@@ -19,7 +19,7 @@ host-agnostic.
          Cloudflare DNS (grey-cloud A records + DNS-01 certs; no video traffic)
                          |
                          v
-            VPS public IP :443  (ufw: 443 opened last; 80 never; 22 = tailnet only)
+            VPS public IP :443  (ufw: 443 opened last; 80 = https-redirect only; 22 = tailnet only)
                          |
                          v
      Traefik :443 ----> CrowdSec (WAF / IP blocking)      Tailscale (console bootstrap → daily ops)
@@ -86,7 +86,7 @@ justfile                 ops recipes (just up, just update-all, ...)
 | ---------------------------- | --------------------------------------------------------------------- |
 | [Oracle Cloud (free tier)](oci) | free VPS: VCN, subnet, instance, console bootstrap  |
 | [Quickstart](quickstart)     | env files, where every secret comes from, tailnet SSH gate, first `just up` |
-| [Hardening](hardening)       | Tailscale, ufw deny-incoming (443 opened last; tailnet-only 22), fail2ban, non-root Docker, SSH keys |
+| [Hardening](hardening)       | Tailscale, ufw deny-incoming (443 opened last; 80 = redirect only; tailnet-only 22), fail2ban, non-root Docker, SSH keys |
 | [The \*arrs](arrs)           | shared networks, internal DNS names, API-key wiring between all apps  |
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
 | [Decypharr](decypharr)       | debrid gateway: wizard, arr integration, mounts                       |

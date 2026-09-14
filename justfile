@@ -416,7 +416,7 @@ init:
     printf '%s\n' "  ${B}${GRN}${DONE}${R} ${B}init complete${R}"
     muted "Review stacks/*/.env, then run 'just up'."
     muted "Keep ufw closed (SSH tailnet-only) - the stack stays private until you add the"
-    muted "public DNS records and open :443 (docs/ingress.md)."
+    muted "public DNS records and open :443 (+ :80, the http->https redirect) (docs/ingress.md)."
     hr
 
 # Create the shared Docker network (idempotent)
