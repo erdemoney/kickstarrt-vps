@@ -22,7 +22,7 @@ host-agnostic.
             VPS public IP :443  (ufw: 443 opened last; 80 = https-redirect only; 22 = tailnet only)
                          |
                          v
-     Traefik :443 ----> CrowdSec (WAF / IP blocking)      Tailscale (console bootstrap → daily ops)
+     Traefik :443 ----> CrowdSec (WAF / IP blocking)      Tailscale (first-boot join → daily ops)
                          |
                          v
              Docker "internal" network
@@ -63,7 +63,8 @@ you'll rarely transcode at all.
 assumes it. Most providers offer a Debian 12 image out of the box. Oracle Cloud doesn't — use
 **Ubuntu 26.04 Minimal aarch64** there (every `apt`/`ufw`/`fail2ban` command in this wiki is
 identical); the [Oracle Cloud (free tier)](oci) page walks the full creation. Get the basics right
-first; see [Hardening](hardening) for Tailscale (console bootstrap), ufw deny-incoming, fail2ban, and
+first; see [Hardening](hardening) for Tailscale (get in first — seeded at creation or bootstrapped
+from the console), ufw deny-incoming, fail2ban, and
 non-root Docker before anything goes public.
 
 ## Repository layout
@@ -84,7 +85,7 @@ justfile                 ops recipes (just up, just update-all, ...)
 
 | Page                         | What it covers                                                        |
 | ---------------------------- | --------------------------------------------------------------------- |
-| [Oracle Cloud (free tier)](oci) | free VPS: VCN, subnet, instance, console bootstrap  |
+| [Oracle Cloud (free tier)](oci) | free VPS: VCN, subnet, instance — the box joins the tailnet at creation |
 | [Quickstart](quickstart)     | get in via Tailscale first, fork, hardening, env files/secrets, first `just up` |
 | [Hardening](hardening)       | Tailscale, ufw deny-incoming (443 opened last; 80 = redirect only; tailnet-only 22), fail2ban, non-root Docker, SSH keys |
 | [The \*arrs](arrs)           | shared networks, internal DNS names, API-key wiring between all apps  |

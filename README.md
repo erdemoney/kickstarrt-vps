@@ -116,7 +116,7 @@ is in the [Quickstart](https://erdemoney.github.io/kickstarrt-vps/quickstart).
 ## Docs
 
 - [**Quickstart**](https://erdemoney.github.io/kickstarrt-vps/quickstart) — get in via Tailscale, fork, hardening, env files, first bring-up
-- [**Oracle Cloud (free tier)**](https://erdemoney.github.io/kickstarrt-vps/oci) — free VPS: VCN, subnet, instance, console bootstrap
+- [**Oracle Cloud (free tier)**](https://erdemoney.github.io/kickstarrt-vps/oci) — free VPS: VCN, subnet, instance, tailnet join at creation
 - [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) — Tailscale, ufw deny-incoming, fail2ban, non-root Docker
 - [**Services**](https://erdemoney.github.io/kickstarrt-vps/services) · [**The \*arrs**](https://erdemoney.github.io/kickstarrt-vps/arrs) · [**Decypharr**](https://erdemoney.github.io/kickstarrt-vps/decypharr) · [**Indexers**](https://erdemoney.github.io/kickstarrt-vps/indexers)
 - [**Ingress**](https://erdemoney.github.io/kickstarrt-vps/ingress) — direct `:443`: DNS records, TLS, security gate, dashboard

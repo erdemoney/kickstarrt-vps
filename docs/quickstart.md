@@ -16,21 +16,26 @@ commit, and `git pull` on the server.
 The steps below are the whole setup, in the order they have to happen. A box in this guide is
 reachable from **exactly one place: your Tailscale tailnet**. Every other door is closed by
 design ([Hardening](hardening)) and stays closed until you deliberately open `:443` at the very
-end. So the first thing you do with a brand-new box is join it to the tailnet — only then can
-you log in at all.
+end. So the first thing that happens on a brand-new box is its **join to the tailnet** — an
+[Oracle Cloud](oci) box does it *at creation* (a cloud-init seed), any other box does it the
+moment you bootstrap it. Only then can you log in at all.
 
 ## 1. Get in: set up Tailscale
 
-Do this the moment the instance is up; nothing else works until it does. First open a shell on
-the box — on an [Oracle Cloud](oci) box that's the instance's **Console connection** (a
-hypervisor-level shell in the provider panel: it works with no SSH keys and regardless of the
-firewall); on any other provider, use its out-of-band console.
+Do this the moment the instance is up; nothing else works until it does. How depends on the
+provider's first-boot automation:
 
-Then bootstrap the box with this repo's setup script. It's **idempotent** (safe to re-run —
-anything present is skipped), **cross-distro** (Debian/Ubuntu, Fedora/RHEL, openSUSE, Arch,
-Alpine), and installs Tailscale **plus** everything later steps need — `git`, `just`, Docker
-with the compose plugin, and your user in the `docker` group:
-[`scripts/prerequisites.sh`](https://github.com/erdemoney/kickstarrt-vps/blob/main/scripts/prerequisites.sh)
+- **On an [Oracle Cloud](oci) box the join already happened** — the Initialization script you
+  pasted at creation did it, with your SSH key pasted right next to it. There was no console login
+  involved (Ubuntu's console can't log in anyway — no password is configured). Find the
+  `kickstarrt` node in the Tailscale admin console, note its tailnet address, and SSH in; skip
+  ahead to [§3 Finish hardening](#3-finish-hardening-the-box).
+- **On any other provider**, open its **out-of-band console** and run the bootstrap one-liner
+  below. It's **idempotent** (safe to re-run — anything present is skipped), **cross-distro**
+  (Debian/Ubuntu, Fedora/RHEL, openSUSE, Arch, Alpine), and installs Tailscale **plus** everything
+  later steps need — `git`, `just`, Docker with the compose plugin, and your user in the `docker`
+  group:
+  [`scripts/prerequisites.sh`](https://github.com/erdemoney/kickstarrt-vps/blob/main/scripts/prerequisites.sh)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
@@ -57,9 +62,10 @@ ssh ubuntu@100.64.0.3    # OCI's default user; your provider may differ
 
 Notes:
 
-- The first `ssh` needs your key on the box — while you're still in the console, add your
-  workstation's public key to `~/.ssh/authorized_keys` (it rides the console shell, which isn't
-  limited by sshd; details in [Hardening §4](hardening#4-ssh-keys-no-password-auth)).
+- The first `ssh` needs your key on the box — a cloud-init seed (OCI) has it from creation; on a
+  box you bootstrapped by hand, add your workstation's public key to `~/.ssh/authorized_keys`
+  while you're still in the console (it rides the console shell, which isn't limited by sshd;
+  details in [Hardening §4](hardening#4-ssh-keys-no-password-auth)).
 - If you enabled **MagicDNS** (Tailscale admin console → DNS, on by default), the box also
   answers at `vps.<tailnet>.ts.net` — fine for SSH, though the stack routes on `.DOMAIN` host
   names, so the `TAILNET_IP` [env value](#4-copy-and-fill-the-env-files) is the address that
@@ -68,7 +74,10 @@ Notes:
   fresh wait), or `sudo tailscale up` on the new box, then point `TAILNET_IP` at the new address
   via `just init` ([Tailnet DNS](tailnet)).
 - The provider console stays available as the **break-glass** door for the box's whole life: it
-  rides the provider's network, not yours, so a tailnet hiccup can never lock you out.
+  rides the provider's network, not yours, so a tailnet hiccup can never lock you out. One
+  caveat: on [OCI](oci), Canonical Ubuntu images configure no console password, so the console
+  can't log you in by design — recovery there is the volume-attach rescue, which is why access is
+  seeded at creation.
 
 Everything from here on happens over SSH — the console isn't needed again.
 

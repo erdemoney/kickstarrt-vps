@@ -11,30 +11,36 @@ and before anything is public.
 This edition opens **exactly one port to the public internet: TCP `443` (Traefik)** — and not even
 that at first: it stays closed behind ufw until you deliberately open it as the last step of
 setup ([Going public](quickstart#going-public-last)). Everything else — including `80` and `22` —
-is closed from the internet. The **Tailscale tailnet** is how you reach the box itself. Until
-then, the only way in is the provider's out-of-band console.
+is closed from the internet. The **Tailscale tailnet** is how you reach the box itself. Joining
+the tailnet is always the first thing that happens on a brand-new box — either a cloud-init seed
+at creation ([Oracle Cloud](oci)) or a manual join from the provider console
+([Quickstart §1](quickstart#1-get-in-set-up-tailscale)).
 
 ## 1. Tailscale — your only way in (no public port)
 
-This is the **first** thing you do with a brand-new box — the walkthrough lives in
-[Quickstart §1](quickstart#1-get-in-set-up-tailscale), where a [bootstrap script](quickstart#1-get-in-set-up-tailscale)
-installs this for you (with `git`, `just` and Docker in one idempotent run, and joins the
-tailnet). The short form, installed and authenticated from the provider's **web console** (the
-hypervisor-level console in your provider's panel, unaffected by the firewall — no port on it,
-so not even `22` is exposed while bootstrap happens; [Oracle Cloud](oci) is the worked
-example):
+This is the **first** thing that happens on a brand-new box — the walkthrough lives in
+[Quickstart §1](quickstart#1-get-in-set-up-tailscale). An [Oracle Cloud](oci) box joins during
+first boot (the Initialization script seeds it with an ephemeral auth key, so no console login is
+involved). Everywhere else, bootstrap it from the provider's **out-of-band console** — the
+hypervisor-level shell that rides the provider's network (no port on it, so not even `22` is
+exposed while bootstrap happens):
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up
+curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
 ```
 
-Authenticate with the printed URL in your browser, then note the node's address (`tailscale ip -4`
-— or enable **MagicDNS** in the admin console and use its hostname). That address, a `100.x.y.z`
-from Tailscale's CGNAT range, is the only place SSH is ever reachable.
+The script installs everything (Tailscale, `git`, `just`, Docker) and joins the tailnet: it
+prints an **auth URL**, waits up to two minutes for you to approve the node, then prints the box's
+tailnet address. Authenticate with the printed URL in your browser, then note the node's address
+(`tailscale ip -4` — or enable **MagicDNS** in the admin console and use its hostname). That
+address, a `100.x.y.z` from Tailscale's CGNAT range, is the only place SSH is ever reachable.
 
 Keep the provider console in mind as the **break-glass** path: if the tailnet node ever needs
-fixing from outside, the console is still there — it's port-free and always works.
+fixing from outside, the console is still there — it's port-free and always available. One
+caveat: Canonical Ubuntu images on [OCI](oci) configure **no console password**, so the console
+there can't log you in by design — the reason access is seeded at creation rather than delivered
+over the console. Recovering a tailnet-locked Ubuntu box happens from a rescue: detach the boot
+volume, mount it on a second instance, and fix (or re-seed) the node.
 
 ## 2. Keep packages up to date
 

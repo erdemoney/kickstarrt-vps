@@ -7,7 +7,7 @@ nav_order: 2
 
 The walkthrough from zero to a running Ubuntu 26.04 box on Oracle Cloud **Always Free**, built to
 match this repo's access model: **one serving port (`443`, opened last) plus `80` as a `http →
-https` redirect**. Bootstrap via the provider console, manage via Tailscale, serve the apps
+https` redirect**. Provisioned through a cloud-init seed, managed via Tailscale, serve the apps
 straight off the VPS's public IP — there is no SSH-on-the-internet step anywhere in it.
 
 ## 0. About the Oracle Cloud free tier
@@ -80,26 +80,49 @@ deliberate [Going public](quickstart#going-public-last) step runs `sudo ufw allo
 | **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 26.04 Minimal aarch64** — the Minimal **aarch64** build, for this Arm shape (don't pick the x86 variant). Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
 | **Shape** | **Change shape** → **VM.Standard.A1.Flex** (Ampere, Arm): **2 OCPU / 12 GB / 2 Gbps** — the console spells it "2 core OCPU, 12 GB memory, 2 Gbps network bandwidth", the Always-Free ARM allotment. The only valid shape for this stack: every image in `stacks/` publishes `arm64` builds, and the x86 shapes (e.g. `VM.Standard.E2.1.Micro` at 1 GB) are not a valid choice. The shape must show **Always Free-eligible** |
 | **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and its **public subnet** (the one the wizard created); private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets its public IP here; with ufw deny-incoming and the security list closed except `443`, nothing is reachable until the [going-public](quickstart#going-public-last) step |
-| **Add SSH keys** | **No SSH keys — leave it empty.** You never SSH over the public internet: bootstrap is via the console, then everything rides the Tailscale tailnet (see [Hardening](hardening)) |
+| **Add SSH keys** | paste your **workstation's public key** (`~/.ssh/id_ed25519.pub`) — the key you'll `ssh` with over the tailnet. Canonical Ubuntu images configure **no console password**, so the console can't log you in; this key plus the Initialization script below are the only door the box ever opens. Never leave it empty |
 | **Storage → Boot volume** | default (≈ 46.6 GB, Oracle-managed encryption, in-transit encryption on) — no extra block volumes |
 
-**Advanced options** (expand it; everything defaults): keep the **Initialization script empty** —
-first-run setup happens over the console per [Hardening](hardening), not via a bootstrap script.
-The **Security** section stays off as well — **Secure Boot**, **Measured Boot**, and **Trusted
-Platform Module** are all disabled by default; shielding guards boot integrity for shared tenancy
-and this box gains nothing from it.
+**Advanced options** (expand it): replace the **Initialization script** (empty by default) with
+the seed below, adapted from [`scripts/oci-cloud-init.sh`](https://github.com/erdemoney/kickstarrt-vps/blob/main/scripts/oci-cloud-init.sh)
+in this repo. It joins the box to your tailnet on first boot and installs the stack's
+prerequisites — there is **no console login anywhere** ([Quickstart §1](quickstart#1-get-in-set-up-tailscale)):
+
+```bash
+export TS_HOSTNAME=kickstarrt
+export TARGET_USER=ubuntu
+export TS_AUTH_KEY='PASTE-YOUR-EPHEMERAL-AUTH-KEY'
+curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | bash
+```
+
+Generate the **ephemeral** auth key in the Tailscale admin console
+([login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys)) →
+**Generate auth key**, tick **Ephemeral** (it expires, and the `kickstarrt` node disappears with
+the instance, so a recreated box re-joins cleanly with a fresh key), then paste it in place of
+`PASTE-YOUR-EPHEMERAL-AUTH-KEY`. The **Security** section stays off as well — **Secure Boot**,
+**Measured Boot**, and **Trusted Platform Module** are all disabled by default; shielding guards
+boot integrity for shared tenancy and this box gains nothing from it.
 
 **Create**, then wait a few minutes for provisioning.
 
 ## After creation
 
-The instance is up, but nothing on it is reachable yet — that's the point. The **first thing**
-you do is join it to your tailnet, because the tailnet is your only way in
-([Quickstart → 1. Get in](quickstart#1-get-in-set-up-tailscale)). From the instance's details
-page, open **Console connection** (a hypervisor-level shell — it works with no SSH keys and
-regardless of ufw), run the bootstrap one-liner from that section (it installs Tailscale plus the
-stack's prerequisites, joins the tailnet and prints your SSH address — approve the auth URL it
-shows). Every later login goes over the tailnet, not the console.
+The instance is up, and it joined your tailnet during first boot — that's what the Initialization
+script did. Nothing on it is reachable from the internet yet, and that's the point. The **first
+thing** you do is find the box and log in over the tailnet, because the tailnet is your only way
+in ([Quickstart → 1. Get in](quickstart#1-get-in-set-up-tailscale)):
+
+1. In the **Tailscale admin console** ([login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines)) find the new `kickstarrt` node (it appears within a minute or two of boot) and note its **tailnet address** — a `100.x.y.z` from Tailscale's CGNAT range.
+2. SSH in with the key you pasted at creation:
+   ```bash
+   ssh ubuntu@100.x.y.z
+   ```
+3. Continue at [Quickstart → 2. Fork and clone](quickstart#2-fork-and-clone). git, just, Docker and the tailnet join all came from the Initialization script, so there's nothing left to install — the re-run story in Quickstart §1 is for boxes you bootstrap by hand.
+
+Every later login goes over the tailnet, not the console. And about the **Console connection**: it
+*is* there (a hypervisor-level shell that ignores the firewall), but Canonical Ubuntu images
+configure **no console password**, so the console never accepts a login — which is exactly why
+your SSH key and the tailnet join are seeded at creation rather than delivered over the console.
 
 Notes:
 

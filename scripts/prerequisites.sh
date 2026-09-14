@@ -13,6 +13,11 @@
 # and waits up to 120s for you to approve it, then prints the box's tailnet
 # address - your only SSH address. Approval is always yours; if the window
 # passes, it falls back to printing the manual `sudo tailscale up` step.
+#
+# Environment (headless/cloud-init path - see scripts/oci-cloud-init.sh):
+#   TARGET_USER  puts this user in the docker group (default: the sudo invoker, else root)
+#   TS_AUTH_KEY  an ephemeral Tailscale auth key - joins without interactive approval
+#   TS_HOSTNAME  the node's name in the tailnet (default: the box's hostname)
 
 set -euo pipefail
 
@@ -33,7 +38,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exec sudo -E bash "$0" "$@"
 fi
 
-REAL_USER="${SUDO_USER:-root}"
+REAL_USER="${TARGET_USER:-${SUDO_USER:-root}}"
 TS_IP=""
 
 PM=""
@@ -179,6 +184,19 @@ join_tailnet() {
     if [ "$PM" = apk ]; then
         rc-update add tailscaled default >/dev/null 2>&1 || true
         service tailscaled start >/dev/null 2>&1 || true
+    fi
+    if [ -n "${TS_AUTH_KEY:-}" ]; then
+        flags=(--authkey="$TS_AUTH_KEY")
+        if [ -n "${TS_HOSTNAME:-}" ]; then
+            flags+=(--hostname="$TS_HOSTNAME")
+        fi
+        if ! tailscale up "${flags[@]}"; then
+            warn "headless join failed - is the auth key valid, not expired, and from the right tailnet?"
+            return
+        fi
+        TS_IP="$(tailscale ip -4 2>/dev/null | head -n 1)"
+        ok "joined (headless) - tailnet address $TS_IP"
+        return
     fi
     flags=()
     if tailscale up --help 2>/dev/null | grep -q -- --timeout; then
