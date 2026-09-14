@@ -59,6 +59,7 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 | ----------- | ---- |
 | `traefik`   | TLS edge & reverse proxy on `:443` — routes every hostname, issues the wildcard Let's Encrypt cert |
 | `crowdsec`  | WAF / IP reputation — blocks scanners at the edge before they reach an app |
+| `coredns`   | tailnet DNS — resolves `*.DOMAIN` to the box's tailnet address so admin panels work by name on the tailnet |
 | `jellyfin`  | Media server & streaming to web, TV, and mobile clients |
 | `seerr`     | User request manager — "want this movie" in one click |
 | `radarr` / `sonarr` | Movies and TV automation — grabbing, renaming, library sync |
@@ -77,6 +78,10 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
   *serving* port (`443`, the last step of setup; `80` is open only for the `http → https`
   redirect; SSH stays inside your tailnet), and the public hostnames are DNS-only records — media
   never rides a third-party edge
+- **Private admin panels** — the \*arrs, Decypharr and the Traefik dashboard resolve by name
+  *only on your tailnet* (CoreDNS + Tailscale split DNS): `https://radarr.<DOMAIN>` from any
+  tailnet device — phone or laptop, browser or Ruddarr — no public records, no extra login (the
+  tailnet is the gate); see [Tailnet DNS](https://erdemoney.github.io/kickstarrt-vps/tailnet)
 - **Automated upkeep** — Renovate opens dependency PRs and CI validates every change (compose +
   pre-commit + a full secret-history scan)
 - **One command to deploy** — `just init` fills the secrets, `just up` creates networks and

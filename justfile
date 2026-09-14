@@ -237,6 +237,30 @@ init:
     prompt_default "$TRAEFIK_ENV" ACME_EMAIL "admin@$(get_var "$TRAEFIK_ENV" DOMAIN)"
     echo
 
+    chip "TAILNET_IP"
+    ts_ip_cur=$(get_var "$TRAEFIK_ENV" TAILNET_IP) || true
+    ts_ip_def=""
+    if command -v tailscale >/dev/null 2>&1; then
+        ts_ip_def=$(tailscale ip -4 2>/dev/null | head -n1 || true)
+    fi
+    if [ -z "$ts_ip_def" ] && command -v sudo >/dev/null 2>&1; then
+        ts_ip_def=$(sudo -n tailscale ip -4 2>/dev/null | head -n1 || true)
+    fi
+    if [ -n "$ts_ip_cur" ]; then
+        ok "already set ($ts_ip_cur)"
+    else
+        muted "This VPS's Tailscale address. The CoreDNS resolver in this stack"
+        muted "answers *.DOMAIN with it, so admin panels resolve by name on the"
+        muted "tailnet (see docs/tailnet.md)."
+        if [ -n "$ts_ip_def" ]; then
+            prompt_default "$TRAEFIK_ENV" TAILNET_IP "$ts_ip_def"
+        else
+            prompt_value "$TRAEFIK_ENV" TAILNET_IP \
+                "e.g. 100.64.0.3 (tailscale CLI unavailable - 'tailscale up' first, then re-run 'just init')"
+        fi
+    fi
+    echo
+
     chip "CROWDSEC_BOUNCER_API_KEY"
     if [ -n "$(get_var "$TRAEFIK_ENV" CROWDSEC_BOUNCER_API_KEY)" ]; then
         ok "already set (stacks/traefik/.env)"
@@ -820,6 +844,32 @@ hosts IP="auto":
     echo "# flush: macOS  sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
     echo "#         Windows ipconfig /flushdns | Linux systemctl restart systemd-resolved"
 
+# Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
+# The matching Tailscale admin setting is one-time: DNS -> Nameservers -> add
+# TAILNET_IP:53, restricted to DNS -> the domain only (see docs/tailnet.md).
+dns:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    T=$(sed -n 's|^TAILNET_IP=\(.*\)|\1|p' stacks/traefik/.env | tail -n1)
+    D=$(sed -n 's|^DOMAIN=\(.*\)|\1|p' stacks/traefik/.env | tail -n1)
+    echo "resolver : $T:53  (CoreDNS container in the traefik stack)"
+    echo "serves   : *.$D -> $T     (tailnet only; see docs/tailnet.md)"
+    echo "console  : Tailscale DNS -> Nameservers -> custom $T, restricted to $D"
+
+# Query the tailnet DNS resolver directly (run on the server; needs the ufw 53
+# rule from docs/hardening.md). Args: optional hostname (default one panel, e.g.
+# radarr.<DOMAIN>). Returns the tailnet IP for any *.DOMAIN name.
+dnscheck domain="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    T=$(sed -n 's|^TAILNET_IP=\(.*\)|\1|p' stacks/traefik/.env | tail -n1)
+    D=$(sed -n 's|^DOMAIN=\(.*\)|\1|p' stacks/traefik/.env | tail -n1)
+    Q="{{ domain }}"
+    [ -n "$Q" ] || Q="radarr.$D"
+    echo "querying $Q against $T:53 ..."
+    docker run --rm --net=host busybox:1.37.0 nslookup "$Q" "$T"
+    echo "expect: Address $T  (the VPS tailnet IP)"
+
 # Encrypted, deduplicated repo backups with restic, run in a container (nothing to
 # install). Documented backend is Cloudflare R2 (see how-to in the wiki); `.env.restic`
 # is configured by `just init` (R2_ACCOUNT_ID / R2_BUCKET / AWS creds -> RESTIC_REPOSITORY
@@ -1077,6 +1127,38 @@ dirs CONFIG_DIR="" PUID="auto" PGID="auto":
             echo "warning: ACME_EMAIL is empty in stacks/traefik/.env - traefik requires it for"
             echo "         the ACME resolver, so no certificates will be issued. Run 'just init'."
             echo "         (There is no Let's Encrypt account to sign up for - see docs/ingress.md.)"
+        fi
+    fi
+
+    # CoreDNS (tailnet DNS): bake the VPS's tailnet IP into the resolver config so
+    # admin panels resolve by name on the tailnet (see docs/tailnet.md). Existing
+    # installs upgrade seamlessly: if TAILNET_IP is unset, fill it from tailscale.
+    if ! grep -q "^TAILNET_IP=" stacks/traefik/.env 2>/dev/null; then
+        echo "TAILNET_IP=" >> stacks/traefik/.env
+    fi
+    TAILNET_IP=$(sed -n 's|^TAILNET_IP=\(.*\)|\1|p' stacks/traefik/.env | tail -n1 || true)
+    if [ -z "$TAILNET_IP" ]; then
+        TS_NEW=$( { command -v tailscale >/dev/null 2>&1 && tailscale ip -4 2>/dev/null; } | head -n1 || true)
+        [ -n "$TS_NEW" ] || TS_NEW=$( { command -v sudo >/dev/null 2>&1 && sudo -n tailscale ip -4 2>/dev/null; } | head -n1 || true)
+        if [ -n "$TS_NEW" ]; then
+            sed "s|^TAILNET_IP=.*|TAILNET_IP=$TS_NEW|" stacks/traefik/.env > stacks/traefik/.env.tmp \
+                && mv stacks/traefik/.env.tmp stacks/traefik/.env
+            TAILNET_IP="$TS_NEW"
+            echo "tailnet DNS: filled TAILNET_IP=$TAILNET_IP (stacks/traefik/.env)"
+        fi
+    fi
+    COREPL="{{ justfile_directory() }}/data/traefik/coredns.Corefile"
+    if [ -f "$COREPL" ]; then
+        COREDOMAIN=$(sed -n 's|^DOMAIN=\(.*\)|\1|p' stacks/traefik/.env | tail -n1 || true)
+        if [ -z "$COREDOMAIN" ] || [ -z "$TAILNET_IP" ]; then
+            echo "warning: DOMAIN/TAILNET_IP missing in stacks/traefik/.env - CoreDNS"
+            echo "         tailnet resolution is disabled. Run 'just init'."
+        else
+            mkdir -p "$CONFIG_DIR/coredns"
+            sed -e "s|@DOMAIN@|$COREDOMAIN|g" -e "s|@TAILNET_IP@|$TAILNET_IP|g" "$COREPL" \
+                > "$CONFIG_DIR/coredns/Corefile.tmp"
+            mv "$CONFIG_DIR/coredns/Corefile.tmp" "$CONFIG_DIR/coredns/Corefile"
+            echo "tailnet DNS: rendered $CONFIG_DIR/coredns/Corefile (*.$COREDOMAIN -> $TAILNET_IP)"
         fi
     fi
 

@@ -51,7 +51,7 @@ Traefik already serves every app on its subdomain the moment `just up` runs; whe
 **Keep the public surface minimal.** The only hostnames anyone needs are `seerr.<DOMAIN>` (so they
 can request) and `jellyfin.<DOMAIN>` (so they can watch). Nothing else gets an A record — Radarr,
 Sonarr, Prowlarr, Bazarr, Profilarr, Decypharr, and the Traefik dashboard stay off the public DNS
-and are reached over the tailnet.
+and are reached over the tailnet **by name** via [Tailnet DNS](tailnet).
 
 **One honest caveat about direct ingress:** Traefik answers any hostname it has a router for, even
 with no DNS record — a determined client can connect to the IP and send a `Host:` header directly,

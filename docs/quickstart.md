@@ -52,6 +52,9 @@ Run `just init` — it creates each stack's `.env` and walks you through **every
   account to register** (Traefik creates one over ACME on first start) and the address needn't
   receive mail, but it can't be a fake domain like `example.com` — their API rejects those.
   See [Ingress](ingress#there-is-no-lets-encrypt-account-to-create)
+- `TAILNET_IP` is auto-filled from `tailscale ip -4` (the box's tailnet address) — the CoreDNS
+  resolver in the traefik stack answers `*.DOMAIN` with it, so admin panels resolve by name on
+  the tailnet ([Tailnet DNS](tailnet)); accept it unless Tailscale reports a different address
 - `CROWDSEC_BOUNCER_API_KEY` is generated automatically (random 32-byte key)
 - Prompts for a username/password and writes `TRAEFIK_DASHBOARD_CREDENTIALS`
 - Explains each Cloudflare secret, then **confirms before opening the page in your
@@ -220,5 +223,5 @@ From then on the stack is public on those hostnames only: Cloudflare DNS → VPS
 with CrowdSec in front of all of it. (Typing `http://` in a browser bounces to https; every other
 request already speaks https.) Reversible either way — delete the records, or `sudo ufw delete
 allow 443/tcp` (and `allow 80/tcp`). Admin panels stay out of the public DNS and are reached
-over the tailnet (directly, or through the SSH port-forward); [Ingress](ingress) covers the
-details.
+over the tailnet **by name** — once `:443` is open, set up [Tailnet DNS](tailnet) and they resolve
+as `https://<app>.<DOMAIN>` on every tailnet device. [Ingress](ingress) covers the details.

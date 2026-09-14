@@ -155,8 +155,9 @@ disk, it streams from the debrid provider at playback. (FUSE debrid mounts can't
 Radarr and Sonarr — browse the library and calendar, kick off searches, and act on the queue or
 history. It's a *client*, not a service: nothing runs on the server. Point it at each instance's
 **Application URL** — those admin panels aren't part of the URL set you hand out (see
-[Keep the public surface minimal](ingress#keep-the-public-surface-minimal)), and Ruddarr connects to
-them at their public URLs, handling HTTPS and reverse-proxy headers. Give `radarr.<DOMAIN>` /
-`sonarr.<DOMAIN>` DNS-only A records if you use it; like everything on `:443` they're behind
-each app's own login and CrowdSec, so the panels stay admin-only — the app is just another
-client.
+[Keep the public surface minimal](ingress#keep-the-public-surface-minimal)). With Tailscale running
+on the phone, Ruddarr reaches them at `https://radarr.<DOMAIN>` / `https://sonarr.<DOMAIN>`,
+resolved to the box's tailnet address by [Tailnet DNS](tailnet) — no public A records needed, and
+no extra auth (the tailnet is the gate). The app handles HTTPS and reverse-proxy headers; like
+everything on `:443` the panels still sit behind each app's own login and CrowdSec, so they stay
+admin-only — the app is just another client.

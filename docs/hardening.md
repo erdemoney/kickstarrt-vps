@@ -45,16 +45,20 @@ sudo apt install ufw
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp
+sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
+sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
 sudo ufw enable
 ```
 
-The `allow from 100.64.0.0/10` rule lets nothing but your tailnet (`100.64.0.0/10` is the CGNAT
-range Tailscale uses) reach sshd. There is **no `22` rule from the internet and no `80`/`443`
-rule yet**. The public surface of this stack is Traefik on `443` plus a `80` rule that exists only
-for the `http → https` redirect — and it all stays **closed** through setup; the last step of
-[Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp` and `sudo ufw allow
-80/tcp`. Until those run, nothing on the box answers from the internet, DNS records or not (Traefik
-listens on `:443` the whole time; the firewall just doesn't let traffic in).
+The `allow from 100.64.0.0/10` rules let nothing but your tailnet (`100.64.0.0/10` is the CGNAT
+range Tailscale uses) reach sshd **and the tailnet DNS resolver** (the CoreDNS container in the
+traefik stack — see [Tailnet DNS](tailnet)): `22` for SSH, `53` so tailnet devices can resolve
+`*.DOMAIN` to the box's tailnet address. There is **no `22` rule from the internet and no
+`80`/`443` rule yet**. The public surface of this stack is Traefik on `443` plus a `80` rule that
+exists only for the `http → https` redirect — and it all stays **closed** through setup; the last
+step of [Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp` and `sudo ufw
+allow 80/tcp`. Until those run, nothing on the box answers from the internet, DNS records or not
+(Traefik listens on `:443` the whole time; the firewall just doesn't let traffic in).
 
 ## 4. SSH keys, no password auth
 

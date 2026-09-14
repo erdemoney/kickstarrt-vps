@@ -13,3 +13,4 @@ data/traefik/*
 !data/traefik/traefik.template.yml
 !data/traefik/dynamic.yml
 !data/traefik/crowdsec-acquis.yaml
+!data/traefik/coredns.Corefile

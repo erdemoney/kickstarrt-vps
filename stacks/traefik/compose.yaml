@@ -72,6 +72,27 @@ services:
     labels:
       - "traefik.enable=false"
 
+coredns:
+    image: coredns/coredns:1.12.3
+    container_name: coredns
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    # Tailnet DNS resolver (see docs/tailnet.md): answers *.DOMAIN with the VPS's
+    # tailnet IP so admin panels resolve by name on the tailnet. Bound to the
+    # tailnet IP only (systemd-resolved holds 127.0.0.53) and reachable only from
+    # the tailnet (ufw allows 53 just from 100.64.0.0/10).
+    ports:
+      - ${TAILNET_IP:?set TAILNET_IP in the stack .env}:53:53/udp
+      - ${TAILNET_IP:?set TAILNET_IP in the stack .env}:53:53/tcp
+    command: ["-conf", "/Corefile"]
+    volumes:
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/coredns/Corefile:/Corefile:ro
+    networks:
+      - internal
+    labels:
+      - "traefik.enable=false"
+
 networks:
   internal:
     external: true

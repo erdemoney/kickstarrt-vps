@@ -91,6 +91,7 @@ justfile                 ops recipes (just up, just update-all, ...)
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
 | [Decypharr](decypharr)       | debrid gateway: wizard, arr integration, mounts                       |
 | [Ingress](ingress)           | direct :443: DNS records, security gate, certificates, dashboard          |
+| [Tailnet DNS](tailnet)       | admin panels by name over the tailnet: CoreDNS resolver + split DNS       |
 | [Security](security)         | CrowdSec WAF and IP blocking, fail-open/bypass behavior               |
 | [Services](services)         | recommended debrid/Usenet subscriptions                               |
 | [Updates](updates)           | Renovate PR pipeline + CI checks end to end                           |
