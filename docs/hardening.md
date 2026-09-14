@@ -8,10 +8,11 @@ nav_order: 4
 A fresh VPS is reachable by scanners within minutes of booting. Do all of this **before** `just up`
 and before anything is public.
 
-This edition **never opens a port to the public internet**. Two outbound-and-authenticated paths
-carry everything: the Cloudflare tunnel serves the apps (see [Ingress](ingress)), and the
-**Tailscale tailnet** is how you reach the box itself. Until both exist, the only way in is the
-provider's out-of-band console.
+This edition opens **exactly one port to the public internet: TCP `443` (Traefik)** — and not even
+that at first: it stays closed behind ufw until you deliberately open it as the last step of
+setup ([Going public](quickstart#going-public-last)). Everything else — including `80` and `22` —
+is closed from the internet. The **Tailscale tailnet** is how you reach the box itself. Until
+then, the only way in is the provider's out-of-band console.
 
 ## 1. Tailscale — your only way in (no public port)
 
@@ -37,7 +38,7 @@ fixing from outside, the console is still there — it's port-free and always wo
 sudo apt update && sudo apt upgrade -y
 ```
 
-## 3. Firewall — ufw (deny-all; SSH only inside the tailnet)
+## 3. Firewall — ufw (deny-incoming; `443` opens only at the end)
 
 ```bash
 sudo apt install ufw
@@ -48,10 +49,11 @@ sudo ufw enable
 ```
 
 The `allow from 100.64.0.0/10` rule lets nothing but your tailnet (`100.64.0.0/10` is the CGNAT
-range Tailscale uses) reach sshd. There is **no `22` rule from the internet, and no `80`/`443`
-ever** — the apps come in through the Cloudflare tunnel, which dials **out**, so it needs no
-inbound rules at all. If a hostname stops working, the fix is on the tunnel/dashboard side, not a
-ufw rule.
+range Tailscale uses) reach sshd. There is **no `22` rule from the internet — and no `80` rule
+ever**. Port `443` is the one public port this stack uses, but it stays **closed** through setup;
+the last step of [Going public](quickstart#going-public-last) is `sudo ufw allow 443/tcp`. Until
+that command runs, nothing on the box answers from the internet, DNS records or not (Traefik
+listens on `:443` the whole time; the firewall just doesn't let traffic in).
 
 ## 4. SSH keys, no password auth
 
@@ -92,8 +94,9 @@ Defaults are fine: it watches sshd and bans repeated bad logins. Check it after 
 
 ## 7. Keep-a-lid-it-on principles
 
-- **Public surface = the tunnel + the tailnet**, both authenticated and both outbound. Only `22`
-  exists as a reachable port, and only from your tailnet.
+- **Public surface = one port: Traefik on `443`** (opened last — see
+  [Going public](quickstart#going-public-last)) **plus the tailnet**. `80` never opens; `22` is
+  reachable only from your tailnet.
 - CrowdSec inside the stack ([Security](security)) blocks scanner IPs at the Traefik layer;
   fail2ban backs up sshd — together they cover everything that can reach this box.
 - Don't run random scripts as root; `just` and `docker` are the only privileged entry points

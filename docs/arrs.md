@@ -12,11 +12,10 @@ nav_order: 5
 
 ## Docker networking (shared networks)
 
-The compose files declare two **`external: true`** shared networks so the stacks can talk to each
+The compose files declare one **`external: true`** shared network so the stacks can talk to each
 other without the `docker compose` project name in the way:
 
-- `internal` — the default network every service here joins: app-to-app traffic only.
-- `external` — the edge network where `traefik` sits (see [Ingress](ingress)).
+- `internal` — the network every service here joins, Traefik included: app-to-app traffic only.
 
 Networks are created once with `just networks` (idempotent; `just up` calls it). Nothing inside
 Docker binds an IP you need to care about — the names are what matter. Every service sets a
@@ -27,7 +26,8 @@ and a newly added container is already reachable from every existing app.
 
 All services share the `internal` Docker network, so every container reaches the others by
 **service name**. Always use these internal URLs — never `localhost`, never the public subdomain
-(public URLs hairpin out to Cloudflare, break CORS, and add latency; they are for browsers only).
+(public URLs hairpin out to the internet and back, break CORS, and add latency; they are for
+browsers only).
 
 | Service   | Internal URL            | Port | API key lives at                                |
 | --------- | ----------------------- | ---- | ----------------------------------------------- |
@@ -154,7 +154,9 @@ disk, it streams from the debrid provider at playback. (FUSE debrid mounts can't
 **Ruddarr** ([ruddarr.com](https://ruddarr.com)) is a free, open-source **iOS companion app** for
 Radarr and Sonarr — browse the library and calendar, kick off searches, and act on the queue or
 history. It's a *client*, not a service: nothing runs on the server. Point it at each instance's
-**Application URL** — those admin panels stay out of the public tunnel hostnames anyway (see
+**Application URL** — those admin panels aren't part of the URL set you hand out (see
 [Keep the public surface minimal](ingress#keep-the-public-surface-minimal)), and Ruddarr connects to
-them at their public URLs (optionally behind Cloudflare Access), handling HTTPS and
-reverse-proxy headers, so the admin panels stay admin-only — the app is just another client.
+them at their public URLs, handling HTTPS and reverse-proxy headers. Give `radarr.<DOMAIN>` /
+`sonarr.<DOMAIN>` DNS-only A records if you use it; like everything on `:443` they're behind
+each app's own login and CrowdSec, so the panels stay admin-only — the app is just another
+client.

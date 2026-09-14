@@ -27,7 +27,7 @@ nav_order: 12
 | `just dirs`                     | create config dirs, `acme.json` (0600) + render `traefik.yml` (called by `just up`) |
 | `just bootstrap-torrentio`      | install the Torrentio indexer definition into prowlarr (see [Indexers](indexers)) |
 | `just wiring`                   | probe the internal network + print every URL/API key the \*arrs need (see [The \*arrs](arrs)) |
-| `just networks`                 | create the shared `internal`/`external` networks                                  |
+| `just networks`                 | create the shared `internal` network                              |
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)      |
 | `just backup` / `backup-list` / `backup-check` / `backup-prune` / `backup-restore` | restic snapshots, integrity, retention, restore — see [Repo backups](#offsite-restic-backups-of-the-repo) |
 

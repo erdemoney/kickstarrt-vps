@@ -3,73 +3,91 @@ title: Ingress
 nav_order: 9
 ---
 
-# Ingress: Traefik + Cloudflare tunnel (zero inbound ports)
+# Ingress: Traefik on :443 (no tunnel)
 
-Public traffic path: Cloudflare edge → cloudflared tunnel (on `external`) → Traefik `:443` →
-service on `internal`. Traefik routes purely by its own `Host()` labels; the tunnel is a
-transparent pipe.
+Public traffic path: **DNS (Cloudflare, DNS-only) → VPS public IP `:443` → Traefik → service on
+`internal`**. Traefik routes purely by its own `Host()` labels. There is **no Cloudflare Tunnel**
+in this edition — traffic goes straight to the server, and Cloudflare is used for exactly two
+things: DNS records and the DNS-01 challenge that issues the wildcard cert. Neither carries any
+video, which keeps the stack clearly on the right side of Cloudflare's CDN terms (more on
+[why](#why-not-proxy-media-via-cloudflare)).
 
-**The VPS never opens 80/443.** The tunnel only dials *out* to Cloudflare, so nothing inbound
-needs to be reachable for the stack to be public — ufw stays deny-all, with SSH allowed only from
-your tailnet, for the entire life of the box ([Hardening](hardening)). There is no "direct to the
-IP" path to protect: if it's not a tunnel hostname, it isn't reachable.
+**The VPS opens exactly one public port: TCP `443` (Traefik).** Port `80` never opens; SSH reaches
+sshd only from your tailnet ([Hardening](hardening)). Everything on `:443` is fronted by CrowdSec
+([Security](security)).
 
 ## Security gate: finish setup before going public
 
-Adding a tunnel hostname opens that app to the whole internet **instantly** — and until its
-first-run setup is done the app has **no login**, so anyone who finds the subdomain can create
-the admin account or reconfigure the app for you. Because of that the order is fixed:
+Inbound is blocked until *you* allow it — nothing here is accidentally public. The order is fixed:
 
-1. **Set up every app first over the tailnet** — a Tailscale SSH port-forward gives you working
-   URLs with no exposure, and it's where the full [The \*arrs](arrs) walkthrough happens
-   ([Quickstart](quickstart#3-first-boot--the-security-window)).
+1. **Set up every app first over the tailnet** — either directly at the server's tailnet IP or
+   through the [SSH port-forward window](quickstart#3-first-boot). That's
+   where the first-run walkthrough in [The \*arrs](arrs) happens.
 2. **Minimum before exposing each app: its setup is finished** — admin account exists and auth is
    on: Jellyfin (admin created on first login), Sonarr/Radarr/Prowlarr/Bazarr/Profilarr (Settings →
    General → Authentication), Seerr (admin on first login), Decypharr (wizard completed).
-3. **Only then expose it** — add the public hostnames below.
+3. **Only then go public** — the last step is adding DNS records *and* opening `:443` at the
+   firewall (see [Going public last](quickstart#going-public-last)). Reversible either way: delete
+   the records, or `sudo ufw delete allow 443/tcp`.
 
-## Adding a public hostname (GUI)
+## Adding a public hostname (DNS record)
 
-This cloudflared tunnel is **remotely-managed (token-only)** — public hostnames are configured in
-the Cloudflare dashboard, not in files.
+Public exposure is controlled by **A records** in Cloudflare DNS — not by anything on the box.
+Traefik already serves every app on its subdomain the moment `just up` runs; whether the world can
+*reach* that depends on DNS and the firewall.
 
-1. [Networks → Tunnels](https://dash.cloudflare.com/?to=/:account/tunnels) → open this server's
-   tunnel.
-2. **Public Hostname** tab → **Add a public hostname**.
-3. **Subdomain** (e.g. `jellyfin`) and **Domain** (`DOMAIN`) — this is the public URL.
-4. **Type: HTTPS**, **URL: `traefik:443`** — the tunnel container and Traefik are both on the
-   `external` network, and every public hostname terminates at Traefik.
-5. Save.
+1. [DNS → Records](https://dash.cloudflare.com/?to=/:account/dns) → **Add record**.
+2. **Type `A`**, **Name** the subdomain (e.g. `jellyfin`, `seerr`), **IPv4 address** = the VPS's
+   public IP.
+3. **Proxy status: DNS only** (grey cloud). This is the important part — *never* orange-cloud
+   (proxied) a media hostname: that would route the video through Cloudflare's edge, which is
+   exactly what their terms forbid on a free plan.
+4. Save; DNS propagates in minutes.
 
-**Keep the public surface minimal.** The only hostnames users actually need are
-`seerr.<DOMAIN>` (so they can request) and `jellyfin.<DOMAIN>` (so they can watch). Everything else
-— Radarr, Sonarr, Prowlarr, Bazarr, Profilarr, Decypharr, the Traefik dashboard — is an admin
-panel: reach it over the tailnet ([Quickstart](quickstart#3-first-boot--the-security-window))
-and leave it out of the public hostnames. If you need to administer from elsewhere, get in over the **Tailscale
-tailnet** rather than publishing a panel — and if you do expose any panel, put
-[Cloudflare Access](#authentication-with-cloudflare-access) in front of it.
+**Keep the public surface minimal.** The only hostnames anyone needs are `seerr.<DOMAIN>` (so they
+can request) and `jellyfin.<DOMAIN>` (so they can watch). Nothing else gets an A record — Radarr,
+Sonarr, Prowlarr, Bazarr, Profilarr, Decypharr, and the Traefik dashboard stay off the public DNS
+and are reached over the tailnet.
 
-For a hostname to actually work, two things must line up:
+**One honest caveat about direct ingress:** Traefik answers any hostname it has a router for, even
+with no DNS record — a determined client can connect to the IP and send a `Host:` header directly,
+so the absence of a DNS record is *not* a security boundary, just a de-facto one. Every panel is
+still behind its own app login (and the Traefik dashboard behind basic-auth *and* an
+IP allow-list — see below). If you want any panel *hard*-blocked from the internet, add an
+`ipAllowList` middleware (allow your tailnet/LAN ranges, e.g. `100.64.0.0/10`, `10.0.0.0/8`,
+`172.16.0.0/12`, `192.168.0.0/16`) to that service's router labels in `stacks/media-server/compose.yaml`
+and `just update-svc media-server <svc>`.
 
-- The **Traefik router** already accepts the subdomain (compose label
-  `traefik.http.routers.<svc>.rule=Host(${SUB_DOMAIN_<SVC>}.${DOMAIN})`, with `tls=true`),
-  and the DNS record for that hostname is proxied (orange-cloud) in the zone's DNS tab.
-- **TLS mode** is **Full (strict)** (SSL/TLS → Edge Certificates), so the edge → Traefik leg
-  uses the real cert.
+## Why not proxy media via Cloudflare
 
-Removing a hostname from Public Hostnames removes it from the internet; the tailnet port-forward
-goes straight to Traefik on `:443` and is unaffected.
+Cloudflare's [Service-Specific Terms](https://www.cloudflare.com/service-specific-terms-application-services/)
+(the updated replacement for the old §2.8): the **CDN** service "can be used to cache and serve web
+pages and websites", and unless you're an Enterprise customer you "must use" paid services (Stream,
+Images, R2) "in order to serve video and other large files via the CDN" — with Cloudflare reserving
+the right to disable/limit the CDN when it suspects otherwise. Video *streamed from your own origin*
+through the free edge is not covered by an exception, whether or not caching is disabled, and a
+Cloudflare Tunnel routes traffic through that same edge.
+
+So this edition **does not move any video through Cloudflare's network**: public hostnames are
+DNS-only (grey-cloud) A records straight to the VPS, and Cloudflare only answers recursive DNS
+lookups and the ACME `_acme-challenge` TXT record. That's unreservedly compliant, and since the box
+has a **static public IP** the tunnel's main trick — hiding the IP — had no value here anyway.
+
+The edge-only features that leave with the tunnel — WAF geolock and Cloudflare Access — are
+handled inside the box instead: [CrowdSec](security) is the WAF, and an Access-style login would
+have broken Jellyfin's TV and mobile apps anyway (they authenticate with a device token, not a
+browser). Neither is missed on a way in that the firewall already controls.
 
 ## Certificates (automatic)
 
 HTTPS is one-time setup, then handled for you. Traefik's ACME provider creates the
 `_acme-challenge` TXT record via the Cloudflare API (`CLOUDFLARE_DNS_TOKEN`, from
 [Quickstart](quickstart)) and issues a **Let's Encrypt wildcard cert for `*.DOMAIN`** — one cert
-covering every hostname that terminates at Traefik, whether via the tunnel or the tailnet
+covering every hostname that terminates at Traefik, whether from the public internet or the tailnet
 port-forward.
-Because it's the **DNS-01** challenge, certs issue before the tunnel or any app hostname exists; no
-inbound ports are required. Renewals and per-app HTTPS are automatic (`tls=true` on every router).
-Confirm issuance in the Traefik dashboard's ACME panel (`https://traefik.<DOMAIN>`).
+Because it's the **DNS-01** challenge, certs issue before any DNS record or app exists; no inbound
+ports are required. Renewals and per-app HTTPS are automatic (`tls=true` on every router). Confirm
+issuance in the Traefik dashboard's ACME panel (`https://traefik.<DOMAIN>`).
 
 There is **no Let's Encrypt account to create** — no signup, dashboard, or email verification.
 Traefik registers one over ACME on first start and stores it in `$CONFIG_DIR/traefik/acme.json`;
@@ -99,73 +117,12 @@ template, never the rendered file** — `just up` overwrites the output every ru
 and `crowdsec-acquis.yaml` need no rendering and are mounted as tracked files (`dynamic.yml`
 resolves its one secret at runtime with Traefik's Go templating).
 
-## Media through the tunnel (no CDN caching)
-
-Cloudflare's content restriction (historically "Section 2.8") only applies to the **CDN
-service** — caching and serving content at the edge. Proxying media through a tunnel is fine as
-long as the edge does **not cache** the video.
-
-1. Cloudflare dashboard for the zone → **Caching → Cache Rules** → **Create rule**.
-2. When: **Hostname** equals `jellyfin.<DOMAIN>` (add `/Videos/*` for path-level matching if
-   preferred).
-3. Then: **Cache eligibility** → **Bypass cache**.
-4. Save; repeat for any other media hostnames.
-
-Verify media responses are not cached:
-
-```bash
-curl -sI https://jellyfin.<DOMAIN>/web/ | grep -iE 'cf-cache-status|age|cache-control'
-```
-
-Expect `cf-cache-status: DYNAMIC` (or `BYPASS`) and no meaningful `Age` on media URLs.
-
-## Geolock (optional, e.g. USA only)
-
-Do this in Cloudflare, not Traefik: Cloudflare sees the real visitor IP at the edge; Traefik only
-sees the cloudflared container, so a Traefik-side geoblock would be unreliable without trusting
-`X-Forwarded-For` (which reopens spoofing).
-
-1. Zone dashboard → **Security → WAF → Custom rules** → **Create rule**.
-2. Field **Country**, operator **is not**, value **United States**; action **Block**.
-3. Save — blocks every public hostname on the zone from outside the US.
-
-Notes: country comes from the edge IP (VPNs bypass it); blocking at the edge keeps the junk from
-ever reaching the VPS. (This same pattern is also where you'd enforce any other zone-wide WAF
-rules.)
-
-## Authentication with Cloudflare Access
-
-CrowdSec decides **which IPs** are allowed; Cloudflare Access decides **which identities**. It
-works at the edge, *before* the request reaches your box — the Zero Trust dashboard →
-**Access → Applications** → **Add an application** → **Self-hosted** — so a request that doesn't
-pass its policy never travels to the VPS, let alone Traefik. Set the **Application domain** to
-the hostname you want to protect (e.g. `radarr.<DOMAIN>`), create a **Policy** (any of: your
-logged-in Cloudflare / SSO identity, an email domain, or a
-[service token](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/) for
-machine clients), choose a **Session duration**, and save. Visitors get the Access login page;
-everything else in the zone stays public.
-
-Caveats and how it fits the stack:
-
-- **Do not put Access in front of Jellyfin if *external* TV/media apps must stream.** Jellyfin's
-  TV and mobile clients (LG/Samsung, Android TV, Apple TV, Roku, ...) authenticate with a device
-  **token**, not a browser, and cannot complete Cloudflare Access's interactive login — they fail
-  to connect. A public `jellyfin.<DOMAIN>` must stay in front of Access if any external app
-  should work. Leave it unprotected rather than breaking clients — Jellyfin's own accounts still
-  guard it, and the web UI is unaffected. (A service token is the workaround for
-  machine-to-machine clients that can send headers, not for the TV apps, which can't.)
-- It is an extra layer over each app's own auth (Jellyfin accounts, the Traefik dashboard's
-  basic-auth) — belt-and-suspenders, not a replacement. Rejected traffic never reaches the
-  VPS, so Traefik and the apps only ever see approved requests.
-- It composes with CrowdSec at different layers: Access filters unauthenticated humans at the
-  edge while CrowdSec still blocks scanner IPs inside Traefik. Enable both; neither interferes
-  with the other's bypasses.
-- CrowdSec on the box still matters for IPs that Access lets through and for anything else that
-  reaches Traefik — keep both.
-
 ## Traefik dashboard
 
 The API dashboard is exposed at `https://traefik.<DOMAIN>` behind basic auth
-(`TRAEFIK_DASHBOARD_CREDENTIALS`, see [Quickstart](quickstart)) plus a private-source-range ACL.
-For any \*arr-scale question ("is the cert issued?", "which routers exist?") the dashboard is the
-fastest place to look.
+(`TRAEFIK_DASHBOARD_CREDENTIALS`, see [Quickstart](quickstart)) plus an IP allow-list
+(`dashboardAcl@file` in `data/traefik/dynamic.yml`, covering your LAN and tailnet
+CGNAT ranges). For any \*arr-scale question ("is the cert issued?", "which routers exist?") the
+dashboard is the fastest place to look. Note the allow-list also covers `100.64.0.0/10` — reach it
+over the tailnet (e.g. via a `just hosts <tailnet-ip>` block); through the SSH port-forward
+loopback it's blocked by design (see [Hardening](hardening#1-tailscale--your-only-way-in-no-public-port)).

@@ -16,7 +16,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - 80:80
       - 443:443
     volumes:
       - /etc/localtime:/etc/localtime:ro
@@ -26,16 +25,12 @@ services:
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/acme.json:/acme.json
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/logs:/var/log/traefik
     networks:
-      - external
       - internal
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik.entrypoints=http"
       - "traefik.http.routers.traefik.rule=Host(`${SUB_DOMAIN_TRAEFIK}.${DOMAIN}`)"
-      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_CREDENTIALS}"
       - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
-      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
       - "traefik.http.routers.traefik-secure.entrypoints=https"
       - "traefik.http.routers.traefik-secure.rule=Host(`${SUB_DOMAIN_TRAEFIK}.${DOMAIN}`)"
       - "traefik.http.routers.traefik-secure.middlewares=dashboardAcl@file,traefik-auth"
@@ -73,7 +68,5 @@ services:
       - "traefik.enable=false"
 
 networks:
-  external:
-    external: true
   internal:
     external: true

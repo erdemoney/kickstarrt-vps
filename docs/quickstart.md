@@ -55,8 +55,9 @@ Run `just init` — it creates each stack's `.env` and walks you through **every
 - `CROWDSEC_BOUNCER_API_KEY` is generated automatically (random 32-byte key)
 - Prompts for a username/password and writes `TRAEFIK_DASHBOARD_CREDENTIALS`
 - Explains each Cloudflare secret, then **confirms before opening the page in your
-  browser** (and just shows the URL on a headless box) — `CLOUDFLARE_DNS_TOKEN` (TLS, below)
-  and `CLOUDFLARE_TUNNEL_TOKEN` (zero-inbound-port ingress) — leave empty to do them later
+  browser** (and just shows the URL on a headless box) — `CLOUDFLARE_DNS_TOKEN` (TLS, below) —
+  leave empty to do it later. There is no tunnel token: this edition serves on its own public
+  IP and uses Cloudflare only for **DNS + DNS-01 certificates**
 - You can skip anything; empty answers fall back to the current/default value
 - Finishes by asking whether to set up **restic repo backups to Cloudflare R2** — answer
   `y` to be prompted for the R2 account ID, bucket, API token, and encryption password
@@ -78,7 +79,6 @@ Set each variable (see `stacks/*/.env.example`):
 | `ACME_EMAIL`                    | traefik        | Let's Encrypt account address (rendered into `traefik.yml`)      |
 | `ENV_PUID` / `ENV_PGID`         | media-server   | user/group owning the config dirs (init proposes the running user's ids) |
 | `CLOUDFLARE_DNS_TOKEN`              | traefik        | DNS-01 ACME for wildcard certs (see below)                       |
-| `CLOUDFLARE_TUNNEL_TOKEN`              | cloudflared    | tunnel token for zero-inbound-port ingress (see below)          |
 | `TRAEFIK_DASHBOARD_CREDENTIALS` | traefik        | dashboard basic-auth blob (see below)                            |
 | `CROWDSEC_BOUNCER_API_KEY`      | traefik        | CrowdSec ↔ Traefik shared key (see below)                       |
 
@@ -148,36 +148,28 @@ Paste into `stacks/traefik/.env`. It must be set **before** `just up`; after cha
 recreate the `crowdsec` and `traefik` containers (`just update-all`). Details in
 [Security](security).
 
-### `CLOUDFLARE_TUNNEL_TOKEN` — Zero Trust tunnel (zero inbound ports)
-
-dash.cloudflare.com → **Zero Trust** → **Networks → Tunnels** → create a tunnel (Type: Cloudflared)
-and copy its token. The tunnel container dials **out** to Cloudflare, so you never open inbound
-ports for the stack — ufw stays deny-all, with SSH reachable only from your tailnet. The tunnel's
-public hostnames are configured in
-the dashboard, not in files; how they route to Traefik (and the Tailscale port-forward window that
-stands in for a LAN) is covered in [Ingress](ingress).
-
 ## 3. First boot
 
 By now [Hardening](hardening) has run: Tailscale is up (bootstrapped through the provider
-console — no port was ever opened) and ufw is deny-all with SSH allowed only from the tailnet.
-Nothing else is reachable, ever:
+console — no port was ever opened) and ufw is deny-incoming with SSH allowed only from the
+tailnet. Port `443` is still closed, so the stack answers only inside the tailnet:
 
 ```bash
 just up          # creates networks, config dirs, acme.json + traefik.yml, then brings up every stack
-just ps          # confirm everything is running (cloudflared should be Up + Connected)
+just ps          # confirm everything is running
 ```
 
 App UIs live at `https://<subdomain>.<DOMAIN>`: `jellyfin`, `seerr`, `radarr`, `sonarr`,
 `prowlarr`, `profilarr`, `bazarr`, `decypharr`, `traefik`. The certs are issued by DNS-01, so
-they exist even before any tunnel hostname does.
+they exist even before any DNS record points at the box.
 
-> **The stack is private until you add tunnel hostnames — use that window.** Nothing here is
-> public yet, and nothing becomes public until you add hostnames in [Ingress](ingress); until
-> then, the only way in is the tailnet. That's intentional: an app that's live on the internet
-> *before* its setup is done is an app with no login, claimable by anyone. Do all first-run
+> **The stack is private until you open the door — use that window.** Nothing here is public yet,
+> and nothing becomes public until you add the A records *and* open `:443`
+> ([Ingress](ingress)); until then, the only way in is the tailnet. That's intentional: an app
+> that's live on the internet *before* its setup is done is an app with no login, claimable by
+> anyone. Do all first-run
 > setup through an **SSH port-forward over the tailnet** — every app's URL works with nothing
-> exposed, no hostnames, no open ports:
+> exposed, no DNS records, no open ports:
 
 ```bash
 just hosts 127.0.0.1        # on the VPS: prints the app URLs mapped to 127.0.0.1
@@ -188,14 +180,15 @@ Copy the block from `just hosts 127.0.0.1` into `/etc/hosts` (macOS/Linux, admin
 `C:\Windows\System32\drivers\etc\hosts` (Windows), and the apps answer at
 `https://<subdomain>.<DOMAIN>:8443` — over the real wildcard cert, because the forward lands on
 Traefik's `:443`. The vault of every app is created during this stage, so no app ever exists on
-the public internet without a login. **Adding public hostnames is the last, deliberate step** —
+the public internet without a login. **Exposing the stack is the last, deliberate step** —
 see the [security gate](ingress#security-gate--finish-setup-before-going-public) in Ingress.
 
 ## 4. What to check right after boot
 
-- cloudflared is **Connected** (`just ps`) — a tunnel with no public hostnames yet is fine.
 - Traefik downloaded the CrowdSec plugin on first start (needs outbound internet); a
   `Certificate` appears in the ACME panel for `*.DOMAIN`.
+- Every app answers on its internal hostname over the tailnet; nothing answers from the
+  internet yet (ufw closed, no DNS records).
 - CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` — see [Security](security).
 - Jellyfin's admin account is created on first login (feed its key to Seerr later).
 
@@ -208,12 +201,20 @@ continue to [The \*arrs](arrs) for the full walkthrough.
 
 When every app is set up:
 
-1. In Cloudflare **Networks → Tunnels**, open this server's tunnel and add **public hostnames**
-   for `seerr.<DOMAIN>` and `jellyfin.<DOMAIN>` (Type HTTPS, URL `traefik:443`) — full steps in
-   [Ingress → Adding a public hostname](ingress#adding-a-public-hostname-gui).
-2. **Leave ufw as-is** — SSH stays tailnet-only; there are no `80`/`443` rules, ever.
+1. Add **A records** in Cloudflare DNS for `seerr.<DOMAIN>` and `jellyfin.<DOMAIN>`, **Proxy
+   status: DNS only** (grey cloud — never proxied), pointing at the VPS's public IP — full
+   steps in [Ingress → Adding a public hostname](ingress#adding-a-public-hostname-dns-record).
+2. Open the one public port — the last thing you do:
 
-From then on the stack is public over those hostnames only: Cloudflare edge → tunnel → Traefik,
-with CrowdSec in front of all of it; [Ingress](ingress) covers geolock and Cloudflare Access if
-you want tighter entry control. Admin panels stay private behind the tailnet SSH port-forward
-(or directly over the tailnet).
+   ```bash
+   sudo ufw allow 443/tcp
+   ```
+
+   (The matching provider-side `443` ingress rule is part of
+   [instance creation](oci) in the free-tier guide.) SSH stays tailnet-only; port `80` never
+   opens.
+
+From then on the stack is public on those hostnames only: Cloudflare DNS → VPS `:443` → Traefik,
+with CrowdSec in front of all of it. Reversible either way — delete the records, or
+`sudo ufw delete allow 443/tcp`. Admin panels stay out of the public DNS and are reached over the
+tailnet (directly, or through the SSH port-forward); [Ingress](ingress) covers the details.

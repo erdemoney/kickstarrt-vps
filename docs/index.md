@@ -7,31 +7,31 @@ nav_order: 1
 
 A public-IP media stack run through Docker on a VPS, with a single GitHub repo as the source of
 truth for compose files, configs that live in code, and all setup/ops documentation. This is the
-**VPS edition** — Cloudflare tunnel ingress (zero inbound ports), no GPU passthrough. If you're
-hosting on a home box behind NAT instead (LAN stage, hardware transcoding), use the
+**VPS edition** — direct Traefik `:443` ingress (Cloudflare is DNS-only), no GPU passthrough. If
+you're hosting on a home box behind NAT instead (LAN stage, hardware transcoding), use the
 [self-hosted edition](https://github.com/erdemoney/kickstarrt). Everything here stays
 host-agnostic.
 
 ```text
-                     Internet
-                        |
-                        v
-              Cloudflare edge (TLS, WAF, geolock)
-                        |
-                        v
-    cloudflared tunnel (dial-out, no inbound ports) ----+   ufw: deny-all; 22 = tailnet only
-                        |                               |
-                        v                               v
-     Traefik :443 ----> CrowdSec (WAF / IP blocking)   Tailscale (console bootstrap → daily ops)
-                        |
-                        v
-            Docker "internal" network
-            +-------------------------+
-            | jellyfin     seerr      |
-            | radarr       sonarr     |
-            | prowlarr     bazarr     |
-            | profilarr    decypharr  |
-            +-------------------------+
+                      Internet
+                         |
+                         v
+         Cloudflare DNS (grey-cloud A records + DNS-01 certs; no video traffic)
+                         |
+                         v
+            VPS public IP :443  (ufw: 443 opened last; 80 never; 22 = tailnet only)
+                         |
+                         v
+     Traefik :443 ----> CrowdSec (WAF / IP blocking)      Tailscale (console bootstrap → daily ops)
+                         |
+                         v
+             Docker "internal" network
+             +-------------------------+
+             | jellyfin     seerr      |
+             | radarr       sonarr     |
+             | prowlarr     bazarr     |
+             | profilarr    decypharr  |
+             +-------------------------+
 ```
 
 Media flow: Prowlarr finds releases (incl. the Torrentio debrid indexer) → Sonarr/Radarr grab
@@ -41,7 +41,9 @@ the library on the debrid mount → Jellyfin streams to clients; Seerr handles r
 **HTTPS comes out of the box.** Traefik's ACME provider creates the DNS-01 challenge through
 Cloudflare (`CLOUDFLARE_DNS_TOKEN`) and issues a **Let's Encrypt wildcard certificate for
 `*.DOMAIN`**, automatically renewed — so every service's UI is served over TLS from the public
-internet (once you add its [tunnel hostname](ingress)). No per-app TLS configuration is involved.
+internet (once you point its [A record](ingress) at the VPS). No per-app TLS configuration is
+involved. Public hostnames are **DNS-only** (grey-cloud), so video never crosses Cloudflare's
+network — the stack serves it straight from the VPS (see [Ingress](ingress#why-not-proxy-media-via-cloudflare)).
 
 ## VPS sizing
 
@@ -61,15 +63,14 @@ you'll rarely transcode at all.
 assumes it. Most providers offer a Debian 12 image out of the box. Oracle Cloud doesn't — use
 **Ubuntu 26.04 Minimal aarch64** there (every `apt`/`ufw`/`fail2ban` command in this wiki is
 identical); the [Oracle Cloud (free tier)](oci) page walks the full creation. Get the basics right
-first; see [Hardening](hardening) for Tailscale (console bootstrap), ufw deny-all, fail2ban, and
+first; see [Hardening](hardening) for Tailscale (console bootstrap), ufw deny-incoming, fail2ban, and
 non-root Docker before anything goes public.
 
 ## Repository layout
 
 ```text
 stacks/                  compose files (one folder per stack) + .env per stack
-  cloudflared/           Cloudflare tunnel edge (dial-out; zero inbound ports)
-  traefik/               edge router, CrowdSec container, plugin + ACME
+  traefik/               edge router on :443, CrowdSec container, plugin + ACME
   media-server/          jellyfin, seerr, radarr, sonarr, prowlarr,
                          profilarr, bazarr, decypharr
 data/                    runtime config that lives in code
@@ -85,11 +86,11 @@ justfile                 ops recipes (just up, just update-all, ...)
 | ---------------------------- | --------------------------------------------------------------------- |
 | [Oracle Cloud (free tier)](oci) | free VPS: VCN, subnet, instance, console bootstrap  |
 | [Quickstart](quickstart)     | env files, where every secret comes from, tailnet SSH gate, first `just up` |
-| [Hardening](hardening)       | Tailscale, ufw deny-all (tailnet-only 22), fail2ban, non-root Docker, SSH keys |
+| [Hardening](hardening)       | Tailscale, ufw deny-incoming (443 opened last; tailnet-only 22), fail2ban, non-root Docker, SSH keys |
 | [The \*arrs](arrs)           | shared networks, internal DNS names, API-key wiring between all apps  |
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
 | [Decypharr](decypharr)       | debrid gateway: wizard, arr integration, mounts                       |
-| [Ingress](ingress)           | tunnel hostnames: certificates, geolock, Access auth, caching        |
+| [Ingress](ingress)           | direct :443: DNS records, security gate, certificates, dashboard          |
 | [Security](security)         | CrowdSec WAF and IP blocking, fail-open/bypass behavior               |
 | [Services](services)         | recommended debrid/Usenet subscriptions                               |
 | [Updates](updates)           | Renovate PR pipeline + CI checks end to end                           |

@@ -1,7 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := false
 
-stack_list := "traefik cloudflared media-server"
+stack_list := "traefik media-server"
 restic_image := "restic/restic:0.19.1"
 
 # Show available recipes
@@ -68,9 +68,8 @@ init:
     echo
 
     TRAEFIK_ENV=stacks/traefik/.env
-    CLOUDFLARED_ENV=stacks/cloudflared/.env
     MEDIA_ENV=stacks/media-server/.env
-    ALL_ENVS=("$TRAEFIK_ENV" "$CLOUDFLARED_ENV" "$MEDIA_ENV")
+    ALL_ENVS=("$TRAEFIK_ENV" "$MEDIA_ENV")
 
     for s in {{ stack_list }}; do
         if [ -f "stacks/$s/.env" ]; then
@@ -310,29 +309,6 @@ init:
     fi
     echo
 
-    hdr "cloudflared"
-    chip "CLOUDFLARE_TUNNEL_TOKEN"
-    if [ -n "$(get_var "$CLOUDFLARED_ENV" CLOUDFLARE_TUNNEL_TOKEN)" ]; then
-        ok "already set (stacks/cloudflared/.env)"
-    else
-        printf '%s\n' \
-    '  Needs a Cloudflare Tunnel token for WAN ingress.' \
-    '    1. The link opens the Networks -> Tunnels page for your account (deep link).' \
-    '    2. Create a tunnel (Type: Cloudflared) and copy its token.' \
-    '    3. Paste it below (hidden). Leave empty to skip; set it later.'
-        show_or_open_url "https://dash.cloudflare.com/?to=/:account/tunnels"
-        ask "CLOUDFLARE_TUNNEL_TOKEN (hidden)"
-        read -rs token || token=""
-        printf '\n'
-        if [ -n "$token" ]; then
-            set_var "$CLOUDFLARED_ENV" CLOUDFLARE_TUNNEL_TOKEN "$token"
-            ok "set"
-        else
-            muted "skipped"
-        fi
-    fi
-    echo
-
     hdr "media-server"
     sid=$(id -u); sgid=$(id -g)
     if [ "$sid" -eq 0 ]; then
@@ -439,14 +415,13 @@ init:
     hr
     printf '%s\n' "  ${B}${GRN}${DONE}${R} ${B}init complete${R}"
     muted "Review stacks/*/.env, then run 'just up'."
-    muted "Keep ufw deny-all (SSH only on the tailnet) - the stack stays private until you add"
-    muted "public hostnames in the Cloudflare dashboard (docs/ingress.md)."
+    muted "Keep ufw closed (SSH tailnet-only) - the stack stays private until you add the"
+    muted "public DNS records and open :443 (docs/ingress.md)."
     hr
 
-# Create the shared Docker networks (idempotent)
+# Create the shared Docker network (idempotent)
 networks:
     docker network inspect internal >/dev/null 2>&1 || docker network create internal
-    docker network inspect external >/dev/null 2>&1 || docker network create external
 
 # Validate every compose file against the docker compose schema.
 # Read-only: never creates or edits a .env (compose treats .env as optional and the
@@ -497,7 +472,6 @@ check-updates:
 
     COMPOSE_FILES = (
         "stacks/traefik/compose.yaml",
-        "stacks/cloudflared/compose.yaml",
         "stacks/media-server/compose.yaml",
     )
     VERSION_RE = re.compile(r"^v?[0-9]+(\.[0-9]+){1,4}$")

@@ -6,9 +6,9 @@ nav_order: 2
 # Oracle Cloud free-tier VPS
 
 The walkthrough from zero to a running Ubuntu 26.04 box on Oracle Cloud **Always Free**, built to
-match this repo's access model: **no public ports at all**. Bootstrap via the provider console,
-manage via Tailscale, serve apps via the Cloudflare tunnel — there is no SSH-on-the-internet step
-anywhere in it.
+match this repo's access model: **one public port (`443`, opened last)**. Bootstrap via the
+provider console, manage via Tailscale, serve the apps straight off the VPS's public IP — there
+is no SSH-on-the-internet step anywhere in it.
 
 ## 0. About the Oracle Cloud free tier
 
@@ -19,7 +19,9 @@ stack needs:
 - **Compute**: Always-Free **Ampere A1** (ARM) shapes, currently **2 OCPU / 12 GB** of RAM.
 - **Storage**: block volumes, plus object storage for backups.
 - **Networking**: a **public IPv4**, a VCN with an internet gateway, and the security
-  list/route-table plumbing. Use it for *outbound* internet only — this stack opens zero ports.
+  list/route-table plumbing. That IP is this stack's ingress — it serves `:443` on it
+  (opened last, [Hardening](hardening)) — so it should stay **stable**: once you add DNS
+  records, the IP needs to survive stop/start and rebuilds (see "Reserve the public IP" below).
 
 The catch: Oracle will **reclaim** Always-Free instances it considers idle, and ARM capacity is
 frequently "out of capacity" in busy regions. Both are covered later on this page. Oracle also
@@ -49,13 +51,19 @@ internet gateway + route that give it outbound internet:
 | **Configure private subnet** | leave the defaults — the wizard always creates one, but it isn't used by this stack |
 
 **Next** → review → **Create VCN**. The wizard builds the VCN, the public subnet, the **Internet
-Gateway**, and the `0.0.0.0/0 → Internet Gateway` default route automatically — no other networking
-steps are needed.
+Gateway**, and the `0.0.0.0/0 → Internet Gateway` default route automatically — nothing else to
+wire up. The one networking edit this stack needs (the `:443` ingress rule) happens right after,
+below.
 
-**About the security lists:** the ones the wizard attaches permit SSH/`22` and ICMP from the
-internet and everything from inside the VCN. Leave them alone — nothing here listens inbound.
-The real enforcement point is the OS firewall (ufw deny-all in [Hardening](hardening)); sshd is
-only ever reachable from your tailnet.
+**After the VCN wizard creates the public subnet**, open its **Security List** (Public subnet →
+Security Lists, or Networking → Virtual cloud networks → `kickstarrt-vcn` → Security Lists →
+`Default Security List for kickstarrt-vcn`) and make **one** change: add an **Ingress Rule** for
+**TCP, destination port `443`, source `0.0.0.0/0`** ("Allow public HTTPS to Traefik"). Leave the
+rest alone — but the wizard's default `22` ingress rule can be **deleted** too: sshd is only ever
+reachable from your tailnet ([Hardening](hardening)), so a VCN hole for `22` adds nothing. The
+real per-port enforcement point, though, is the **OS firewall**: ufw stays deny-incoming and the
+stack's `:443` doesn't answer from the internet until the deliberate
+[Going public](quickstart#going-public-last) step runs `sudo ufw allow 443/tcp`.
 
 ## 2. Create the compute instance
 
@@ -68,7 +76,7 @@ only ever reachable from your tailnet.
 | **Placement → Availability domain** | leave the default — regions differ (some have a single AD, others several); it doesn't matter for this stack |
 | **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 26.04 Minimal aarch64** — the Minimal **aarch64** build, for this Arm shape (don't pick the x86 variant). Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
 | **Shape** | **Change shape** → **VM.Standard.A1.Flex** (Ampere, Arm): **2 OCPU / 12 GB / 2 Gbps** — the console spells it "2 core OCPU, 12 GB memory, 2 Gbps network bandwidth", the Always-Free ARM allotment. The only valid shape for this stack: every image in `stacks/` publishes `arm64` builds, and the x86 shapes (e.g. `VM.Standard.E2.1.Micro` at 1 GB) are not a valid choice. The shape must show **Always Free-eligible** |
-| **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and its **public subnet** (the one the wizard created); private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets a public IP for *outbound* internet only; ufw is deny-all, nothing listens inbound, so nothing is exposed |
+| **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and its **public subnet** (the one the wizard created); private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets its public IP here; with ufw deny-incoming and the security list closed except `443`, nothing is reachable until the [going-public](quickstart#going-public-last) step |
 | **Add SSH keys** | **No SSH keys — leave it empty.** You never SSH over the public internet: bootstrap is via the console, then everything rides the Tailscale tailnet (see [Hardening](hardening)) |
 | **Storage → Boot volume** | default (≈ 46.6 GB, Oracle-managed encryption, in-transit encryption on) — no extra block volumes |
 
@@ -76,7 +84,7 @@ only ever reachable from your tailnet.
 first-run setup happens over the console per [Hardening](hardening), not via a bootstrap script.
 The **Security** section stays off as well — **Secure Boot**, **Measured Boot**, and **Trusted
 Platform Module** are all disabled by default; shielding guards boot integrity for shared tenancy
-and this box gains nothing from it behind the tunnel.
+and this box gains nothing from it.
 
 **Create**, then wait a few minutes for provisioning.
 
@@ -92,6 +100,12 @@ Notes:
 - **This stack fits the A1 comfortably.** Debrid streaming keeps nothing on disk and the
   Always-Free allotment is 12 GB RAM — plenty for Jellyfin, the \*arrs, and CrowdSec, with the two
   cores leaving room for occasional CPU transcode.
+- **Reserve the public IP before adding DNS.** An auto-assigned public IP is released when the
+  instance stops and may come back different on a rebuild — which would strand the DNS records.
+  On the instance page → **Attached VNICs** → the public IP → **Convert to Reserved IP** (or
+  Networking → IP management → Reserve public IP, then assign it). Reserved public IPs are
+  Always-Free eligible. This *is* the IP your [A records](ingress#adding-a-public-hostname-dns-record)
+  point at.
 - Oracle **reclaims Always-Free instances it considers idle** (low CPU/network for a while). This
   stack mostly benches idle between streams, so the box can vanish without warning; the common fix
   is to upgrade the account to **Pay As You Go** — Always-Free resources stay free, but the account
