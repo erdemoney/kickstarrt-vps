@@ -798,7 +798,8 @@ wiring CONFIG_DIR="":
 # During the private setup window the invocation is:
 #   just hosts 127.0.0.1                      (on the VPS)
 #   ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   (on your workstation, keep running)
-# then browse https://<subdomain>.<DOMAIN>:8443 (see docs/quickstart.md). Read-only — copy
+# then browse https://<subdomain>.<DOMAIN>:8443 (see docs/tailnet.md, "Fallback without
+# the resolver"). Read-only — copy
 # the block into /etc/hosts (macOS/Linux) or C:\Windows\System32\drivers\etc\hosts (Windows).
 hosts IP="auto":
     #!/usr/bin/env bash
@@ -857,7 +858,7 @@ dns:
     echo "console  : Tailscale DNS -> Nameservers -> custom $T, restricted to $D"
 
 # Query the tailnet DNS resolver directly (run on the server; needs the ufw 53
-# rule from docs/hardening.md). Args: optional hostname (default one panel, e.g.
+# rule from docs/quickstart.md §4). Args: optional hostname (default one panel, e.g.
 # radarr.<DOMAIN>). Returns the tailnet IP for any *.DOMAIN name.
 dnscheck domain="":
     #!/usr/bin/env bash

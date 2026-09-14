@@ -1,65 +1,47 @@
 ---
 title: Tailnet DNS
-nav_order: 9.5
+nav_order: 4
 ---
 
 # Tailnet DNS: admin panels by name
 
-The admin panels (Radarr, Sonarr, Prowlarr, Profilarr, Bazarr, Decypharr, the Traefik dashboard)
-have **no public DNS records** — they're private. Inside your tailnet, they're reachable **by
-name** — `https://radarr.<DOMAIN>`, `https://sonarr.<DOMAIN>`, … — with the same wildcard Let's
-Encrypt cert and zero `/etc/hosts`. This page is the how-to.
+The admin panels (Radarr, Sonarr, Prowlarr, Profilarr, Bazarr, Decypharr, the Traefik
+dashboard) have **no public DNS records** — inside your tailnet they resolve **by name**,
+`https://radarr.<DOMAIN>` and so on, with the same wildcard Let's Encrypt cert, no
+`/etc/hosts` editing, and no extra login. The one-time console registration happens during
+setup, **before** first boot ([Quickstart §6](quickstart#6-register-the-tailnet-dns-resolver));
+this page is the mechanics, verification, and troubleshooting.
 
 ## How it works
 
-Traefik already routes every app by its hostname on `:443`, and the DNS-01 wildcard cert already
-covers every `*.DOMAIN` — so the only missing link was *resolution on tailnet devices*. MagicDNS
-gives each *node* one name (`<node>.<tailnet>.ts.net`), not per-app names, and it can't be told to
-serve your own domain. Tailscale's supported mechanism for that is **split DNS**:
+Traefik routes every app by hostname on `:443`, and the DNS-01 wildcard cert covers every
+`*.DOMAIN` — the only missing link is *resolution on tailnet devices*. MagicDNS gives each
+node one name (`<node>.<tailnet>.ts.net`) and can't be told to serve your own domain;
+Tailscale's supported mechanism for that is **split DNS**:
 
-1. A tiny **CoreDNS** container in the `traefik` stack answers `*.DOMAIN` (and the apex) with the
-   VPS's **tailnet IP** (`100.x.y.z`).
-2. You register that resolver in Tailscale as a **restricted (split) nameserver for `DOMAIN`**
-   only. Tailscale clients send just `*.DOMAIN` lookups to it; everything else still uses
+1. A tiny **CoreDNS** container in the `traefik` stack answers every `*.DOMAIN` name (and the
+   apex) with the VPS's **tailnet IP**.
+2. You register it in Tailscale as a **restricted (split) nameserver for `DOMAIN` only** —
+   tailnet clients send just `*.DOMAIN` lookups to it; everything else still uses
    MagicDNS/public DNS.
-3. From any tailnet device, `radarr.<DOMAIN>` resolves to the box's tailnet address → the request
-   rides the WireGuard mesh straight to Traefik `:443` → routed by `Host()` → served with the real
-   cert. No extra auth: **being on the tailnet *is* the gate.**
+3. From any tailnet device, `radarr.<DOMAIN>` resolves to the box's tailnet address → the
+   request rides the WireGuard mesh to Traefik `:443` → routed by `Host()` → served with the
+   real cert. **Being on the tailnet is the gate** — there is no extra auth to configure.
 
-It's available from **first boot**, not from going public: ufw already lets the tailnet reach
-`:53` and Traefik's `:443` ([Hardening §3](hardening#3-firewall--ufw-deny-incoming-public-443-opens-last)),
-so the moment you register the resolver (next section) the panels resolve by name — during setup,
-with no DNS records and nothing public. [Going public](quickstart#going-public-last) only adds the
-A records and opens `:443` from the internet; it doesn't change how the tailnet reaches the
-panels.
+Two consequences of the split-DNS registration, both worth knowing up front:
 
-## One-time Tailscale admin console setup (right after first boot)
+- **`DOMAIN` is dedicated to this stack.** CoreDNS answers *every* name under it with the
+  tailnet IP — if the domain also hosted, say, `www` or mail publicly, tailnet devices would
+  stop reaching those.
+- **Until CoreDNS is up, `*.DOMAIN` lookups fail.** Split DNS intercepts the domain with no
+  fallback, so between registering the resolver (quickstart §6) and first boot (§7)
+  resolution is dead. Expected, and it heals at first boot.
 
-Do this once, after `just up` (Quickstart §6):
-
-1. [Tailscale Admin → DNS](https://login.tailscale.com/admin/dns) → **Nameservers** →
-   **Add nameserver** → **Custom**.
-2. Enter the resolver as a plain IP: `100.x.y.z` (your `TAILNET_IP` — print it with `just dns`).
-3. Constrain it: pick **"Only send names in these domains"** and add your `DOMAIN` — *not* the
-   `ts.net` tailnet name (MagicDNS doesn't delegate that), and *not* global.
-4. Leave **MagicDNS** on and **"Override local DNS"** off. Save.
-
-That's the whole console side. After the next DNS refresh on your devices (rejoin the tailnet, or
-flush their resolver), the panels resolve.
-
-## Running it (server side)
-
-Already handled by the standard flow:
-
-- `just init` fills `TAILNET_IP` in `stacks/traefik/.env` (auto-detected from `tailscale ip -4`).
-- `just dirs` (part of `just up`) renders `$CONFIG_DIR/coredns/Corefile` from the tracked template
-  and `just up` starts the CoreDNS container, bound to `TAILNET_IP:53` **only** (it deliberately
-  doesn't bind `0.0.0.0:53` — systemd-resolved already holds the loopback).
-- ufw allows DNS (`53`) **and Traefik (`:443`)** from the tailnet only
-  (`100.64.0.0/10`), added in
-  [Hardening](hardening).
-- Check it: `just dnscheck` queries the resolver directly (`radarr.<DOMAIN>` → your tailnet IP),
-  and `just dns` prints the exact nameserver value to enter in the admin console.
+The server side is handled by the standard flow: `just init` fills `TAILNET_IP`, `just up`
+renders the Corefile from the tracked template and starts CoreDNS bound to `TAILNET_IP:53`
+only (it deliberately doesn't bind `0.0.0.0:53` — systemd-resolved already holds the
+loopback), and the ufw rules from [Quickstart §4](quickstart#4-lock-the-box-down-ufw)
+already allow `53` and `443` from the tailnet.
 
 ## Verify from a tailnet device
 
@@ -71,24 +53,36 @@ Replace `radarr` with any panel name:
 | Linux | `getent hosts radarr.<DOMAIN>` | tailnet IP |
 | Windows | `Resolve-DnsName radarr.<DOMAIN>` | IPAddress = your tailnet IP (use `Resolve-DnsName`, **not** `nslookup` — it misses split-DNS/NRPT rules) |
 
-A device **not** on the tailnet won't resolve these at all — there's no public A record for the
-panels, by design.
+From the box itself: `just dnscheck`. A device **not** on the tailnet won't resolve these at
+all — there's no public record for the panels, by design.
 
 ## Troubleshooting
 
-- **Names don't resolve yet** — devices usually pick up the new nameserver on their next
-  Tailscale DNS update. Rejoin the tailnet, or flush: `sudo dscacheutil -flushcache` (macOS),
+- **Names don't resolve yet** — devices pick up the new nameserver on their next Tailscale
+  DNS update. Rejoin the tailnet, or flush: `sudo dscacheutil -flushcache` (macOS),
   `sudo systemctl restart systemd-resolved` (Linux), `ipconfig /flushdns` (Windows).
+- **The box was rebuilt / tailnet IP changed** — run the bootstrap script (or
+  `sudo tailscale up`) on the new box, re-run `just init` (Enter accepts the new detection),
+  then update the nameserver IP in the Tailscale admin console.
 - **Nothing answers on the box itself** — `just dnscheck`; confirm CoreDNS is up
   (`docker compose -f stacks/traefik/compose.yaml ps coredns`) and ufw has the `53` rules
-  (`sudo ufw status`).
-- **Tailnet IP changed** (the box was rebuilt as a new node) — re-run `just init` (Enter accepts
-  the new detection), then update the nameserver IP in the Tailscale admin console.
+  (`sudo ufw status`). From the **public internet**, nothing works until
+  [going public](quickstart#10-go-public-last) — that's by design.
 - **You skipped the console step** — `just dns` prints exactly what to paste in.
-- **Panels resolve but don't load from a tailnet device** — `:443` from the tailnet is allowed
-  since the hardening step, so check `just dnscheck`, that CoreDNS is up, and that the device is
-  actually on the tailnet. From the **public internet**, nothing works until
-  [Going public](quickstart#going-public-last) — that's by design.
 
-The `/etc/hosts` block (`just hosts <tailnet-ip>`) still works as a no-CoreDNS fallback on any
-machine that can't or won't use the resolver.
+## Fallback without the resolver
+
+A machine that can't or won't use the resolver (or before first boot) reaches the panels with
+an **SSH port-forward over the tailnet** — every app's URL works with nothing exposed, no DNS
+records, no open internet ports:
+
+```bash
+just hosts 127.0.0.1        # on the VPS: prints the app URLs mapped to 127.0.0.1
+ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   # on your workstation, keep running
+```
+
+Copy the printed block into `/etc/hosts` (macOS/Linux, admin) or
+`C:\Windows\System32\drivers\etc\hosts` (Windows), then browse
+`https://<subdomain>.<DOMAIN>:8443` — over the real wildcard cert, because the forward lands
+on Traefik's `:443`. On a machine that can reach the tailnet directly,
+`just hosts <tailnet-ip>` into `/etc/hosts` works without the port suffix.

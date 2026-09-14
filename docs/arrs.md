@@ -1,34 +1,31 @@
 ---
 title: The *arrs
-nav_order: 5
+nav_order: 6
 ---
 
 # The \*arrs: networking and app wiring
 
-> **Before you start:** reach the stack first. The admin panels resolve by name on your tailnet
-> right after first boot ([Tailnet DNS](tailnet) — set up in [Quickstart §6](quickstart#6-first-boot)),
-> so open `https://radarr.<DOMAIN>` from any tailnet device and verify the cert. All first-run
-> setup happens over those URLs while nothing is public; exposing the stack is the **last** step
-> ([Ingress](ingress)).
+First-run setup happens over the tailnet while nothing is public
+([Quickstart §8](quickstart#8-set-up-the-apps)) — open `https://radarr.<DOMAIN>` and friends
+from any tailnet device. This page is the wiring walkthrough: what to paste where, in a
+workable order. Run `just wiring` on the box first — it probes every pairing's reachability
+and prints each URL + API key (read from `$CONFIG_DIR` on disk) for every section below,
+including the full Decypharr client spec.
 
-## Docker networking (shared networks)
+## Docker networking
 
-The compose files declare one **`external: true`** shared network so the stacks can talk to each
-other without the `docker compose` project name in the way:
-
-- `internal` — the network every service here joins, Traefik included: app-to-app traffic only.
-
-Networks are created once with `just networks` (idempotent; `just up` calls it). Nothing inside
-Docker binds an IP you need to care about — the names are what matter. Every service sets a
-`container_name` matching its name, so containers are reachable at `http://<service>:<port>`,
-and a newly added container is already reachable from every existing app.
+One shared, `external: true` network — `internal` — carries all app-to-app traffic, Traefik
+included. It's created by `just up` (`just networks` standalone); nothing inside Docker binds
+an IP you need to care about — the names are what matter. Every service sets a
+`container_name` matching its name, so containers are reachable at `http://<service>:<port>`
+and a newly added container is reachable from every existing app.
 
 ## Internal DNS names and API keys
 
-All services share the `internal` Docker network, so every container reaches the others by
-**service name**. Always use these internal URLs — never `localhost`, never the public subdomain
-(public URLs hairpin out to the internet and back, break CORS, and add latency; they are for
-browsers only).
+All services share the `internal` network, so every container reaches the others by
+**service name**. Always use these internal URLs when one app asks for another — never
+`localhost`, never the public subdomain (public URLs hairpin out to the internet and back,
+break CORS, and add latency; they are for browsers only).
 
 | Service   | Internal URL            | Port | API key lives at                                |
 | --------- | ----------------------- | ---- | ----------------------------------------------- |
@@ -39,126 +36,115 @@ browsers only).
 | prowlarr  | `http://prowlarr:9696`  | 9696 | Settings → General → API Key                    |
 | profilarr | `http://profilarr:6868` | 6868 | profilarr → Settings → Radarr/Sonarr connection |
 | bazarr    | `http://bazarr:6767`    | 6767 | (outbound only)                                 |
-| decypharr | `http://decypharr:8282` | 8282 | Settings → API token (shown after first setup)  |
+| decypharr | `http://decypharr:8282` | 8282 | Settings → API token (shown once after wizard)  |
 
 Rule of thumb: when any UI asks for another app's **URL + API key**, use the
-`http://<service>:<port>` from the table and the key from the target app.
-
-> Run `just wiring` on the server first — it probes every pairing's reachability
-> and prints each URL + API key (read from `$CONFIG_DIR` on disk) for every
-> section below, including the Decypharr client spec.
-
-Sanity check any link from inside the network:
+`http://<service>:<port>` from the table and the key from the target app. Sanity-check any
+link from inside the network:
 `docker exec <service> curl -fsS http://sonarr:8989/ping`.
 
-## Prowlarr → Sonarr/Radarr (indexer sync)
+## Download clients: Sonarr/Radarr ← Decypharr
 
-1. Prowlarr → Settings → **Apps** → **Add Application** → **Sonarr**.
-   - URL `http://sonarr:8989`, API key from Sonarr → Settings → General.
-   - Leave the sync profile defaults; just check "Enable" and the correct categories.
-2. Same for **Radarr** → `http://radarr:7878` + its API key.
-3. Test both. Every indexer added in Prowlarr (including Torrentio, see [Indexers](indexers))
-   is then pushed to both apps automatically (tagged `(Prowlarr)`).
-
-## Sonarr/Radarr → download clients
-
-In both apps: Settings → Download Clients. If both protocols are configured in Decypharr, add
-**two** clients pointing at Decypharr — one **qBittorrent** for debrid, one **SABnzbd** for
-Usenet (Decypharr exposes both APIs):
+In each arr: Settings → **Download Clients** → add. With both protocols configured in
+Decypharr, add **two** clients pointing at it — Decypharr exposes both APIs
+([Decypharr](decypharr#integration-with-sonarrradarr) covers its side of the wiring):
 
 - **qBittorrent** — name `Decypharr (debrid)`
   - Host `decypharr`, port `8282`
   - Username: the **arr's own URL** — `http://sonarr:8989` (or radarr's); Decypharr identifies
     the caller by this.
-  - Password: that **arr's own API key** (Settings → General).
+  - Password: that **arr's own API key** (Settings → General) — *not* the Decypharr token.
   - Category `sonarr` / `radarr`; priority `0`.
-- **SABnzbd** — name `Decypharr (usenet)` (only if you configured Usenet in Decypharr)
+- **SABnzbd** — name `Decypharr (usenet)`, only if you configured Usenet in Decypharr
   - Host `decypharr`, port `8282`, **URL base `/sabnzbd`**
   - Same username/password as above.
   - Category `sonarr` / `radarr`; priority `0`.
 
-Give them different priorities to prefer one protocol over the other — the arr sends a release
-to the highest-priority client that can handle it. Test each client. Decypharr is detailed in
-[Decypharr](decypharr).
+Give them different priorities to prefer one protocol over the other — the arr sends a
+release to the highest-priority client that can handle it. Test each client.
 
-## Bazarr → Sonarr/Radarr (subtitles)
+## Root folders and the mount
 
-Bazarr only fetches subtitles for titles added **after** a language profile is assigned — so the
-profile step is easy to forget.
+Sonarr/Radarr root folders must point at paths inside their own containers. In this stack the
+library lives on Decypharr's FUSE mount (`/mnt/decypharr`), already reachable from every
+service that touches media files — `sonarr`, `radarr`, `bazarr` (subtitles land next to the
+video) and `jellyfin` (playback) — via the shared bind `- /mnt/debrid:/mnt:rslave`. Nothing
+to add by hand: point each app's root folder at a subpath of `/mnt/decypharr`, and in
+Jellyfin add the libraries the same way. Also set Jellyfin → Playback → **Transcode path**
+to `/transcodes` (a tmpfs — transcode scratch never hits disk; this edition transcodes in
+software, so keep the library direct-play friendly).
 
-1. Settings → **Sonarr** → enable, URL `http://sonarr:8989`, API key.
-2. Settings → **Radarr** → enable, URL `http://radarr:7878`, API key.
-3. Create a language profile (Languages → manage), then assign it in the Sonarr/Radarr library
-   views via **Mass Edit**.
-4. **Subtitle providers** (the fiddly part):
-   - **OpenSubtitles.com** — primary. The old `.org` API is shut down; stock Bazarr uses the
-     `.com` API. Create an account, generate an **API key** on your profile page, enter username
-     - API key. Free tier is rate-limited (~20 downloads/day); VIP removes the cap.
-   - **subdl.com** — free fallback; grab an API key from your account panel (free tier allows
-     ~2,000 searches/day) and enter it as api key.
-   - **Whisper (optional)** — AI-generated fallback when nothing clears a minimum score; needs a
-     separate whisper ASR service.
-5. Rank providers by preference and raise each language's **minimum score** if subs arrive out
-   of sync or machine-translated. Subtitle folder: **Alongside media file**.
+If those paths look empty inside a container, check mount propagation
+([Decypharr](decypharr#visibility-of-the-mount)).
 
-## Profilarr → Sonarr/Radarr (quality profiles)
+## Imports are symlinks, not hardlinks
 
-1. In profilarr add the Sonarr/Radarr instances: URL `http://sonarr:8989` / `http://radarr:7878`
-   and each API key.
-2. Import TRaSH guides / create profiles; profilarr applies them to the apps.
+There's no local download to hardlink here: Decypharr hands the \*arrs a **symlink** into its
+FUSE mount, and importing renames that link into the root folder — the payload never lands on
+disk, it streams from the debrid provider at playback (FUSE debrid mounts can't hardlink
+anyway: `link()` isn't implemented). Two constraints follow:
+
+- **Keep Decypharr's download folder and the \*arr root folders on the same mount** (both
+  under `/mnt/decypharr`). Same filesystem means the import is a rename of a tiny symlink —
+  instant. If they straddle filesystems the \*arrs fall back to copying, and copying a
+  symlink *dereferences* it: the entire file gets pulled from debrid onto local disk.
+- **Every consumer must resolve the symlink target at the same path.** What's stored in the
+  library is an absolute path into the mount, so `sonarr`, `radarr`, `bazarr`, and `jellyfin`
+  all bind `/mnt/decypharr` at the identical path. Change it in one place and that app sees a
+  library full of dangling links.
+
+## Prowlarr → Sonarr/Radarr (indexer sync)
+
+1. Prowlarr → Settings → **Apps** → **Add Application** → **Sonarr** — URL
+   `http://sonarr:8989`, API key from Sonarr → Settings → General. Leave the sync profile
+   defaults; check "Enable" and the correct categories.
+2. Same for **Radarr** → `http://radarr:7878` + its API key. Test both.
+
+Every indexer added in Prowlarr (including Torrentio, [Indexers](indexers)) is then pushed to
+both apps automatically (tagged `(Prowlarr)`).
 
 ## Seerr → Jellyfin + Radarr + Sonarr (requests)
 
 1. Seerr → Settings → **Jellyfin**: server name, URL `http://jellyfin:8096`, and an **API key
-   generated on the Jellyfin server** (Dashboard → API Keys). Create the Jellyfin admin account
-   on first login and log in once.
-2. Seerr → **Radarr** and **Sonarr**: enable, add `http://radarr:7878` / `http://sonarr:8989` +
-   API keys, pick the quality profile and root folder for each.
+   generated on the Jellyfin server** (Dashboard → API Keys — the admin account is created on
+   Jellyfin's first login).
+2. Seerr → **Radarr** and **Sonarr**: enable, add `http://radarr:7878` / `http://sonarr:8989`
+   + API keys, pick the quality profile and root folder for each.
 3. Users can now request via Seerr, which pushes to Radarr/Sonarr.
 
-## Root folders and mounts
+## Bazarr → Sonarr/Radarr (subtitles)
 
-Sonarr/Radarr root folders must point at paths inside their own containers. In this stack the
-library lives on Decypharr's FUSE mount (`/mnt/decypharr`), which is already reachable from every
-service that touches media files — `sonarr`, `radarr`, `bazarr` (subtitles land next to the
-video), and `jellyfin` (playback):
+Bazarr only fetches subtitles for titles added **after** a language profile is assigned —
+the easy-to-forget step.
 
-```yaml
-- /mnt/debrid:/mnt:rslave
-```
+1. Settings → **Sonarr** → enable, URL `http://sonarr:8989`, API key. Same for
+   **Radarr** → `http://radarr:7878`.
+2. Create a language profile (Languages → manage), then assign it in the Sonarr/Radarr
+   library views via **Mass Edit**.
+3. **Subtitle providers** (the fiddly part):
+   - **OpenSubtitles.com** — primary; the old `.org` API is shut down. Create an account,
+     generate an **API key** on your profile page, enter username + API key. Free tier is
+     rate-limited (~20 downloads/day); VIP removes the cap.
+   - **subdl.com** — free fallback; grab an API key from your account panel (~2,000
+     searches/day).
+   - **Whisper (optional)** — AI-generated fallback when nothing clears a minimum score;
+     needs a separate whisper ASR service.
+4. Rank providers by preference and raise each language's **minimum score** if subs arrive
+   out of sync or machine-translated. Subtitle folder: **Alongside media file**.
 
-`:rslave` on the parent is what makes the mount *appear* inside those containers whenever
-Decypharr creates it, with no startup ordering required. The bound parent is a dedicated host
-directory (`/mnt/debrid`) mapped in as `/mnt`, so the containers see only the FUSE tree, not the
-host's real `/mnt` (see [Decypharr](decypharr) for why it's the parent and not the mountpoint).
-Nothing to add by hand — just point each app's root folder, and Jellyfin's libraries, at subpaths
-of `/mnt/decypharr`.
+## Profilarr → Sonarr/Radarr (quality profiles)
 
-## Imports are symlinks, not hardlinks
-
-There's no local download to hardlink here: Decypharr hands the \*arrs a **symlink** pointing into
-its FUSE mount, and importing renames that link into the root folder — the payload never lands on
-disk, it streams from the debrid provider at playback. (FUSE debrid mounts can't hardlink anyway:
-`link()` isn't implemented.) Two constraints follow:
-
-- **Keep Decypharr's download folder and the \*arr root folders on the same mount** (both under
-  `/mnt/decypharr`). Same filesystem means the import is a rename of a tiny symlink — instant. If
-  they straddle filesystems the \*arrs fall back to copying, and copying a symlink *dereferences*
-  it: the entire file gets pulled from debrid onto local disk.
-- **Every consumer must resolve the symlink target at the same path.** What's stored in the
-  library is an absolute path into the mount, so `sonarr`, `radarr`, `bazarr`, and `jellyfin` all
-  bind `/mnt/decypharr` at the identical path (see [Decypharr](decypharr)). Change it in one place
-  and that app sees a library full of dangling links.
+1. In profilarr, add the Sonarr/Radarr instances (Settings → connections): URL + each API
+   key.
+2. Import TRaSH guides / create profiles; profilarr applies them to the apps.
 
 ## Managing from your phone
 
-**Ruddarr** ([ruddarr.com](https://ruddarr.com)) is a free, open-source **iOS companion app** for
-Radarr and Sonarr — browse the library and calendar, kick off searches, and act on the queue or
-history. It's a *client*, not a service: nothing runs on the server. Point it at each instance's
-**Application URL** — those admin panels aren't part of the URL set you hand out (see
-[Keep the public surface minimal](ingress#keep-the-public-surface-minimal)). With Tailscale running
-on the phone, Ruddarr reaches them at `https://radarr.<DOMAIN>` / `https://sonarr.<DOMAIN>`,
-resolved to the box's tailnet address by [Tailnet DNS](tailnet) — no public A records needed, and
-no extra auth (the tailnet is the gate). The app handles HTTPS and reverse-proxy headers; like
-everything on `:443` the panels still sit behind each app's own login and CrowdSec, so they stay
+**Ruddarr** ([ruddarr.com](https://ruddarr.com)) is a free, open-source **iOS companion app**
+for Radarr and Sonarr — browse the library and calendar, kick off searches, act on the queue
+or history. It's a *client*, not a service: nothing runs on the server. Point it at each
+instance's **Application URL**: with Tailscale on the phone, `https://radarr.<DOMAIN>` /
+`https://sonarr.<DOMAIN>` resolve to the box's tailnet address ([Tailnet DNS](tailnet)) — no
+public A records, no extra auth (the tailnet is the gate). The app handles HTTPS and
+reverse-proxy headers; the panels' own logins and CrowdSec still apply, so they stay
 admin-only — the app is just another client.

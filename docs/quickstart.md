@@ -1,112 +1,74 @@
 ---
 title: Quickstart
-nav_order: 3
+nav_order: 2
 ---
 
 # Quickstart
 
-No VPS yet? [Oracle Cloud (free tier)](oci) gets you a free one in about ten minutes — VCN,
-subnet, instance, SSH in and get going, all with zero publicly open ports to keep.
+The whole setup, in the order it has to happen. Every command you need is on this page; each
+step links to a deeper page for the how-it-works and troubleshooting.
 
-Otherwise: bring the stack up on a fresh VPS running Docker, from a git checkout of this repo
-(clone it
-into whatever directory will run the stack — e.g. `~/docker/kickstarrt-vps`). Edit on a dev box,
-commit, and `git pull` on the server.
+The flow: bring up a fresh VPS, walk in over public SSH **once**, join the box to your
+Tailscale tailnet, close every other door, then build the stack and set it up privately over
+the tailnet. The box is reachable from exactly one place — your tailnet — until the last step
+deliberately opens `:443`.
 
-The steps below are the whole setup, in the order they have to happen. A box in this guide starts
-life reachable over **public SSH** — that's the delivery door for the very first login, on any
-provider. The first setup step joins the box to your **Tailscale tailnet**; from then on the box
-is reachable from **exactly one place: your tailnet**, every other door closed by design
-([Hardening](hardening)) until you deliberately open `:443` at the very end. Get in over SSH,
-join the tailnet, lock the tailnet in.
+## 1. Create the VPS
 
-## 1. Get in: set up Tailscale
+Any provider, any box with ≥ 2 vCPU / 4 GB RAM (sizing notes in the [overview](index)). Use a
+**Debian 12** or **Ubuntu LTS** image — every command in this wiki is written for them. On
+Oracle Cloud, use **Canonical Ubuntu 26.04 Minimal aarch64** instead (no Debian image there);
+the [OCI appendix](oci) walks the whole creation, including the `443`/`80` ingress rules
+you'll need much later.
 
-Do this the moment the instance is up; nothing else works until it does. Get onto the fresh box
-over **public SSH** — on [Oracle Cloud](oci) that's `ssh ubuntu@<PUBLIC-IP>` with the key you
-pasted at creation; on any other provider, however you normally SSH to a new box (the management
-console's SSH, a key you injected, or whatever the provider gave you). This guide assumes the
-same baseline for every provider: **you have SSH access to the box.**
+The one thing you need from the provider: SSH access to the fresh box (a key you injected at
+creation, or however the provider does first login).
 
-Then bootstrap it with this repo's setup script. It's **idempotent** (safe to re-run — anything
-present is skipped), **cross-distro** (Debian/Ubuntu, Fedora/RHEL, openSUSE, Arch, Alpine), and
-installs Tailscale **plus** everything later steps need — `git`, `just`, Docker with the compose
-plugin, and your user in the `docker` group:
-[`scripts/prerequisites.sh`](https://github.com/erdemoney/kickstarrt-vps/blob/main/scripts/prerequisites.sh)
+## 2. Get in: join the tailnet
+
+SSH in over the **public IP** — the one and only time you use it:
+
+```bash
+ssh <user>@<PUBLIC-IP>
+```
+
+Then bootstrap the box with this repo's setup script. It is **idempotent** (safe to re-run)
+and cross-distro, and installs everything the rest of this guide needs — `git`, `just`, Docker
+with the compose plugin, your user in the `docker` group — **and joins the box to your
+tailnet**:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
 ```
 
-(The URL points at the public upstream repo, so it runs before you've cloned anything.) The
-script installs Tailscale **and joins the box to your tailnet**: it prints an **auth URL**, waits
-up to two minutes for you to approve the node in your browser, then prints the box's tailnet
-address. Approval is always yours — if the window passes before you approve, join it yourself:
+The script prints an **auth URL** and waits up to two minutes — open it in a browser and
+approve the node. (Missed the window? `sudo tailscale up` prints it again.) It ends by
+printing the box's **tailnet address** — a `100.x.y.z` from Tailscale's CGNAT range. That
+address is your SSH address from now on.
+
+## 3. Verify SSH over the tailnet
+
+From your workstation:
 
 ```bash
-sudo tailscale up
-tailscale ip -4        # e.g. 100.64.0.3 — a 100.x.y.z from Tailscale's CGNAT range
+ssh <user>@100.64.0.3     # the address the script printed
 ```
 
-`tailscale up` prints an **auth URL** — open it in your browser and approve the node.
+Once this works, the public SSH door has done its job — the provider-side `22` rule gets
+closed in the next step. If you use **MagicDNS**, the box also answers at
+`<node>.<tailnet>.ts.net`; fine for SSH, but the stack itself routes on `.DOMAIN` names, so
+the `100.x.y.z` address is the one that matters later.
 
-That tailnet address is the **only place SSH answers from now on** — and how you get in from your
-workstation:
+> The provider's web console stays available as the **break-glass** door for the box's whole
+> life — it rides the provider's network, not yours, so a tailnet hiccup can never lock you
+> out. Caveat on Oracle Cloud: Ubuntu images there configure no console password, so your SSH
+> key is the only way in ([details](oci#after-creation)).
 
-```bash
-ssh ubuntu@100.64.0.3    # OCI's default user; your provider may differ
-```
+## 4. Lock the box down (ufw)
 
-Notes:
-
-- That first `ssh` walked in over the **public IP**; the box's provider-side `22` rule is still
-  open by design until §3 closes it ([OCI](oci) keeps the wizard's rule for exactly this). Only
-  your key can log in — Ubuntu configures no password for its user (other providers: turn
-  password auth off in [Hardening §4](hardening#4-ssh-keys-no-password-auth)).
-- If you enabled **MagicDNS** (Tailscale admin console → DNS, on by default), the box also
-  answers at `vps.<tailnet>.ts.net` — fine for SSH, though the stack routes on `.DOMAIN` host
-  names, so the `TAILNET_IP` [env value](#4-copy-and-fill-the-env-files) is the address that
-  matters.
-- Replacing the box later? The address changes — re-run the bootstrap script (it rejoins with a
-  fresh wait), or `sudo tailscale up` on the new box, then point `TAILNET_IP` at the new address
-  via `just init` ([Tailnet DNS](tailnet)).
-- The provider console stays available as the **break-glass** door for the box's whole life: it
-  rides the provider's network, not yours, so a tailnet hiccup can never lock you out. Caveat: on
-  [OCI](oci), Canonical Ubuntu images configure no console password, so the console can't log you
-  in — recovery there is the volume-attach rescue, which is why the setup key is your primary
-  door.
-
-Everything from here on happens over SSH — and after §3, over the tailnet.
-
-## 2. Fork and clone
-
-This repo is meant to be **forked**. Fork it to your own GitHub account, then clone your fork —
-that gives you a personal copy to customize while still being able to pull upstream improvements.
-**Make the fork `Private`** (Settings → change visibility) — it
-deploys this stack from your fork, and a misstep that commits a secret to a public fork leaks it
-to the world:
-
-```bash
-git clone git@github.com:<you>/kickstarrt-vps.git ~/docker/kickstarrt-vps
-cd ~/docker/kickstarrt-vps
-git remote add upstream git@github.com:erdemoney/kickstarrt-vps.git   # optional
-```
-
-## 3. Finish hardening the box
-
-`git`, `just`, Docker and Tailscale all came from the bootstrap script in
-[§1](#1-get-in-set-up-tailscale). `git` works straight away; the `docker` group from that script
-only takes effect in a **new SSH session** — log out and back in, then
-verify:
-
-```bash
-docker run --rm hello-world     # no sudo needed once the group is active
-just --version
-```
-
-Update the OS and lock the firewall down while the box is still reachable only from your
-tailnet. The tailnet gets sshd, the DNS resolver ([Tailnet DNS](tailnet)) **and Traefik's `:443`**;
-the internet gets nothing until [Going public](#going-public-last):
+The tailnet is now your only door — enforce it. While the box is reachable only from your
+tailnet, update the OS and switch the firewall to deny-incoming, with sshd, DNS, and Traefik
+reachable **from the tailnet only**:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -120,226 +82,195 @@ sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
 sudo ufw enable
 ```
 
-Also close the setup-time SSH door at the provider: on **Oracle Cloud**, delete the wizard's
-default `22` ingress rule (VCN → Default Security List → the `TCP 22 / 0.0.0.0/0` rule → Delete —
-[OCI §1](oci#1-virtual-cloud-network-vcn--via-the-vcn-wizard)). It was the delivery door for the
-first login; from here SSH has exactly one way in, your tailnet.
+`100.64.0.0/10` is the CGNAT range Tailscale uses — nothing but your tailnet can reach `22`
+(sshd), `53` (the [tailnet DNS](tailnet) resolver), and `443` (Traefik). There is deliberately
+**no public `22`/`80`/`443` rule**: the public surface opens only at
+[§10](#10-go-public-last).
 
-Then, over at [Hardening](hardening): switch SSH to key-only auth (§4) and add fail2ban (§6,
-optional belt-and-suspenders). After that it's safe to run `just init` and `just up` as yourself.
+Then close the delivery door at the provider: on **Oracle Cloud**, delete the wizard's default
+`22` ingress rule (VCN → Default Security List → the `TCP 22 / 0.0.0.0/0` rule → Delete). SSH
+now has exactly one way in: your tailnet.
 
-## 4. Copy and fill the env files
+Optional extras — SSH key-only auth (if your provider's image allows passwords) and fail2ban —
+are in [Hardening](hardening).
 
-Run `just init` — it creates each stack's `.env` and walks you through **every** variable:
+## 5. Fork, clone, and fill the secrets
 
-- `CONFIG_DIR` isn't asked: it's automatically set to a full path to this repo's `data/` dir,
-  where app configs, `acme.json`, and Traefik's rendered config live (and what the restic
-  backup covers). It isn't user-configurable — the `just` recipes expect the repo-defined place
-- `DOMAIN` is prompted once and synced to every stack that defines it (traefik, media-server)
-- Subdomains default to the example values — Enter to keep, type to change;
-  `ENV_PUID`/`ENV_PGID` instead propose the uid/gid of the user running `just` (Enter to
-  use), so container files match your user — they fall back to `1000` if you run as root
-- `ACME_EMAIL` defaults to `admin@<DOMAIN>` — Enter accepts it. There is **no Let's Encrypt
-  account to register** (Traefik creates one over ACME on first start) and the address needn't
-  receive mail, but it can't be a fake domain like `example.com` — their API rejects those.
-  See [Ingress](ingress#there-is-no-lets-encrypt-account-to-create)
-- `TAILNET_IP` is auto-filled from `tailscale ip -4` (the box's tailnet address) — the CoreDNS
-  resolver in the traefik stack answers `*.DOMAIN` with it, so admin panels resolve by name on
-  the tailnet ([Tailnet DNS](tailnet)); accept it unless Tailscale reports a different address
-- `CROWDSEC_BOUNCER_API_KEY` is generated automatically (random 32-byte key)
-- Prompts for a username/password and writes `TRAEFIK_DASHBOARD_CREDENTIALS`
-- Explains each Cloudflare secret, then **confirms before opening the page in your
-  browser** (and just shows the URL on a headless box) — `CLOUDFLARE_DNS_TOKEN` (TLS, below) —
-  leave empty to do it later. There is no tunnel token: this edition serves on its own public
-  IP and uses Cloudflare only for **DNS + DNS-01 certificates**
-- You can skip anything; empty answers fall back to the current/default value
-- Finishes by asking whether to set up **restic repo backups to Cloudflare R2** — answer
-  `y` to be prompted for the R2 account ID, bucket, API token, and encryption password
-  (see [Maintenance](maintenance)), or skip (Enter) and fill `.env.restic` later
+This repo is meant to be **forked**. Fork it, make the fork **private** (Settings → change
+visibility — a secret committed to a public fork leaks it to the world), then clone it on the
+box:
 
 ```bash
-just init
+git clone git@github.com:<you>/kickstarrt-vps.git ~/docker/kickstarrt-vps
+cd ~/docker/kickstarrt-vps
+git remote add upstream git@github.com:erdemoney/kickstarrt-vps.git   # optional
 ```
 
-Safe to re-run — it shows the current values and never overwrites without your say-so.
+One housekeeping item first: the `docker` group the bootstrap script put you in only takes
+effect in a **new SSH session** — reconnect, then `docker run --rm hello-world` should work
+without sudo.
 
-Set each variable (see `stacks/*/.env.example`):
+Now run `just init` — it creates each stack's `.env` and walks you through every variable:
 
-| Variable                        | Where it lives | What it's for                                                    |
-| ------------------------------- | -------------- | ---------------------------------------------------------------- |
-| `DOMAIN`                        | traefik + media-server | apex domain; every `SUB_DOMAIN_*` entry extends it       |
-| `SUB_DOMAIN_*`                  | per stack      | public subdomain per app, e.g. `jellyfin.<DOMAIN>`               |
-| `CONFIG_DIR`                    | traefik + media-server | app config dir — derived, always the repo's `data/` dir  |
-| `ACME_EMAIL`                    | traefik        | Let's Encrypt account address (rendered into `traefik.yml`)      |
-| `ENV_PUID` / `ENV_PGID`         | media-server   | user/group owning the config dirs (init proposes the running user's ids) |
-| `CLOUDFLARE_DNS_TOKEN`              | traefik        | DNS-01 ACME for wildcard certs (see below)                       |
-| `TRAEFIK_DASHBOARD_CREDENTIALS` | traefik        | dashboard basic-auth blob (see below)                            |
-| `CROWDSEC_BOUNCER_API_KEY`      | traefik        | CrowdSec ↔ Traefik shared key (see below)                       |
+- `CONFIG_DIR` isn't asked: always the repo's own `data/` dir — app configs, `acme.json`, and
+  Traefik's rendered config live there, and it's exactly what the backups cover.
+- `DOMAIN` is prompted once and synced to every stack; each `SUB_DOMAIN_*` defaults to the
+  example values (Enter to keep, type to change).
+- `ENV_PUID`/`ENV_PGID` propose the running user's uid/gid, so container files match your
+  user (fallback `1000` if you run as root).
+- `ACME_EMAIL` defaults to `admin@<DOMAIN>` — any address on a domain you control; it
+  needn't receive mail ([why](faq#why-is-there-no-lets-encrypt-account-to-create)).
+- `TAILNET_IP` is auto-filled from `tailscale ip -4` — accept it unless Tailscale reports a
+  different address.
+- `CROWDSEC_BOUNCER_API_KEY` is generated for you (random 32-byte key).
+- A username/password prompt writes `TRAEFIK_DASHBOARD_CREDENTIALS`.
+- `CLOUDFLARE_DNS_TOKEN` — `just init` explains each permission, then **confirms before
+  opening the Cloudflare page in your browser** (on a headless box it just prints the URL).
+  Leave it empty to do it later.
+- Optionally sets up **restic backups to Cloudflare R2** — answer `y` to be prompted, or skip
+  and fill `.env.restic` later ([Maintenance](maintenance)).
 
-## 5. Where the secrets come from
+Empty answers fall back to the current/default value, and it's safe to re-run. The full
+variable list, with comments, is in `stacks/*/.env.example`. The three secrets worth
+understanding:
 
 ### `CLOUDFLARE_DNS_TOKEN` — Cloudflare (wildcard TLS)
 
-This token *is* the entire Let's Encrypt prerequisite — DNS-01 is how Traefik proves it owns
-`*.DOMAIN`. Nothing has to be set up at Let's Encrypt itself; see
-[Ingress → Certificates](ingress#certificates-automatic).
+This token is the entire Let's Encrypt prerequisite: DNS-01 is how Traefik proves ownership of
+`*.DOMAIN` ([Ingress → Certificates](ingress#certificates)).
 
-1. dash.cloudflare.com → **My Profile** → **API Tokens** → **Create Token**.
-2. **Create custom token** with two permissions, both on `DOMAIN`:
-   - **Zone → Read** — Traefik must resolve the domain to a **zone ID** before it can edit
-     records; that lookup needs `Zone:Read` even though the token will only ever create
-     `_acme-challenge` TXT records.
-   - **Zone → DNS → Edit** — *the* DNS-01 permission: create and delete those TXT records.
-3. **Zone Resources** → **Include** → **Specific zone** → your `DOMAIN` (least privilege; not
-   "All zones"). **Client IP Address Filtering is optional** — on a VPS the public IP is stable,
-   so locking it to the server's public IP is a fine belt-and-braces move, but skipping it is
-   equally correct. **TTL is optional** (notBefore/notAfter dates; default: no expiry) — treat it
-   as unset: nothing in this stack rotates the token, so an expired one kills renewals until you
-   replace it in `stacks/traefik/.env`.
-4. Traefik uses it to create and delete `_acme-challenge` TXT records for `*.DOMAIN` — nothing
-   else; those records are short-lived (~120s TTL) and fully automatic.
-
-`just init` verifies the token against Cloudflare's `/user/tokens/verify` right after you enter
-it, so a bad paste or a revoked token fails before you ever start the stack. (This only checks the
-token is **valid** — its `Zone:Read`/`DNS:Edit` scope surfaces at first cert issuance, not here.)
-To re-check an already-configured token:
+1. dash.cloudflare.com → **My Profile** → **API Tokens** → **Create Token** →
+   **Create custom token**, with two permissions on `DOMAIN`:
+   - **Zone → Read** — resolves the domain to a zone ID before any record can be edited.
+   - **Zone → DNS → Edit** — creates and deletes the `_acme-challenge` TXT records.
+2. **Zone Resources** → **Include** → **Specific zone** → your `DOMAIN` (least privilege —
+   not "All zones").
+3. Create — `just init` verifies the token against Cloudflare's API right after you enter it,
+   so a bad paste or revoked token fails immediately. To re-check an existing token:
 
 ```bash
 curl -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
   -H "Authorization: Bearer <token>"   # expect "status": "active"
 ```
 
-### `TRAEFIK_DASHBOARD_CREDENTIALS` — htpasswd blob for `traefik.<DOMAIN>`
+### `TRAEFIK_DASHBOARD_CREDENTIALS` — htpasswd blob
 
-Not a token — a `user:hash` pair produced by `htpasswd`:
+A `user:hash` pair for `https://traefik.<DOMAIN>`, not a token:
 
 ```bash
 docker run --rm httpd:2.4-alpine htpasswd -nbB user 'ChangeMe-strong-password'
 ```
 
-(No docker? `htpasswd -nbB` from `apache2-utils`, or `openssl passwd -apr1 'pass'` — Traefik
-accepts both.)
-
-`.env` gotcha: the `$2y$...` hash breaks compose interpolation, so **quote the whole value in
+`.env` gotcha: the `$2y$...` hash breaks compose interpolation — **quote the whole value in
 single quotes**:
 
 ```
 TRAEFIK_DASHBOARD_CREDENTIALS='user:$2y$05$abcdefghijklmnopqrstuvwxyz0123456789'
 ```
 
-Regenerate and recreate the traefik container if you ever lose it.
-
 ### `CROWDSEC_BOUNCER_API_KEY` — local random key
 
-No dashboard to sign up for. Any random string works; both CrowdSec and Traefik use it to
-authenticate over LAPI:
+Already generated by `just init`; by hand it's `openssl rand -hex 32`. No dashboard to sign up
+for — CrowdSec and Traefik use it to authenticate with each other. It must be set **before**
+`just up`; after changing it, recreate the `crowdsec` and `traefik` containers
+(`just update-all`). Details in [Security](security).
 
-```bash
-openssl rand -hex 32     # 64 hex chars
-```
+## 6. Register the tailnet DNS resolver
 
-Paste into `stacks/traefik/.env`. It must be set **before** `just up`; after changing it,
-recreate the `crowdsec` and `traefik` containers (`just update-all`). Details in
-[Security](security).
-
-## 6. First boot
-
-By now Tailscale is up and [Hardening](hardening) has run: ufw is deny-incoming, with sshd, the
-DNS resolver and Traefik's `:443` reachable **from the tailnet only**. The internet still can't
-touch `80`/`443` — that stays true until [Going public](#going-public-last). Bring the stack up:
-
-```bash
-just up          # creates networks, config dirs, acme.json + traefik.yml, then brings up every stack
-just ps          # confirm everything is running
-```
-
-`just up` handles ordering for you — it creates the shared networks and the per-service config
-dirs (both idempotent), then brings every stack up. Why the networks and dirs matter is covered
-in [The \*arrs](arrs).
-
-App UIs live at `https://<subdomain>.<DOMAIN>`: `jellyfin`, `seerr`, `radarr`, `sonarr`,
-`prowlarr`, `profilarr`, `bazarr`, `decypharr`, `traefik`. The certs are issued by DNS-01, so
-they exist even before any DNS record points at the box.
-
-**Reach the panels by name — [Tailnet DNS](tailnet).** The admin panels are private (no DNS
-records), but they resolve on your tailnet by name: `https://radarr.<DOMAIN>`,
-`https://sonarr.<DOMAIN>`, … — with the real wildcard cert. ufw already opened `:53` and `:443`
-to the tailnet in [Hardening §3](hardening#3-firewall--ufw-deny-incoming-public-443-opens-last);
-one one-time step in the Tailscale admin console switches it on:
-
-```bash
-just dns     # prints the exact nameserver value to paste — the box's TAILNET_IP
-```
-
-1. [Tailscale Admin → DNS](https://login.tailscale.com/admin/dns) → **Nameservers** → **Add nameserver** → **Custom**.
-2. Enter the value `just dns` printed (a `100.x.y.z`).
-3. Constrain it: **"Only send names in these domains"** → add your `DOMAIN` (*not* the `.ts.net` name).
-4. Save, then refresh DNS on a device — rejoin the tailnet or flush: `sudo dscacheutil -flushcache` (macOS), `sudo systemctl restart systemd-resolved` (Linux), `ipconfig /flushdns` (Windows).
-
-Then `radarr.<DOMAIN>` opens from **any** tailnet device — laptop, phone, server — before any A
-record exists. `just dnscheck` verifies the resolver from the box; full mechanics in
+One-time step in the Tailscale admin console, done **before** first boot so every app answers
+by name the moment the stack is up. The resolver is the CoreDNS container in the traefik
+stack, answering `*.DOMAIN` with the box's tailnet address — mechanics and assumptions in
 [Tailnet DNS](tailnet).
 
-> **The stack is still private until you open the door — use that window.** Nothing here is public
-> yet, and nothing becomes public until you add the A records *and* open `:443` from the internet
-> ([Ingress](ingress)); until then, the only way in is the tailnet — and on the tailnet the panels
-> now resolve by name (above). That's intentional: an app that's live on the internet *before* its
-> setup is done is an app with no login, claimable by anyone. Do all first-run setup over the
-> tailnet. Where a machine doesn't use the resolver, fall back to an **SSH port-forward over the
-> tailnet** — every app's URL works with nothing exposed, no DNS records, no opened internet
-> ports:
-
 ```bash
-just hosts 127.0.0.1        # on the VPS: prints the app URLs mapped to 127.0.0.1
-ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   # on your workstation, keep running
+just dns     # prints the nameserver value to paste (your TAILNET_IP)
 ```
 
-Copy the block from `just hosts 127.0.0.1` into `/etc/hosts` (macOS/Linux, admin) or
-`C:\Windows\System32\drivers\etc\hosts` (Windows), and the apps answer at
-`https://<subdomain>.<DOMAIN>:8443` — over the real wildcard cert, because the forward lands on
-Traefik's `:443`. The vault of every app is created during this stage, so no app ever exists on
-the public internet without a login. **Exposing the stack is the last, deliberate step** —
-see the [security gate](ingress#security-gate--finish-setup-before-going-public) in Ingress.
+1. [Tailscale Admin → DNS](https://login.tailscale.com/admin/dns) → **Nameservers** →
+   **Add nameserver** → **Custom**.
+2. Enter the value `just dns` printed (a `100.x.y.z`).
+3. Constrain it: **"Only send names in these domains"** → add your `DOMAIN` (*not* the
+   `.ts.net` name).
+4. Leave **MagicDNS** on and **"Override local DNS"** off. Save, then refresh DNS on your
+   devices — rejoin the tailnet, or flush: `sudo dscacheutil -flushcache` (macOS),
+   `sudo systemctl restart systemd-resolved` (Linux), `ipconfig /flushdns` (Windows).
 
-## 7. What to check right after boot
+Until the stack boots (next step), `*.DOMAIN` lookups won't answer: split DNS intercepts the
+domain with no fallback, and nothing is listening yet. Expected — it heals at first boot.
 
-- Traefik downloaded the CrowdSec plugin on first start (needs outbound internet); a
-  `Certificate` appears in the ACME panel for `*.DOMAIN`.
-- Every app answers on its internal hostname over the tailnet; nothing answers from the
-  internet yet (ufw blocks everything outside the tailnet, no DNS records).
-- CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` — see [Security](security).
-- Jellyfin's admin account is created on first login (feed its key to Seerr later).
+## 7. First boot
 
-Reach the stack from your workstation — panels by name over the tailnet ([Tailnet DNS](tailnet),
-or the port-forward fallback from §6) — verify the cert once, then run
-`just wiring` on the
-server (it probes the internal network and prints every URL + API key you need to paste) and
-continue to [The \*arrs](arrs) for the full walkthrough.
+```bash
+just up          # creates networks, config dirs, acme.json + rendered traefik.yml, then brings up every stack
+just ps          # confirm everything is running
+just dnscheck    # confirm the resolver answers: radarr.<DOMAIN> -> your tailnet IP
+```
 
-### Going public (last)
+What to check right after boot:
 
-When every app is set up:
+- Every app answers at `https://<subdomain>.<DOMAIN>` **from any tailnet device** —
+  `jellyfin`, `seerr`, `radarr`, `sonarr`, `prowlarr`, `profilarr`, `bazarr`, `decypharr`,
+  `traefik` — with the real wildcard cert, issued by DNS-01 before any DNS record exists.
+- A `Certificate` for `*.DOMAIN` appears in the Traefik dashboard's ACME panel (the first
+  Traefik start also downloads the CrowdSec plugin — both need outbound internet).
+- CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` ([Security](security)).
+- Jellyfin's admin account is created on first login (its API key feeds Seerr in §8).
 
-1. Add **A records** in Cloudflare DNS for `seerr.<DOMAIN>` and `jellyfin.<DOMAIN>`, **Proxy
-   status: DNS only** (grey cloud — never proxied), pointing at the VPS's public IP — full
-   steps in [Ingress → Adding a public hostname](ingress#adding-a-public-hostname-dns-record).
-2. Open the public ports — the last thing you do:
+A device that can't or won't use the resolver has the
+[port-forward fallback](tailnet#fallback-without-the-resolver).
 
-   ```bash
-   sudo ufw allow 443/tcp
-   sudo ufw allow 80/tcp
-   ```
+## 8. Set up the apps
 
-   `443` is the real way in — a new `from Any` rule layered over the tailnet-only `443` allow from
-   the hardening step (reversible on its own: `sudo ufw delete allow 443/tcp` leaves the tailnet
-   door intact). `80` exists only for the `http → https` redirect (Traefik's
-   entrypoint-level rule — nothing is served on it), and the HSTS header means browsers skip `:80`
-   after their first https visit. The matching provider-side ingress rules (`443` **and** `80`) are
-   part of [instance creation](oci) in the free-tier guide. SSH stays tailnet-only.
+Everything is reachable by name over the tailnet and **nothing is public yet** — that's the
+window to do first-run setup, while no app can be reached by strangers. The order matters:
+Decypharr first, because the \*arrs need its live mount (root folders) and the wiring assumes
+it's configured.
 
-From then on the stack is public on those hostnames only: Cloudflare DNS → VPS `:443` → Traefik,
-with CrowdSec in front of all of it. (Typing `http://` in a browser bounces to https; every other
-request already speaks https.) Reversible either way — delete the records, or `sudo ufw delete
-allow 443/tcp` (and `allow 80/tcp`). Admin panels stay out of the public DNS and are reached over
-the tailnet **by name** — that's [Tailnet DNS](tailnet), set up back in §6; it needed no public
-exposure then and nothing about it changes now. [Ingress](ingress) covers the details.
+1. **Decypharr** — run the wizard: admin account, debrid provider + API key, mount at
+   `/mnt/decypharr` → [Decypharr](decypharr#first-run-setup-wizard).
+2. **\*arrs** — one pass through each app: download clients pointing at Decypharr, root
+   folders on the mount, Prowlarr app sync, Seerr → Jellyfin/Radarr/Sonarr, Bazarr language
+   profiles, Profilarr quality profiles → [The \*arrs](arrs).
+3. **Indexers** — Prowlarr needs at least one before grabs work; Torrentio (debrid) and
+   AltHub (Usenet) → [Indexers](indexers).
+4. **Jellyfin** — libraries pointing at subpaths of `/mnt/decypharr`, transcode path →
+   [The \*arrs](arrs#root-folders-and-the-mount).
+
+`just wiring` (run on the box) probes the internal network and prints every URL + API key you
+need to paste, including the full Decypharr client spec. Minimum before going public: every
+app has its admin account and auth on — [the security gate](ingress#the-security-gate).
+
+## 9. Verify the WAF (CrowdSec)
+
+CrowdSec is already running in the traefik stack, guarding every https router
+([Security](security)). Confirm the bouncer authenticated and that blocking actually works:
+
+```bash
+docker exec crowdsec cscli bouncers list                     # expect the traefik bouncer
+docker exec crowdsec cscli decisions add --ip <your-public-ip> -d 10m   # then expect 403
+docker exec crowdsec cscli decisions delete --ip <your-public-ip>       # unban
+```
+
+## 10. Go public (last)
+
+When every app is set up and has auth on: add the two hostnames users actually need, then open
+the serving ports — in that order.
+
+1. In Cloudflare DNS, add **A records** for `seerr.<DOMAIN>` and `jellyfin.<DOMAIN>` pointing
+   at the VPS's **public IP**, **Proxy status: DNS only** (grey cloud — never proxied,
+   [why](faq#why-cant-i-proxy-media-through-cloudflare)). Detailed steps in
+   [Ingress → Adding a public hostname](ingress#adding-a-public-hostname-dns-record).
+2. Open the public ports:
+
+```bash
+sudo ufw allow 443/tcp     # the real way in
+sudo ufw allow 80/tcp      # http -> https redirect only; nothing is served on it
+```
+
+That's it — the stack is public on those two hostnames: Cloudflare DNS → VPS `:443` →
+Traefik → CrowdSec → the apps. Admin panels stay off the public DNS and are reached over the
+tailnet by name ([Tailnet DNS](tailnet)). Fully reversible: delete the records, or
+`sudo ufw delete allow 443/tcp` and `allow 80/tcp` — the tailnet doors stay intact either way.
+
+From here: [Indexers](indexers) and [Services](services) can be set up any time after the
+stack is up; [Updates & CI](updates) and [Maintenance](maintenance) are the ongoing-ops pages.

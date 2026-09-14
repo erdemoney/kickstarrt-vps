@@ -1,12 +1,14 @@
 ---
 title: Indexers
-nav_order: 6
+nav_order: 7
 ---
 
 # Indexers: Prowlarr, Torrentio, and AltHub
 
 Prowlarr is the single place indexers are configured; everything syncs to Sonarr/Radarr via
-"Apps" (see [The \*arrs](arrs)).
+"Apps" (wired in [The \*arrs](arrs)). Any time after the stack is up
+([Quickstart §8](quickstart#8-set-up-the-apps)) — but you need at least one before grabs
+work.
 
 ## Recommended indexers
 
@@ -20,8 +22,8 @@ Detailed recommendations live in [Services](services).
 ## Torrentio as a Prowlarr indexer
 
 Torrentio is a movie/TV **torrent aggregator** (ezTV, rarbg, 1337x, TPB, nyaa, ...). Prowlarr
-supports it as a custom Cardigann indexer, so results flow through the normal Prowlarr → Sonarr/
-Radarr sync and grabs go to Decypharr for debrid streaming.
+supports it as a custom Cardigann indexer, so results flow through the normal Prowlarr →
+Sonarr/Radarr sync and grabs go to Decypharr for debrid streaming.
 
 1. Bootstrap the definition from the Prowlarr-Indexers repo with one command (run on the
    server; it clones the repo, installs `Custom/torrentio.yml` into prowlarr's config dir, and
@@ -31,15 +33,15 @@ Radarr sync and grabs go to Decypharr for debrid streaming.
    just bootstrap-torrentio
    ```
 
-   (For reference, the manual step it automates: place `torrentio.yml` from
+   (The manual step it automates: place `torrentio.yml` from
    `https://github.com/dreulavelle/Prowlarr-Indexers` into
    `$CONFIG_DIR/prowlarr/Definitions/Custom` and recreate prowlarr.)
 
 2. Prowlarr → **Indexers** → `+` → search **Torrentio** → add it.
    - Paste your **Real-Debrid (or supported-debrid) API key** in the indexer key field — the
      whole point is debrid-cached torrents.
-   - `default_opts` holds the provider list plus `qualityfilter=scr,cam`; tweak the providers or
-     sort if you want.
+   - `default_opts` holds the provider list plus `qualityfilter=scr,cam`; tweak the providers
+     or sort if you want.
    - Save, enable, and confirm a green test; enable for movies/TV in the Sync Profile.
 3. It syncs to Sonarr/Radarr like any indexer. For precise hits in Prowlarr search use
    `{imdbid:tt123456}` / `{imdbid:tt1234567}{season:00}{episode:00}`.

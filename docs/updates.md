@@ -28,10 +28,10 @@ reconcile by hand. Everything else — the compose files, `justfile`, `README.md
 edition-specific docs like [Hardening](hardening) — is owned by this edition, and an upstream
 merge must never overwrite it.
 
-**Convention that keeps sync cheap:** shared pages/recipes stay host-agnostic. Anything
-edition-specific lives in an edition's own page or recipe, never as an inlined "if you're on a
-VPS / home box" note — so a shared page can move between editions unchanged. If a change really
-is VPS-only, it belongs in this repo and never reaches the parent.
+**Convention that keeps sync cheap:** shared pages/recipes stay host-agnostic — anything
+edition-specific lives in an edition's own page or recipe, never as an inlined "if you're on
+a VPS / home box" note. If a change really is VPS-only, it belongs in this repo and never
+reaches the parent.
 
 ## CI checks
 

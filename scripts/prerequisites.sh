@@ -212,6 +212,6 @@ main() {
         printf '   1. sudo tailscale up   # approve the URL it prints\n'
         printf '   2. tailscale ip -4     # your only SSH address\n'
     fi
-    msg 'then continue with docs/quickstart.md (Sections 2 and 3).'
+    msg 'then continue with docs/quickstart.md (Sections 3 and 4).'
 }
 main "$@"
