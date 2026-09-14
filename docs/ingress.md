@@ -24,7 +24,7 @@ from your tailnet ([Hardening](hardening)). Everything on `:443` is fronted by C
 Inbound is blocked until *you* allow it — nothing here is accidentally public. The order is fixed:
 
 1. **Set up every app first over the tailnet** — either directly at the server's tailnet IP or
-   through the [SSH port-forward window](quickstart#3-first-boot). That's
+   through the [SSH port-forward window](quickstart#6-first-boot). That's
    where the first-run walkthrough in [The \*arrs](arrs) happens.
 2. **Minimum before exposing each app: its setup is finished** — admin account exists and auth is
    on: Jellyfin (admin created on first login), Sonarr/Radarr/Prowlarr/Bazarr/Profilarr (Settings →
@@ -129,4 +129,4 @@ The API dashboard is exposed at `https://traefik.<DOMAIN>` behind basic auth
 CGNAT ranges). For any \*arr-scale question ("is the cert issued?", "which routers exist?") the
 dashboard is the fastest place to look. Note the allow-list also covers `100.64.0.0/10` — reach it
 over the tailnet (e.g. via a `just hosts <tailnet-ip>` block); through the SSH port-forward
-loopback it's blocked by design (see [Hardening](hardening#1-tailscale--your-only-way-in-no-public-port)).
+loopback it's blocked by design (get in via the tailnet first — [Quickstart §1](quickstart#1-get-in-set-up-tailscale)).

@@ -16,7 +16,9 @@ then, the only way in is the provider's out-of-band console.
 
 ## 1. Tailscale — your only way in (no public port)
 
-Install and authenticate from the provider's **web console** (the hypervisor-level console in your
+This is the **first** thing you do with a brand-new box — the walkthrough lives in
+[Quickstart §1](quickstart#1-get-in-set-up-tailscale). The short form, installed and
+authenticated from the provider's **web console** (the hypervisor-level console in your
 provider's panel, unaffected by the firewall — no port on it, so not even `22` is exposed while
 bootstrap happens; [Oracle Cloud](oci) is the worked example):
 
@@ -75,7 +77,7 @@ sudo systemctl reload ssh
 
 ## 5. Non-root Docker
 
-The [quickstart](quickstart#fork-first) runs Docker as a normal user. Do the official
+The [quickstart](quickstart#2-fork-and-clone) runs Docker as a normal user. Do the official
 [post-install steps](https://docs.docker.com/engine/install/linux-postinstall/):
 
 ```bash

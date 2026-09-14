@@ -13,17 +13,55 @@ Otherwise: bring the stack up on a fresh VPS running Docker, from a git checkout
 into whatever directory will run the stack — e.g. `~/docker/kickstarrt-vps`). Edit on a dev box,
 commit, and `git pull` on the server.
 
-`just` and Docker are prerequisites. Need Docker? Follow the official
-[Docker Engine install guide](https://docs.docker.com/engine/install/) for your distro — it
-covers the `docker compose` plugin too — then the
-[post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run
-`docker` as a non-root user (`usermod -aG docker` and a re-login). If the box is brand-new, run
-through [Hardening](hardening) **before** any of this — at minimum Tailscale + ufw + non-root
-Docker. `just up` handles the ordering for you — it creates the
-shared networks and the per-service config dirs (both idempotent), then brings every stack up.
-Why the networks and dirs matter is covered in [The \*arrs](arrs).
+The steps below are the whole setup, in the order they have to happen. A box in this guide is
+reachable from **exactly one place: your Tailscale tailnet**. Every other door is closed by
+design ([Hardening](hardening)) and stays closed until you deliberately open `:443` at the very
+end. So the first thing you do with a brand-new box is join it to the tailnet — only then can
+you log in at all.
 
-## Fork first
+## 1. Get in: set up Tailscale
+
+Do this the moment the instance is up; nothing else works until it does.
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+
+On an [Oracle Cloud](oci) box, open the instance's **Console connection** first (a
+hypervisor-level shell in the provider panel — it works with no SSH keys and regardless of the
+firewall), then run those two commands there; on any other provider, use its out-of-band
+console. `tailscale up` prints an **auth URL** — open it in your browser and approve the node.
+
+Confirm you're joined, and write down the address:
+
+```bash
+tailscale ip -4        # e.g. 100.64.0.3 — a 100.x.y.z from Tailscale's CGNAT range
+```
+
+That address is the **only place SSH ever answers** — and how you get in from your workstation:
+
+```bash
+ssh ubuntu@100.64.0.3    # OCI's default user; your provider may differ
+```
+
+Notes:
+
+- The first `ssh` needs your key on the box — while you're still in the console, add your
+  workstation's public key to `~/.ssh/authorized_keys` (it rides the console shell, which isn't
+  limited by sshd; details in [Hardening §4](hardening#4-ssh-keys-no-password-auth)).
+- If you enabled **MagicDNS** (Tailscale admin console → DNS, on by default), the box also
+  answers at `vps.<tailnet>.ts.net` — fine for SSH, though the stack routes on `.DOMAIN` host
+  names, so the `TAILNET_IP` [env value](#4-copy-and-fill-the-env-files) is the address that
+  matters.
+- Replacing the box later? The address changes — re-run `sudo tailscale up` on the new box, then
+  point `TAILNET_IP` at it again ([Tailnet DNS](tailnet)).
+- The provider console stays available as the **break-glass** door for the box's whole life: it
+  rides the provider's network, not yours, so a tailnet hiccup can never lock you out.
+
+Everything from here on happens over SSH — the console isn't needed again.
+
+## 2. Fork and clone
 
 This repo is meant to be **forked**. Fork it to your own GitHub account, then clone your fork —
 that gives you a personal copy to customize while still being able to pull upstream improvements.
@@ -37,7 +75,41 @@ cd ~/docker/kickstarrt-vps
 git remote add upstream git@github.com:erdemoney/kickstarrt-vps.git   # optional
 ```
 
-## 1. Copy and fill the env files
+## 3. Install prerequisites and harden the box
+
+You're in over SSH now, and the box is still reachable only from your tailnet — keep it that way.
+Full detail for each item is on [Hardening](hardening).
+
+Update the OS, then install the two tools everything else runs on:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+- [Docker Engine](https://docs.docker.com/engine/install/) for your distro (covers the `docker
+  compose` plugin), then the
+  [post-install steps](https://docs.docker.com/engine/install/linux-postinstall/) so Docker runs
+  without `sudo` (`usermod -aG docker` + re-login; [Hardening §5](hardening#5-non-root-docker))
+- [`just`](https://just.systems/) — your distro's package, or the
+  [release binary](https://github.com/casey/just/releases)
+
+Lock the firewall down. SSH — and the tailnet DNS resolver, [Tailnet DNS](tailnet) — get in from
+**only** the tailnet; `80`/`443` stay closed until [Going public](#going-public-last):
+
+```bash
+sudo apt install ufw
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp
+sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
+sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
+sudo ufw enable
+```
+
+Then, over at [Hardening](hardening): switch SSH to key-only auth (§4) and add fail2ban (§6,
+optional belt-and-suspenders). After that it's safe to run `just init` and `just up` as yourself.
+
+## 4. Copy and fill the env files
 
 Run `just init` — it creates each stack's `.env` and walks you through **every** variable:
 
@@ -85,7 +157,7 @@ Set each variable (see `stacks/*/.env.example`):
 | `TRAEFIK_DASHBOARD_CREDENTIALS` | traefik        | dashboard basic-auth blob (see below)                            |
 | `CROWDSEC_BOUNCER_API_KEY`      | traefik        | CrowdSec ↔ Traefik shared key (see below)                       |
 
-## 2. Where the secrets come from
+## 5. Where the secrets come from
 
 ### `CLOUDFLARE_DNS_TOKEN` — Cloudflare (wildcard TLS)
 
@@ -151,16 +223,20 @@ Paste into `stacks/traefik/.env`. It must be set **before** `just up`; after cha
 recreate the `crowdsec` and `traefik` containers (`just update-all`). Details in
 [Security](security).
 
-## 3. First boot
+## 6. First boot
 
-By now [Hardening](hardening) has run: Tailscale is up (bootstrapped through the provider
-console — no port was ever opened) and ufw is deny-incoming with SSH allowed only from the
-tailnet. Ports `443` and `80` are still closed, so the stack answers only inside the tailnet:
+By now Tailscale is up and [Hardening](hardening) has run: ufw is deny-incoming with SSH allowed
+only from the tailnet. Ports `443` and `80` are still closed, so the stack answers only inside the
+tailnet:
 
 ```bash
 just up          # creates networks, config dirs, acme.json + traefik.yml, then brings up every stack
 just ps          # confirm everything is running
 ```
+
+`just up` handles ordering for you — it creates the shared networks and the per-service config
+dirs (both idempotent), then brings every stack up. Why the networks and dirs matter is covered
+in [The \*arrs](arrs).
 
 App UIs live at `https://<subdomain>.<DOMAIN>`: `jellyfin`, `seerr`, `radarr`, `sonarr`,
 `prowlarr`, `profilarr`, `bazarr`, `decypharr`, `traefik`. The certs are issued by DNS-01, so
@@ -186,7 +262,7 @@ Traefik's `:443`. The vault of every app is created during this stage, so no app
 the public internet without a login. **Exposing the stack is the last, deliberate step** —
 see the [security gate](ingress#security-gate--finish-setup-before-going-public) in Ingress.
 
-## 4. What to check right after boot
+## 7. What to check right after boot
 
 - Traefik downloaded the CrowdSec plugin on first start (needs outbound internet); a
   `Certificate` appears in the ACME panel for `*.DOMAIN`.

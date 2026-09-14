@@ -85,7 +85,7 @@ justfile                 ops recipes (just up, just update-all, ...)
 | Page                         | What it covers                                                        |
 | ---------------------------- | --------------------------------------------------------------------- |
 | [Oracle Cloud (free tier)](oci) | free VPS: VCN, subnet, instance, console bootstrap  |
-| [Quickstart](quickstart)     | env files, where every secret comes from, tailnet SSH gate, first `just up` |
+| [Quickstart](quickstart)     | get in via Tailscale first, fork, hardening, env files/secrets, first `just up` |
 | [Hardening](hardening)       | Tailscale, ufw deny-incoming (443 opened last; 80 = redirect only; tailnet-only 22), fail2ban, non-root Docker, SSH keys |
 | [The \*arrs](arrs)           | shared networks, internal DNS names, API-key wiring between all apps  |
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |

@@ -5,7 +5,7 @@ nav_order: 5
 
 # The \*arrs: networking and app wiring
 
-> **Before you start:** reach the stack first. The [SSH port-forward window](quickstart#3-first-boot)
+> **Before you start:** reach the stack first. The [SSH port-forward window](quickstart#6-first-boot)
 > gets every app's URL resolving on your workstation and verifies the cert — none of the wiring
 > below (or any first-run setup) can happen before you can open the apps. All of it is done from
 > those URLs while nothing is public; exposing the stack is the **last** step ([Ingress](ingress)).
