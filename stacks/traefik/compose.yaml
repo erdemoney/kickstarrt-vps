@@ -72,7 +72,7 @@ services:
     labels:
       - "traefik.enable=false"
 
-coredns:
+  coredns:
     image: coredns/coredns:1.12.3
     container_name: coredns
     restart: unless-stopped
