@@ -96,6 +96,10 @@ Notes:
   stack mostly benches idle between streams, so the box can vanish without warning; the common fix
   is to upgrade the account to **Pay As You Go** — Always-Free resources stay free, but the account
   stops being flagged as an unused free tier and the reaper leaves it alone.
-- **"Out of capacity"** creating an A1 is common — Always-Free ARM is the most contended shape on
-  OCI. Try a different availability domain or region, and keep the Always Free tag on the shape, or
-  you'll be billed.
+- **"Out of capacity"** creating an A1 is the norm, not the exception — Always-Free ARM is the
+  most contended shape on OCI. Capacity frees up continually, so: hit **Create** again (retries
+  often succeed in minutes), try a different availability domain if your region has more than one,
+  and if it's single-AD, wait and retry. You can also launch a smaller A1 (e.g. **1 OCPU / 6 GB**)
+  when capacity appears and resize to 2 OCPU / 12 GB afterward — flex shapes resize in place,
+  still free. The reliable long-term unblock is upgrading to Pay As You Go (previous note). Keep
+  the Always Free tag on the shape, or you'll be billed.
