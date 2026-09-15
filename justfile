@@ -867,35 +867,46 @@ wiring CONFIG_DIR="":
     hdr "API keys (read from $CONFIG_DIR)"
     show_key() {   # label value: missing values are dimmed hints, present ones cyan
         case "$2" in
-            "(no"*)   printf '  %s %s\n' "$(lbl "$(printf '%-*s' 12 "$1")")" "$(dim "$2")" ;;
-            "")       printf '  %s %s\n' "$(lbl "$(printf '%-*s' 12 "$1")")" "$(dim "unset - $1 has no key yet")" ;;
-            *)        printf '  %s %s\n' "$(lbl "$(printf '%-*s' 12 "$1")")" "$(cur "$2")" ;;
+            "(no"*)   printf '  %s %s\n' "$(lbl "$(printf '%-*s' 14 "$1")")" "$(dim "$2")" ;;
+            "")       printf '  %s %s\n' "$(lbl "$(printf '%-*s' 14 "$1")")" "$(dim "unset - $1 has no key yet")" ;;
+            *)        printf '  %s %s\n' "$(lbl "$(printf '%-*s' 14 "$1")")" "$(cur "$2")" ;;
         esac
     }
-    show_key sonarr   "$SONARR_KEY"
-    show_key radarr   "$RADARR_KEY"
-    show_key prowlarr "$PROWLARR_KEY"
+    show_key "sonarr:8989"   "$SONARR_KEY"
+    show_key "radarr:7878"   "$RADARR_KEY"
+    show_key "prowlarr:9696" "$PROWLARR_KEY"
     echo
     hdr "sonarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
-    panel "Decypharr (debrid) qBittorrent - host decypharr port 8282" \
-        "username http://sonarr:8989" \
-        "password $SONARR_KEY" \
-        "category sonarr  priority 0"
-    panel "Decypharr (usenet) SABnzbd - host decypharr port 8282 urlbase /sabnzbd" \
-        "username http://sonarr:8989" \
-        "password $SONARR_KEY" \
-        "category sonarr  priority 0"
-    muted "(same keys for both; different priorities pick debrid vs usenet)"
+    panel "Decypharr (debrid) qBittorrent" \
+        "Name: Decypharr (debrid)" \
+        "Host: decypharr" \
+        "Port: 8282" \
+        "Username: http://sonarr:8989" \
+        "Password: $SONARR_KEY"
+    panel "Decypharr (usenet) SABnzbd" \
+        "Name: Decypharr (usenet)" \
+        "Host: decypharr" \
+        "Port: 8282" \
+        "URL Base: /sabnzbd" \
+        "Username: http://sonarr:8989" \
+        "Password: $SONARR_KEY"
+    muted "(bump Client Priority to prefer debrid or usenet)"
     echo
     hdr "radarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
-    panel "Decypharr (debrid) qBittorrent - host decypharr port 8282" \
-        "username http://radarr:7878" \
-        "password $RADARR_KEY" \
-        "category radarr  priority 0"
-    panel "Decypharr (usenet) SABnzbd - host decypharr port 8282 urlbase /sabnzbd" \
-        "username http://radarr:7878" \
-        "password $RADARR_KEY" \
-        "category radarr  priority 0"
+    panel "Decypharr (debrid) qBittorrent" \
+        "Name: Decypharr (debrid)" \
+        "Host: decypharr" \
+        "Port: 8282" \
+        "Username: http://radarr:7878" \
+        "Password: $RADARR_KEY"
+    panel "Decypharr (usenet) SABnzbd" \
+        "Name: Decypharr (usenet)" \
+        "Host: decypharr" \
+        "Port: 8282" \
+        "URL Base: /sabnzbd" \
+        "Username: http://radarr:7878" \
+        "Password: $RADARR_KEY"
+    muted "(bump Client Priority to prefer debrid or usenet)"
     echo
     hdr "decypharr -> Settings -> Arrs (outbound / queue cleanup)"
     panel "give Decypharr each arr it should manage" \
