@@ -699,6 +699,18 @@ restart stack:
 logs stack:
     docker compose -f "stacks/{{ stack }}/compose.yaml" logs -f --tail=100
 
+# Stream logs for one service (searched across all stacks), e.g. `just logs-svc jellyfin`
+logs-svc service:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for s in {{ stack_list }}; do
+        if docker compose -f "stacks/$s/compose.yaml" ps --services | grep -qx "{{ service }}"; then
+            exec docker compose -f "stacks/$s/compose.yaml" logs -f --tail=100 "{{ service }}"
+        fi
+    done
+    echo "no service '{{ service }}' in any stack" >&2
+    exit 1
+
 # Show the resolved compose config for one stack, e.g. `just config media-server`
 config stack:
     docker compose -f "stacks/{{ stack }}/compose.yaml" config

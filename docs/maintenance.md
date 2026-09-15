@@ -20,6 +20,7 @@ nav_order: 13
 | `just images` / `just df`       | local images / disk usage                                                         |
 | `just ps`                       | list running containers                                                           |
 | `just logs <stack>`             | tail logs for a stack                                                             |
+| `just logs-svc <svc>`           | tail logs for one service, e.g. `just logs-svc jellyfin` (found across all stacks) |
 | `just restart <stack>`          | restart a stack                                                                   |
 | `just validate`                 | `docker compose config -q` on every stack (read-only — never writes a `.env`)     |
 | `just pull`                     | pull fresh images for every stack without recreating anything                     |
