@@ -70,7 +70,8 @@ library lives on Decypharr's FUSE mount (`/mnt/decypharr`), already reachable fr
 service that touches media files — `sonarr`, `radarr`, `bazarr` (subtitles land next to the
 video) and `jellyfin` (playback) — via the shared bind `- /mnt/debrid:/mnt:rslave`. Nothing
 to add by hand: point each app's root folder at a subpath of `/mnt/decypharr`, and in
-Jellyfin add the libraries the same way. Also set Jellyfin → Playback → **Transcode path**
+Jellyfin add the libraries the same way ([Jellyfin setup](jellyfin) covers libraries plus the
+transcode policy). Also set Jellyfin → Playback → **Transcode path**
 to `/transcodes` (a tmpfs — transcode scratch never hits disk; this edition transcodes in
 software, so keep the library direct-play friendly).
 

@@ -98,6 +98,7 @@ Read the pages in order for a first deploy; after that they're reference.
 | [Tailnet DNS](tailnet)       | admin panels by name over the tailnet: CoreDNS + split DNS mechanics |
 | [Decypharr](decypharr)       | debrid gateway: wizard, mounts, its side of the arr wiring            |
 | [The \*arrs](arrs)           | app wiring: internal DNS names, API keys, download clients, mounts; the Recyclarr-synced quality profiles |
+| [Jellyfin](jellyfin)         | playback setup: libraries on the Decypharr mount, no-video-transcode policy |
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
 | [Security](security)         | CrowdSec WAF: components and behavior defaults                        |
 | [Ingress](ingress)           | direct `:443`: the security gate, DNS records, certificates, dashboard |

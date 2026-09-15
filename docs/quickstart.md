@@ -270,8 +270,8 @@ it's configured.
    shipped **Direct Play** profile automatically (§7) — just pick it where an app asks.
 3. **Indexers** — Prowlarr needs at least one before grabs work; Torrentio (debrid) and
    AltHub (Usenet) → [Indexers](indexers).
-4. **Jellyfin** — libraries pointing at subpaths of `/mnt/decypharr`, transcode path →
-   [The \*arrs](arrs#root-folders-and-the-mount).
+4. **Jellyfin** — libraries pointing at subpaths of `/mnt/decypharr`, transcode path and the
+   per-user no-video-transcode policy → [Jellyfin](jellyfin).
 
 `just wiring` (run on the box) probes the internal network and prints every URL + API key you
 need to paste, including the full Decypharr client spec. Minimum before going public: every

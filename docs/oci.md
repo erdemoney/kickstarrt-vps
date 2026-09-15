@@ -1,6 +1,6 @@
 ---
 title: Oracle Cloud (free tier)
-nav_order: 14
+nav_order: 15
 ---
 
 # Appendix: Oracle Cloud free-tier VPS
