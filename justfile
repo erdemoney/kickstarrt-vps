@@ -666,7 +666,7 @@ df:
     docker system df
 
 # Bring the whole stack up (ensures networks + config dirs exist first)
-# `just prepare` reads CONFIG_DIR from stacks/media-server/.env; override with `just prepare <path> [PUID PGID]`.
+# `just prepare` reads CONFIG_DIR from stacks/media-server/.env
 up: networks prepare
     @for s in {{ stack_list }}; do \
         echo "-- $s" \
@@ -1084,28 +1084,21 @@ backup-unschedule:
 # the per-service config dirs, traefik's logs dir and acme.json (0600, must be a FILE -
 # docker would otherwise create a directory and ACME storage breaks), and the rendered
 # traefik.yml. CONFIG_DIR comes from stacks/media-server/.env (the repo's data/ dir).
-# PUID/PGID default to "auto": media-server .env ENV_PUID/ENV_PGID, else this user's
-# ids, else 1000 - so ownership always matches what the containers run as.
-# Override positionally: just prepare /custom/path 1000 1000
-prepare CONFIG_DIR="" PUID="auto" PGID="auto":
+# PUID/PGID: media-server .env ENV_PUID/ENV_PGID, else this user's ids, else
+# 1000 - so ownership always matches what the containers run as.
+prepare:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [ -n "{{ CONFIG_DIR }}" ]; then
-        CONFIG_DIR="{{ CONFIG_DIR }}"
-    else
-        CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
-        CONFIG_DIR="${CONFIG_DIR:-{{ justfile_directory() }}/data}"
-    fi
-    PUID="{{ PUID }}"
-    PGID="{{ PGID }}"
-    [ "$PUID" = auto ] && PUID=$(sed -n 's|^ENV_PUID=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
-    [ "$PGID" = auto ] && PGID=$(sed -n 's|^ENV_PGID=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
-    if [ "$PUID" = auto ] || [ -z "$PUID" ]; then
+    CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
+    CONFIG_DIR="${CONFIG_DIR:-{{ justfile_directory() }}/data}"
+    PUID=$(sed -n 's|^ENV_PUID=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
+    PGID=$(sed -n 's|^ENV_PGID=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
+    if [ -z "$PUID" ] || [ "$PUID" = auto ]; then
         PUID=$(id -u)
         [ "$PUID" -eq 0 ] && PUID=1000
     fi
-    if [ "$PGID" = auto ] || [ -z "$PGID" ]; then
+    if [ -z "$PGID" ] || [ "$PGID" = auto ]; then
         PGID=$(id -g)
         [ "$PGID" -eq 0 ] && PGID=1000
     fi
