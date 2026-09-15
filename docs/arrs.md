@@ -69,7 +69,8 @@ Sonarr/Radarr root folders must point at paths inside their own containers. In t
 library lives on Decypharr's FUSE mount (`/mnt/decypharr`), already reachable from every
 service that touches media files — `sonarr`, `radarr`, `bazarr` (subtitles land next to the
 video) and `jellyfin` (playback) — via the shared bind `- /mnt/debrid:/mnt:rslave`. Nothing
-to add by hand: point each app's root folder at a subpath of `/mnt/decypharr`, and in
+to add by hand: point Sonarr's root folder at `/mnt/decypharr/shows` and Radarr's at
+`/mnt/decypharr/movies`, and in
 Jellyfin add the libraries the same way ([Jellyfin setup](jellyfin) covers libraries plus the
 transcode policy). Also set Jellyfin → Playback → **Transcode path**
 to `/transcodes` (a tmpfs — transcode scratch never hits disk; this edition transcodes in

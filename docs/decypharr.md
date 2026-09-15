@@ -13,18 +13,33 @@ add.
 
 ## First-run setup wizard
 
-Visit `https://decypharr.<DOMAIN>` once, over the tailnet ([Quickstart §8](quickstart#8-set-up-the-apps)):
+Visit `https://decypharr.<DOMAIN>` once, over the tailnet ([Quickstart §8](quickstart#8-set-up-the-apps)).
+Wizard order:
 
-- **Authentication** — create the admin username/password. The **API token shown once** after
-  setup completes is Decypharr's *own* API credential: save it (it's printed again by
-  `just wiring`, and regenerates via `POST /api/refresh-token`). It is **not** the password
-  the \*arrs' download-client config asks for — that's the arr's own API key
-  ([The \*arrs](arrs#download-clients-sonarrradarr--decypharr)).
-- **Debrid providers** — add at least one (Real-Debrid, AllDebrid, Debrid-Link, Torbox,
-  Premiumize) with its API key; Torbox also provides Usenet ([Services](services)).
-- **Usenet (optional)** — NNTP server details, only if downloading from Usenet.
-- **Mount Configuration** — pick **DFS**, mount path `/mnt/decypharr` (what the \*arrs import
-  from), and a cache dir.
+1. **Authentication** — create the admin username/password. The **API token shown once** after
+   setup completes is Decypharr's *own* API credential: save it (it's printed again by
+   `just wiring`, and regenerates via `POST /api/refresh-token`). It is **not** the password
+   the \*arrs' download-client config asks for — that's the arr's own API key
+   ([The \*arrs](arrs#download-clients-sonarrradarr--decypharr)).
+2. **Debrid account** — add at least one provider (Real-Debrid, AllDebrid, Debrid-Link,
+   Torbox, Premiumize) with its API key; Torbox also provides Usenet ([Services](services)).
+3. **Usenet (optional)** — NNTP server details, only if downloading from Usenet.
+4. **Download Folder Path** — `/mnt/decypharr/downloads` — where Decypharr places the symlinks
+   the \*arrs import. Keep it **on the same mount as the root folders** or imports degrade to
+   slow disk copies that dereference the symlink
+   ([The \*arrs](arrs#imports-are-symlinks-not-hardlinks)). Don't point it at an off-mount dir.
+5. **Mount System** — pick **DFS**, mount path `/mnt/decypharr` (what the \*arrs import from),
+   and a cache dir. Keep the **Cache Directory** default `/tmp/decypharr-cache`: it's a
+   disposable chunk cache (re-warms on demand; wiping it on redeploys costs nothing) and
+   keeping it in the container keeps it out of restic backups and `$CONFIG_DIR`. Don't point
+   it at the FUSE mount `/mnt/decypharr` (it would recurse into debrid) or at a tmpfs/RAM (a
+   chunk cache is sized in GB — RAM is for Jellyfin's transcode). Cap the **Disk Cache Size**
+   at a few GB so the rolling cache can't fill the system disk.
+
+Outside the wizard: **root folders** are lowercase subpaths of the same mount, and they must
+match *exactly*: `/mnt/decypharr/shows` for Sonarr, `/mnt/decypharr/movies` for Radarr, and
+Jellyfin's libraries point at those same folders
+([Jellyfin](jellyfin#1-libraries-on-the-decypharr-mount)).
 
 Config is written to `$CONFIG_DIR/decypharr/configs/config.json`.
 
