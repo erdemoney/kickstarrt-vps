@@ -749,7 +749,7 @@ wiring CONFIG_DIR="":
     TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 5"
     PING_SRC=""
     for c in sonarr radarr prowlarr bazarr; do
-        if $TO docker compose -f "$CS" exec -T "$c" true >/dev/null 2>&1; then
+        if $TO docker compose -f "$CS" exec -T "$c" true </dev/null >/dev/null 2>&1; then
             PING_SRC=$c
             break
         fi
@@ -761,7 +761,7 @@ wiring CONFIG_DIR="":
         echo "  no running exec source (sonarr/radarr/prowlarr/bazarr all down) - start the stack, then re-run"
     else
         for p in jellyfin:8096 seerr:5055 radarr:7878 sonarr:8989 prowlarr:9696 bazarr:6767 decypharr:8282; do
-            if $TO docker compose -f "$CS" exec -T "$PING_SRC" bash -c "exec 3<>/dev/tcp/$p" >/dev/null 2>&1; then
+            if $TO docker compose -f "$CS" exec -T "$PING_SRC" bash -c "exec 3<>/dev/tcp/$p" </dev/null >/dev/null 2>&1; then
                 printf '  ok    %s\n' "$p"
             else
                 printf '  FAIL  %s\n' "$p"
