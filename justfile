@@ -143,38 +143,9 @@ init FORCE="":
         return 0
     }
 
-    is_gui() {   # true when a display server (or macOS) is available
-        [ -n "${DISPLAY:-}" ] && return 0
-        [ -n "${WAYLAND_DISPLAY:-}" ] && return 0
-        case "$(uname -s)" in
-            Darwin) return 0 ;;
-        esac
-        return 1
-    }
-
-    show_or_open_url() {   # GUI: confirm first, then open. No GUI: print URL.
-        local url="$1" label="${2:-the page}" yn
-        if ! is_gui; then
-            printf '  %s%s%s\n' "$B$CYN" "-> open in a browser: $url" "$R"
-            return 0
-        fi
-        printf '  %sOpen %s in your browser? [%sY%s/n] ' "$B" "$label" "$GRN" "$R"
-        read -r yn || yn=""
-        printf '\n'
-        case "$yn" in
-            ''|y|Y|yes|Yes|YES)
-                if command -v xdg-open >/dev/null 2>&1; then
-                    xdg-open "$url" >/dev/null 2>&1 &
-                    disown || true
-                elif command -v open >/dev/null 2>&1; then
-                    open "$url" >/dev/null 2>&1 &
-                    disown || true
-                else
-                    printf '  %s%s%s\n' "$B$CYN" "-> open in a browser: $url" "$R"
-                fi
-                ;;
-            *) printf '  %s%s%s\n' "$B$CYN" "-> open in a browser: $url" "$R" ;;
-        esac
+    show_url() {   # these run headless; print the URL instead of opening a browser
+        local url="$1"
+        printf '  %s%s%s\n' "$B$CYN" "-> open in a browser: $url" "$R"
     }
 
     prompt_value() {   # FILE VAR [hint] [normalizer]: show current value, Enter keeps, type to
@@ -381,7 +352,7 @@ init FORCE="":
             "  (see docs/quickstart.md)" \
             "TTL: optional"
         muted "Paste it below (hidden). Leave empty to skip; set it later."
-        show_or_open_url "https://dash.cloudflare.com/profile/api-tokens"
+        show_url "https://dash.cloudflare.com/profile/api-tokens"
         ask "CLOUDFLARE_DNS_TOKEN (hidden)"
         read -rs token || token=""
         printf '\n'
@@ -448,8 +419,8 @@ init FORCE="":
             "  (see docs/maintenance.md)"
         muted "Different backend? Edit RESTIC_REPOSITORY + creds in .env.restic -"
         muted "that's the only supported deviation. The values are prompted below."
-        show_or_open_url "https://dash.cloudflare.com/?to=/:account/r2/overview" "the R2 overview"
-        show_or_open_url "https://dash.cloudflare.com/?to=/:account/r2/api-tokens" "the R2 API tokens page"
+        show_url "https://dash.cloudflare.com/?to=/:account/r2/overview"
+        show_url "https://dash.cloudflare.com/?to=/:account/r2/api-tokens"
         ask "Configure R2 restic backups now? [y/N]"
         read -r yes_backup || yes_backup=""
         case "$yes_backup" in
