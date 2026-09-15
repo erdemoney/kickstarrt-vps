@@ -785,7 +785,7 @@ wiring CONFIG_DIR="":
         for line in "$@"; do
             if [[ "$line" == *": "* ]]; then
                 v="${line#*: }"
-                pad=$((maxk + 1 + ${#v}))
+                pad=$((maxk + 2 + ${#v}))
                 [ "$pad" -gt "$w" ] && w="$pad"
             else
                 [ "${#line}" -gt "$w" ] && w="${#line}"
@@ -822,6 +822,15 @@ wiring CONFIG_DIR="":
             "$(lbl "$(printf '%-*s' 23 "$1")")" \
             "$(cur "$2")" \
             "$(dim "$3")"
+    }
+    pause() {   # Enter advances to the next step, q quits; silent when not a TTY
+        if [ -t 0 ]; then
+            printf '  %s\n' "$(dim "next: $1    [Enter] to continue  /  q to quit")"
+            read -r _pause_ans </dev/tty || _pause_ans=
+            case "$_pause_ans" in
+                q|Q|quit|Quit) exit 0 ;;
+            esac
+        fi
     }
 
     if [ -n "{{ CONFIG_DIR }}" ]; then
@@ -861,75 +870,104 @@ wiring CONFIG_DIR="":
     show_key "radarr:7878"   "$RADARR_KEY"
     show_key "prowlarr:9696" "$PROWLARR_KEY"
     echo
-    hdr "sonarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
-    panel "Decypharr (debrid) qBittorrent" \
-        "Name: Decypharr (debrid)" \
-        "Host: decypharr" \
-        "Port: 8282" \
-        "Username: http://sonarr:8989" \
-        "Password: $SONARR_KEY"
-    panel "Decypharr (usenet) SABnzbd" \
-        "Name: Decypharr (usenet)" \
-        "Host: decypharr" \
-        "Port: 8282" \
-        "URL Base: /sabnzbd" \
-        "Username: http://sonarr:8989" \
-        "Password: $SONARR_KEY"
-    muted "(bump Client Priority to prefer debrid or usenet)"
-    echo
-    hdr "radarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
-    panel "Decypharr (debrid) qBittorrent" \
-        "Name: Decypharr (debrid)" \
-        "Host: decypharr" \
-        "Port: 8282" \
-        "Username: http://radarr:7878" \
-        "Password: $RADARR_KEY"
-    panel "Decypharr (usenet) SABnzbd" \
-        "Name: Decypharr (usenet)" \
-        "Host: decypharr" \
-        "Port: 8282" \
-        "URL Base: /sabnzbd" \
-        "Username: http://radarr:7878" \
-        "Password: $RADARR_KEY"
-    muted "(bump Client Priority to prefer debrid or usenet)"
-    echo
-    hdr "decypharr -> Settings -> Arrs: add one per *arr"
-    panel "give Decypharr each arr it should manage" \
-        "Service Name: Sonarr" \
-        "Host URL: http://sonarr:8989" \
-        "API Token: $SONARR_KEY" \
-        "Service Name: Radarr" \
-        "Host URL: http://radarr:7878" \
-        "API Token: $RADARR_KEY"
-    muted "(enable the repair worker + queue cleanup so failed grabs don't pile up)"
-    echo
-    hdr "root folders + jellyfin (set in the app UIs)"
-    panel "all under the Decypharr mount - same filesystem as the import" \
-        "Sonarr    /mnt/decypharr/shows" \
-        "Radarr    /mnt/decypharr/movies" \
-        "Jellyfin  libraries on those same folders" \
-        "Jellyfin  Playback -> Transcode path /transcodes"
-    muted "(imports are same-mount symlink renames - see docs/arrs.md)"
-    echo
-    hdr "prowlarr -> Settings -> Apps (indexer sync)"
-    panel "add Sonarr + Radarr so indexers get pushed to both" \
-        "Sonarr  url http://sonarr:8989  api key $SONARR_KEY" \
-        "Radarr  url http://radarr:7878  api key $RADARR_KEY"
-    muted "(every indexer added here is pushed to both apps, tagged '(Prowlarr)')"
-    echo
-    hdr "seerr -> Settings"
-    panel "wire Jellyfin + the two arrs" \
-        "Jellyfin  http://jellyfin:8096  + API key from Jellyfin Dashboard -> API Keys" \
-        "Radarr    http://radarr:7878  $RADARR_KEY" \
-        "Sonarr    http://sonarr:8989  $SONARR_KEY"
-    muted "(when adding the arrs pick the Direct Play profile + the root folders above)"
-    echo
-    hdr "bazarr -> Settings -> Sonarr / Radarr (subtitles)"
-    panel "add both arrs so subtitles land next to the media" \
-        "Sonarr  http://sonarr:8989  $SONARR_KEY" \
-        "Radarr  http://radarr:7878  $RADARR_KEY"
-    muted "(after enabling, assign a language profile to the libraries - see docs/arrs.md)"
-    echo
+    sonarr_clients() {   # step 1: sonarr
+        hdr "sonarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
+        panel "Decypharr (debrid) qBittorrent" \
+            "Name: Decypharr (debrid)" \
+            "Host: decypharr" \
+            "Port: 8282" \
+            "Username: http://sonarr:8989" \
+            "Password: $SONARR_KEY"
+        panel "Decypharr (usenet) SABnzbd" \
+            "Name: Decypharr (usenet)" \
+            "Host: decypharr" \
+            "Port: 8282" \
+            "URL Base: /sabnzbd" \
+            "Username: http://sonarr:8989" \
+            "Password: $SONARR_KEY"
+        muted "(bump Client Priority to prefer debrid or usenet)"
+        echo
+    }
+    radarr_clients() {   # step 2: radarr
+        hdr "radarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
+        panel "Decypharr (debrid) qBittorrent" \
+            "Name: Decypharr (debrid)" \
+            "Host: decypharr" \
+            "Port: 8282" \
+            "Username: http://radarr:7878" \
+            "Password: $RADARR_KEY"
+        panel "Decypharr (usenet) SABnzbd" \
+            "Name: Decypharr (usenet)" \
+            "Host: decypharr" \
+            "Port: 8282" \
+            "URL Base: /sabnzbd" \
+            "Username: http://radarr:7878" \
+            "Password: $RADARR_KEY"
+        muted "(bump Client Priority to prefer debrid or usenet)"
+        echo
+    }
+    decypharr_arrs() {   # step 3: decypharr
+        hdr "decypharr -> Settings -> Arrs: add one per *arr"
+        panel "Sonarr" \
+            "Service Name: Sonarr" \
+            "Host URL: http://sonarr:8989" \
+            "API Token: $SONARR_KEY"
+        panel "Radarr" \
+            "Service Name: Radarr" \
+            "Host URL: http://radarr:7878" \
+            "API Token: $RADARR_KEY"
+        muted "(enable the repair worker + queue cleanup so failed grabs don't pile up)"
+        echo
+    }
+    root_folders() {   # step 4: media roots + jellyfin
+        hdr "root folders + jellyfin (set in the app UIs)"
+        panel "all under the Decypharr mount - same filesystem as the import" \
+            "Sonarr    /mnt/decypharr/shows" \
+            "Radarr    /mnt/decypharr/movies" \
+            "Jellyfin  libraries on those same folders" \
+            "Jellyfin  Playback -> Transcode path /transcodes"
+        muted "(imports are same-mount symlink renames - see docs/arrs.md)"
+        echo
+    }
+    prowlarr_apps() {   # step 5: prowlarr
+        hdr "prowlarr -> Settings -> Apps (indexer sync)"
+        panel "add Sonarr + Radarr so indexers get pushed to both" \
+            "Sonarr  url http://sonarr:8989  api key $SONARR_KEY" \
+            "Radarr  url http://radarr:7878  api key $RADARR_KEY"
+        muted "(every indexer added here is pushed to both apps, tagged '(Prowlarr)')"
+        echo
+    }
+    seerr() {   # step 6: seerr
+        hdr "seerr -> Settings"
+        panel "wire Jellyfin + the two arrs" \
+            "Jellyfin  http://jellyfin:8096  + API key from Jellyfin Dashboard -> API Keys" \
+            "Radarr    http://radarr:7878  $RADARR_KEY" \
+            "Sonarr    http://sonarr:8989  $SONARR_KEY"
+        muted "(when adding the arrs pick the Direct Play profile + the root folders above)"
+        echo
+    }
+    bazarr_subs() {   # step 7: bazarr
+        hdr "bazarr -> Settings -> Sonarr / Radarr (subtitles)"
+        panel "add both arrs so subtitles land next to the media" \
+            "Sonarr  http://sonarr:8989  $SONARR_KEY" \
+            "Radarr  http://radarr:7878  $RADARR_KEY"
+        muted "(after enabling, assign a language profile to the libraries - see docs/arrs.md)"
+        echo
+    }
+
+    sonarr_clients
+    pause "radarr download clients"
+    radarr_clients
+    pause "decypharr arrs"
+    decypharr_arrs
+    pause "root folders + jellyfin"
+    root_folders
+    pause "prowlarr apps"
+    prowlarr_apps
+    pause "seerr"
+    seerr
+    pause "bazarr subtitles"
+    bazarr_subs
     muted "done - paste each URL + API key pair from the panels above and test the connection in the UI."
 
 # Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
