@@ -774,11 +774,22 @@ wiring CONFIG_DIR="":
     lbl() { printf '%s%s%s' "$B$MAG" "$1" "$R"; }
     cur() { printf '%s%s%s' "$CYN" "$1" "$R"; }
     dim() { printf '%s%s%s' "$D" "$1" "$R"; }
-    panel() {   # panel <title> [<line>...]: bordered card emulating the Cloudflare GUI
+    panel() {   # panel <title> [<line>...]: bordered card emulating the Cloudflare GUI;
+                # "key: value" lines get magenta-bold keys + cyan values; other
+                # lines stay plain (bold when a bare line ends in ':')
         local title="$1"; shift
-        local w="${#title}" line i
+        local w="${#title}" line i pad maxk=0 k v
         for line in "$@"; do
-            [ "${#line}" -gt "$w" ] && w="${#line}"
+            [[ "$line" == *": "* ]] && { k="${line%%:*}"; [ "${#k}" -gt "$maxk" ] && maxk="${#k}"; }
+        done
+        for line in "$@"; do
+            if [[ "$line" == *": "* ]]; then
+                v="${line#*: }"
+                pad=$((maxk + 1 + ${#v}))
+                [ "$pad" -gt "$w" ] && w="$pad"
+            else
+                [ "${#line}" -gt "$w" ] && w="${#line}"
+            fi
         done
         printf '  %s' "$TL"
         i=0; while [ "$i" -lt "$((w+2))" ]; do printf '%s' "$H"; i=$((i+1)); done
@@ -787,6 +798,13 @@ wiring CONFIG_DIR="":
         printf '  %s %-*s %s\n' "$V" "$w" "" "$V"
         for line in "$@"; do
             case "$line" in
+                *": "*)
+                    k="${line%%:*}"
+                    v="${line#*: }"
+                    printf '  %s %s%s%-*s%s %s%-*s%s %s\n' \
+                        "$V" "$B$MAG" "$k:" "$((maxk - ${#k}))" "" "$R" \
+                        "$CYN" "$((w - maxk - 2))" "$v" "$R" "$V"
+                    ;;
                 *:)
                     printf '  %s %s%s%-*s%s %s\n' "$V" "$B" "" "$w" "$line" "$R" "$V"
                     ;;
@@ -806,19 +824,12 @@ wiring CONFIG_DIR="":
             "$(dim "$3")"
     }
 
-    hdr "wiring cheat sheet"
-    muted "read-only - prints URL and API key pairs (docs/arrs.md)"
-    echo
-
     if [ -n "{{ CONFIG_DIR }}" ]; then
         CONFIG_DIR="{{ CONFIG_DIR }}"
     else
         CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
         CONFIG_DIR="${CONFIG_DIR:-{{ justfile_directory() }}/data}"
     fi
-    hdr "config dir"
-    muted "$CONFIG_DIR"
-    echo
 
     arr_key() {   # $1 = app name; echoes the ApiKey from its config.xml
         local f="$CONFIG_DIR/$1/config.xml"
@@ -839,8 +850,6 @@ wiring CONFIG_DIR="":
     RADARR_KEY=$(arr_key radarr)
     PROWLARR_KEY=$(arr_key prowlarr)
 
-    echo
-    hdr "API keys (read from $CONFIG_DIR)"
     show_key() {   # label value: missing values are dimmed hints, present ones cyan
         case "$2" in
             "(no"*)   printf '  %s %s\n' "$(lbl "$(printf '%-*s' 14 "$1")")" "$(dim "$2")" ;;
@@ -884,10 +893,14 @@ wiring CONFIG_DIR="":
         "Password: $RADARR_KEY"
     muted "(bump Client Priority to prefer debrid or usenet)"
     echo
-    hdr "decypharr -> Settings -> Arrs (outbound / queue cleanup)"
+    hdr "decypharr -> Settings -> Arrs: add one per *arr"
     panel "give Decypharr each arr it should manage" \
-        "Sonarr  host http://sonarr:8989  token $SONARR_KEY" \
-        "Radarr  host http://radarr:7878  token $RADARR_KEY"
+        "Service Name: Sonarr" \
+        "Host URL: http://sonarr:8989" \
+        "API Token: $SONARR_KEY" \
+        "Service Name: Radarr" \
+        "Host URL: http://radarr:7878" \
+        "API Token: $RADARR_KEY"
     muted "(enable the repair worker + queue cleanup so failed grabs don't pile up)"
     echo
     hdr "root folders + jellyfin (set in the app UIs)"
