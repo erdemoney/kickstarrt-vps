@@ -8,9 +8,9 @@ nav_order: 6
 First-run setup happens over the tailnet while nothing is public
 ([Quickstart §8](quickstart#8-set-up-the-apps)) — open `https://radarr.<DOMAIN>` and friends
 from any tailnet device. This page is the wiring walkthrough: what to paste where, in a
-workable order. Run `just wiring` on the box first — it probes every pairing's reachability
-and prints each URL + API key (read from `$CONFIG_DIR` on disk) for every section below,
-including the full Decypharr client spec.
+workable order. Run `just wiring` on the box first — it prints each URL + API key (read
+from `$CONFIG_DIR` on disk) for every section below, including the full Decypharr client
+spec.
 
 ## Docker networking
 

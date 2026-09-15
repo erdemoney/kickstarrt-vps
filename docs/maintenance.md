@@ -27,7 +27,7 @@ nav_order: 13
 | `just config <stack>`           | print the fully resolved compose config for one stack                             |
 | `just prepare`                | create config dirs, `acme.json` (0600) + render `traefik.yml` (called by `just up`) |
 | `just bootstrap-torrentio`      | install the Torrentio indexer definition into prowlarr (see [Indexers](indexers)) |
-| `just wiring`                   | probe the internal network + print every URL/API key the \*arrs need (see [The \*arrs](arrs)) |
+| `just wiring`                   | print every URL/API key the \*arrs need (see [The \*arrs](arrs)) |
 | `just dns` / `dnscheck`         | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
 | `just networks`                 | create the shared `internal` network                                              |
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)       |

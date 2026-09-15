@@ -739,8 +739,8 @@ bootstrap-torrentio:
     docker compose -f stacks/media-server/compose.yaml restart prowlarr 2>/dev/null \
         || echo "note: prowlarr is not running, the definition will load on next just up"
 
-# Print a wiring cheat sheet for the *arrs: probes intra-stack reachability and
-# reads each app's API key from $CONFIG_DIR so you can paste the right values
+# Print a wiring cheat sheet for the *arrs: reads each app's API key from
+# $CONFIG_DIR so you can paste the right values
 # into every UI (docs/arrs.md has the full walkthrough). Read-only; run on the
 # server. CONFIG_DIR is taken from stacks/media-server/.env (custom via
 # `just init`); override positionally: just wiring /custom/path
@@ -807,7 +807,7 @@ wiring CONFIG_DIR="":
     }
 
     hdr "wiring cheat sheet"
-    muted "read-only - probes pairings + prints URL and API key pairs (docs/arrs.md)"
+    muted "read-only - prints URL and API key pairs (docs/arrs.md)"
     echo
 
     if [ -n "{{ CONFIG_DIR }}" ]; then
@@ -819,30 +819,6 @@ wiring CONFIG_DIR="":
     hdr "config dir"
     muted "$CONFIG_DIR"
     echo
-
-    CS=stacks/media-server/compose.yaml
-    TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 5"
-    PING_SRC=""
-    for c in sonarr radarr prowlarr bazarr; do
-        if $TO docker compose -f "$CS" exec -T "$c" true </dev/null >/dev/null 2>&1; then
-            PING_SRC=$c
-            break
-        fi
-    done
-
-    hdr "intra-network reachability"
-    if [ -z "$PING_SRC" ]; then
-        warn "no running exec source (sonarr/radarr/prowlarr/bazarr down) - start the stack, then re-run"
-    else
-        muted "pinged from $PING_SRC - a FAIL means the peer is not running or still starting"
-        for p in jellyfin:8096 seerr:5055 radarr:7878 sonarr:8989 prowlarr:9696 bazarr:6767 decypharr:8282; do
-            if $TO docker compose -f "$CS" exec -T "$PING_SRC" bash -c "exec 3<>/dev/tcp/$p" </dev/null >/dev/null 2>&1; then
-                ok "$p"
-            else
-                warn "$p"
-            fi
-        done
-    fi
 
     arr_key() {   # $1 = app name; echoes the ApiKey from its config.xml
         local f="$CONFIG_DIR/$1/config.xml"
