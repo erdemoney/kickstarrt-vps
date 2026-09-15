@@ -71,6 +71,12 @@ services:
       - internal
     labels:
       - "traefik.enable=false"
+    healthcheck:
+      test: ["CMD", "cscli", "lapi", "status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   coredns:
     image: coredns/coredns:1.12.3
@@ -92,6 +98,11 @@ services:
       - internal
     labels:
       - "traefik.enable=false"
+    healthcheck:
+      test: ["CMD", "/coredns", "-version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   internal:
