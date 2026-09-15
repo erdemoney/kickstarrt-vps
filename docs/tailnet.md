@@ -68,20 +68,3 @@ all — there's no public record for the panels, by design.
   (`sudo ufw status`). From the **public internet**, nothing works until
   [going public](quickstart#10-go-public-last) — that's by design.
 - **You skipped the console step** — `just dns` prints exactly what to paste in.
-
-## Fallback without the resolver
-
-A machine that can't or won't use the resolver (or before first boot) reaches the panels with
-an **SSH port-forward over the tailnet** — every app's URL works with nothing exposed, no DNS
-records, no open internet ports:
-
-```bash
-just hosts 127.0.0.1        # on the VPS: prints the app URLs mapped to 127.0.0.1
-ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   # on your workstation, keep running
-```
-
-Copy the printed block into `/etc/hosts` (macOS/Linux, admin) or
-`C:\Windows\System32\drivers\etc\hosts` (Windows), then browse
-`https://<subdomain>.<DOMAIN>:8443` — over the real wildcard cert, because the forward lands
-on Traefik's `:443`. On a machine that can reach the tailnet directly,
-`just hosts <tailnet-ip>` into `/etc/hosts` works without the port suffix.

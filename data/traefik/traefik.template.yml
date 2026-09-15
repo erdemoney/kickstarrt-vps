@@ -1,4 +1,4 @@
-# Template for Traefik's STATIC config. `just dirs` renders this to
+# Template for Traefik's STATIC config. `just prepare` renders this to
 # data/traefik/traefik.yml (untracked) with ${ACME_EMAIL} from stacks/traefik/.env.
 # Traefik does not support templating or env vars in its static config, so the
 # substitution has to happen before the container starts. Edit this file, not the

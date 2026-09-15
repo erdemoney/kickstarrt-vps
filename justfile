@@ -666,8 +666,8 @@ df:
     docker system df
 
 # Bring the whole stack up (ensures networks + config dirs exist first)
-# `just dirs` reads CONFIG_DIR from stacks/media-server/.env; override with `just dirs <path> [PUID PGID]`.
-up: networks dirs
+# `just prepare` reads CONFIG_DIR from stacks/media-server/.env; override with `just prepare <path> [PUID PGID]`.
+up: networks prepare
     @for s in {{ stack_list }}; do \
         echo "-- $s" \
         && docker compose -f "stacks/$s/compose.yaml" up -d || exit 1 \
@@ -844,59 +844,6 @@ wiring CONFIG_DIR="":
 
     echo
     echo "done. Paste URL + key pairs from the sections above; test each connection in the UI."
-
-# Print a ready-to-paste hosts-file block for the SSH port-forward window: maps DOMAIN +
-# every SUB_DOMAIN_* from the stack .env files to a local address while the forward runs.
-# With no argument it uses the server's own detected IP (pass one positionally to override).
-# During the private setup window the invocation is:
-#   just hosts 127.0.0.1                      (on the VPS)
-#   ssh -N -L 8443:127.0.0.1:443 <you>@<tailnet-host>   (on your workstation, keep running)
-# then browse https://<subdomain>.<DOMAIN>:8443 (see docs/tailnet.md, "Fallback without
-# the resolver"). Read-only — copy
-# the block into /etc/hosts (macOS/Linux) or C:\Windows\System32\drivers\etc\hosts (Windows).
-hosts IP="auto":
-    #!/usr/bin/env bash
-    set -uo pipefail
-
-    DOMAIN=$(sed -n 's|^DOMAIN=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
-    if [ -z "$DOMAIN" ]; then
-        echo "no DOMAIN found in stacks/media-server/.env - run 'just init' first" >&2
-        exit 1
-    fi
-
-    SUBS=$(
-        for f in stacks/media-server/.env stacks/traefik/.env; do
-            [ -f "$f" ] && sed -n 's|^SUB_DOMAIN_[A-Z0-9_]*=\([^[:space:]]*\).*|\1|p' "$f"
-        done | sort -u | grep -v '^$' || true
-    )
-    if [ -z "$SUBS" ]; then
-        echo "no SUB_DOMAIN_* values found - run 'just init' first" >&2
-        exit 1
-    fi
-
-    if [ "{{ IP }}" = "auto" ]; then
-        IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}' || true)
-        if [ -z "$IP" ]; then
-            IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
-        fi
-    else
-        IP="{{ IP }}"
-    fi
-    if [ -z "$IP" ]; then
-        echo "could not detect the server's IP - pass it positionally: just hosts <IP>" >&2
-        exit 1
-    fi
-
-    HOSTS="$IP"
-    while IFS= read -r sub; do
-        HOSTS="$HOSTS $sub.$DOMAIN"
-    done <<< "$SUBS"
-
-    echo "# kickstArrt hostnames block (SSH port-forward setup window)"
-    echo "# edit: /etc/hosts (macOS/Linux, admin) | C:\\Windows\\System32\\drivers\\etc\\hosts (Windows)"
-    echo "$HOSTS"
-    echo "# flush: macOS  sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
-    echo "#         Windows ipconfig /flushdns | Linux systemctl restart systemd-resolved"
 
 # Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
 # The matching Tailscale admin setting is one-time: DNS -> Nameservers -> add
@@ -1139,8 +1086,8 @@ backup-unschedule:
 # traefik.yml. CONFIG_DIR comes from stacks/media-server/.env (the repo's data/ dir).
 # PUID/PGID default to "auto": media-server .env ENV_PUID/ENV_PGID, else this user's
 # ids, else 1000 - so ownership always matches what the containers run as.
-# Override positionally: just dirs /custom/path 1000 1000
-dirs CONFIG_DIR="" PUID="auto" PGID="auto":
+# Override positionally: just prepare /custom/path 1000 1000
+prepare CONFIG_DIR="" PUID="auto" PGID="auto":
     #!/usr/bin/env bash
     set -euo pipefail
 

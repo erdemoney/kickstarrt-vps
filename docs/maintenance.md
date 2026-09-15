@@ -24,7 +24,7 @@ nav_order: 12
 | `just validate`                 | `docker compose config -q` on every stack (read-only — never writes a `.env`)     |
 | `just pull`                     | pull fresh images for every stack without recreating anything                     |
 | `just config <stack>`           | print the fully resolved compose config for one stack                             |
-| `just dirs`                     | create config dirs, `acme.json` (0600) + render `traefik.yml` (called by `just up`) |
+| `just prepare`                | create config dirs, `acme.json` (0600) + render `traefik.yml` (called by `just up`) |
 | `just bootstrap-torrentio`      | install the Torrentio indexer definition into prowlarr (see [Indexers](indexers)) |
 | `just wiring`                   | probe the internal network + print every URL/API key the \*arrs need (see [The \*arrs](arrs)) |
 | `just dns` / `dnscheck`         | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |

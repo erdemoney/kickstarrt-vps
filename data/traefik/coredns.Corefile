@@ -1,7 +1,7 @@
 .:53 {
     # Tailnet DNS: answer every *.DOMAIN (and the apex) with the VPS's tailnet
     # address, so admin panels resolve by name on the tailnet and go straight to
-    # Traefik :443. Rendered by `just dirs` (see docs/tailnet.md); placeholders
+    # Traefik :443. Rendered by `just prepare` (see docs/tailnet.md); placeholders
     # @DOMAIN@ / @TAILNET_IP@ are substituted from stacks/traefik/.env.
     template IN A {
         match "^(.+\.)?@DOMAIN@\.?$"

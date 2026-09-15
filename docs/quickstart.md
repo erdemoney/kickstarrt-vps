@@ -240,9 +240,6 @@ What to check right after boot:
   [The \*arrs](arrs#quality-profiles-recyclarr--automatic).
 - Jellyfin's admin account is created on first login (its API key feeds Seerr in §8).
 
-A device that can't or won't use the resolver has the
-[port-forward fallback](tailnet#fallback-without-the-resolver).
-
 ## 8. Set up the apps
 
 Everything is reachable by name over the tailnet and **nothing is public yet** — that's the
