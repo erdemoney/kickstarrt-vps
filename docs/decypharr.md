@@ -17,8 +17,8 @@ Visit `https://decypharr.<DOMAIN>` once, over the tailnet ([Quickstart §8](quic
 Wizard order:
 
 1. **Authentication** — create the admin username/password. The **API token shown once** after
-   setup completes is Decypharr's *own* API credential: save it (it's printed again by
-   `just wiring`, and regenerates via `POST /api/refresh-token`). It is **not** the password
+   setup completes is Decypharr's *own* API credential: save it (regenerates via
+   `POST /api/refresh-token`). It is **not** the password
    the \*arrs' download-client config asks for — that's the arr's own API key
    ([The \*arrs](arrs#download-clients-sonarrradarr--decypharr)).
 2. **Debrid account** — add at least one provider (Real-Debrid, AllDebrid, Debrid-Link,

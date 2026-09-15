@@ -748,13 +748,76 @@ wiring CONFIG_DIR="":
     #!/usr/bin/env bash
     set -uo pipefail
 
+    # ---- prettier UI: pure ANSI + unicode, plain-text fallback when piped ----
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
+        B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+        RED=$'\033[31m'; GRN=$'\033[32m'; YEL=$'\033[33m'
+        MAG=$'\033[35m'; CYN=$'\033[36m'
+    else
+        B=''; D=''; R=''; RED=''; GRN=''; YEL=''; MAG=''; CYN=''
+    fi
+    case "${LC_ALL:-$LANG}" in
+        *[Uu][Tt][Ff]*) G='─'; H='─'; V='│'; TL='╭'; TR='╮'; BL='╰'; BR='╯'
+                        S='▸'; OK='✓'; WARN='⚠'; DONE='✔'; ELLIP='…' ;;
+        *)              G='-'; H='-'; V='|'; TL='+'; TR='+'; BL='+'; BR='+'
+                        S='>'; OK='ok'; WARN='!'; DONE='done'; ELLIP='...' ;;
+    esac
+    RULE=$(printf -- "$G%.0s" {1..66})
+
+    hr() { printf '%s\n' "${CYN}${RULE}${R}"; }
+    hdr() { hr; printf '%s\n' "  ${B}${CYN}${S} $1${R}"; hr; }
+    chip() { printf '  %s%s%s\n' "$B$MAG" "$1" "$R"; }
+    ok() { printf '  %s%s%s %s\n' "$GRN" "$OK" "$R" "$1"; }
+    warn() { printf '  %s%s%s %s\n' "$YEL" "$WARN" "$R" "$1"; }
+    muted() { printf '  %s%s%s\n' "$D" "$1" "$R"; }
+    ask() { printf '  %s%s%s: ' "$B" "$1" "$R"; }
+    lbl() { printf '%s%s%s' "$B$MAG" "$1" "$R"; }
+    cur() { printf '%s%s%s' "$CYN" "$1" "$R"; }
+    dim() { printf '%s%s%s' "$D" "$1" "$R"; }
+    panel() {   # panel <title> [<line>...]: bordered card emulating the Cloudflare GUI
+        local title="$1"; shift
+        local w="${#title}" line i
+        for line in "$@"; do
+            [ "${#line}" -gt "$w" ] && w="${#line}"
+        done
+        printf '  %s' "$TL"
+        i=0; while [ "$i" -lt "$((w+2))" ]; do printf '%s' "$H"; i=$((i+1)); done
+        printf '%s\n' "$TR"
+        printf '  %s %s%s%s %s\n' "$V" "$B$MAG" "$(printf '%-*s' "$w" "$title")" "$R" "$V"
+        printf '  %s %-*s %s\n' "$V" "$w" "" "$V"
+        for line in "$@"; do
+            case "$line" in
+                *:)
+                    printf '  %s %s%s%-*s%s %s\n' "$V" "$B" "" "$w" "$line" "$R" "$V"
+                    ;;
+                *)
+                    printf '  %s %-*s %s\n' "$V" "$w" "$line" "$V"
+                    ;;
+            esac
+        done
+        printf '  %s' "$BL"
+        i=0; while [ "$i" -lt "$((w+2))" ]; do printf '%s' "$H"; i=$((i+1)); done
+        printf '%s\n' "$BR"
+    }
+    auto_row() {   # LABEL VALUE NOTE: one aligned row of the auto-generated summary
+        printf '  %s %s %s\n' \
+            "$(lbl "$(printf '%-*s' 23 "$1")")" \
+            "$(cur "$2")" \
+            "$(dim "$3")"
+    }
+
+    hdr "wiring cheat sheet"
+    muted "read-only - probes pairings + prints URL and API key pairs (docs/arrs.md)"
+    echo
+
     if [ -n "{{ CONFIG_DIR }}" ]; then
         CONFIG_DIR="{{ CONFIG_DIR }}"
     else
         CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
         CONFIG_DIR="${CONFIG_DIR:-{{ justfile_directory() }}/data}"
     fi
-    echo "config dir: $CONFIG_DIR"
+    hdr "config dir"
+    muted "$CONFIG_DIR"
     echo
 
     CS=stacks/media-server/compose.yaml
@@ -767,16 +830,16 @@ wiring CONFIG_DIR="":
         fi
     done
 
-    echo "== intra-network reachability =="
-    echo "(pinged from $PING_SRC; FAIL means the peer is not running or still starting)"
+    hdr "intra-network reachability"
     if [ -z "$PING_SRC" ]; then
-        echo "  no running exec source (sonarr/radarr/prowlarr/bazarr all down) - start the stack, then re-run"
+        warn "no running exec source (sonarr/radarr/prowlarr/bazarr down) - start the stack, then re-run"
     else
+        muted "pinged from $PING_SRC - a FAIL means the peer is not running or still starting"
         for p in jellyfin:8096 seerr:5055 radarr:7878 sonarr:8989 prowlarr:9696 bazarr:6767 decypharr:8282; do
             if $TO docker compose -f "$CS" exec -T "$PING_SRC" bash -c "exec 3<>/dev/tcp/$p" </dev/null >/dev/null 2>&1; then
-                printf '  ok    %s\n' "$p"
+                ok "$p"
             else
-                printf '  FAIL  %s\n' "$p"
+                warn "$p"
             fi
         done
     fi
@@ -796,77 +859,78 @@ wiring CONFIG_DIR="":
             }' "$f" || true
     }
 
-    dcy_token() {   # echoes decypharr's api_token from its config.json
-        local f="$CONFIG_DIR/decypharr/configs/config.json"
-        if [ ! -f "$f" ]; then
-            echo "(no decypharr/configs/config.json - run the decypharr wizard first)"
-            return 1
-        fi
-        local t
-        t=$(sed -n 's/.*"api_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | tail -n1)
-        if [ -z "$t" ]; then
-            echo "(no api_token yet - finish decypharr auth setup)"
-            return 1
-        fi
-        echo "$t"
-    }
-
     SONARR_KEY=$(arr_key sonarr)
     RADARR_KEY=$(arr_key radarr)
     PROWLARR_KEY=$(arr_key prowlarr)
-    DCY_TOKEN=$(dcy_token)
 
     echo
-    echo "== API keys (read from $CONFIG_DIR) =="
-    printf '  sonarr      %s\n' "$SONARR_KEY"
-    printf '  radarr      %s\n' "$RADARR_KEY"
-    printf '  prowlarr    %s\n' "$PROWLARR_KEY"
-    case "$DCY_TOKEN" in
-        "(no"*) printf '  decypharr   %s\n' "$DCY_TOKEN" ;;
-        *) printf '  decypharr   %s  (Settings -> Auth; regenerate via POST /api/refresh-token)\n' "$DCY_TOKEN" ;;
-    esac
-
+    hdr "API keys (read from $CONFIG_DIR)"
+    show_key() {   # label value: missing values are dimmed hints, present ones cyan
+        case "$2" in
+            "(no"*)   printf '  %s %s\n' "$(lbl "$(printf '%-*s' 12 "$1")")" "$(dim "$2")" ;;
+            "")       printf '  %s %s\n' "$(lbl "$(printf '%-*s' 12 "$1")")" "$(dim "unset - $1 has no key yet")" ;;
+            *)        printf '  %s %s\n' "$(lbl "$(printf '%-*s' 12 "$1")")" "$(cur "$2")" ;;
+        esac
+    }
+    show_key sonarr   "$SONARR_KEY"
+    show_key radarr   "$RADARR_KEY"
+    show_key prowlarr "$PROWLARR_KEY"
     echo
-    echo "== prowlarr -> Settings -> Apps (indexer sync) =="
-    printf '  Sonarr  url http://sonarr:8989  api key %s\n' "$SONARR_KEY"
-    printf '  Radarr  url http://radarr:7878  api key %s\n' "$RADARR_KEY"
-
+    hdr "sonarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
+    panel "Decypharr (debrid) qBittorrent - host decypharr port 8282" \
+        "username http://sonarr:8989" \
+        "password $SONARR_KEY" \
+        "category sonarr  priority 0"
+    panel "Decypharr (usenet) SABnzbd - host decypharr port 8282 urlbase /sabnzbd" \
+        "username http://sonarr:8989" \
+        "password $SONARR_KEY" \
+        "category sonarr  priority 0"
+    muted "(same keys for both; different priorities pick debrid vs usenet)"
     echo
-    echo "== sonarr -> Settings -> Download Clients: add BOTH (debrid + usenet) =="
-    echo "  qBittorrent  'Decypharr (debrid)': host decypharr port 8282"
-    printf '    username http://sonarr:8989\n    password %s\n    category sonarr  priority 0\n' "$SONARR_KEY"
-    echo "  SABnzbd      'Decypharr (usenet)': host decypharr port 8282 urlbase /sabnzbd"
-    printf '    username http://sonarr:8989\n    password %s\n    category sonarr  priority 0\n' "$SONARR_KEY"
-    echo "  (same keys for both; different priorities pick debrid vs usenet)"
+    hdr "radarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
+    panel "Decypharr (debrid) qBittorrent - host decypharr port 8282" \
+        "username http://radarr:7878" \
+        "password $RADARR_KEY" \
+        "category radarr  priority 0"
+    panel "Decypharr (usenet) SABnzbd - host decypharr port 8282 urlbase /sabnzbd" \
+        "username http://radarr:7878" \
+        "password $RADARR_KEY" \
+        "category radarr  priority 0"
     echo
-    echo "== radarr -> Settings -> Download Clients: add BOTH (debrid + usenet) =="
-    echo "  qBittorrent  'Decypharr (debrid)': host decypharr port 8282"
-    printf '    username http://radarr:7878\n    password %s\n    category radarr  priority 0\n' "$RADARR_KEY"
-    echo "  SABnzbd      'Decypharr (usenet)': host decypharr port 8282 urlbase /sabnzbd"
-    printf '    username http://radarr:7878\n    password %s\n    category radarr  priority 0\n' "$RADARR_KEY"
-
+    hdr "decypharr -> Settings -> Arrs (outbound / queue cleanup)"
+    panel "give Decypharr each arr it should manage" \
+        "Sonarr  host http://sonarr:8989  token $SONARR_KEY" \
+        "Radarr  host http://radarr:7878  token $RADARR_KEY"
+    muted "(enable the repair worker + queue cleanup so failed grabs don't pile up)"
     echo
-    echo "== decypharr -> Settings -> Arrs (outbound / queue cleanup) =="
-    printf '  Sonarr  host http://sonarr:8989  token %s\n' "$SONARR_KEY"
-    printf '  Radarr  host http://radarr:7878  token %s\n' "$RADARR_KEY"
-
+    hdr "root folders + jellyfin (set in the app UIs)"
+    panel "all under the Decypharr mount - same filesystem as the import" \
+        "Sonarr    /mnt/decypharr/shows" \
+        "Radarr    /mnt/decypharr/movies" \
+        "Jellyfin  libraries on those same folders" \
+        "Jellyfin  Playback -> Transcode path /transcodes"
+    muted "(imports are same-mount symlink renames - see docs/arrs.md)"
     echo
-    echo "== bazarr -> Settings -> Sonarr / Radarr =="
-    printf '  http://sonarr:8989  %s\n' "$SONARR_KEY"
-    printf '  http://radarr:7878  %s\n' "$RADARR_KEY"
-
+    hdr "prowlarr -> Settings -> Apps (indexer sync)"
+    panel "add Sonarr + Radarr so indexers get pushed to both" \
+        "Sonarr  url http://sonarr:8989  api key $SONARR_KEY" \
+        "Radarr  url http://radarr:7878  api key $RADARR_KEY"
+    muted "(every indexer added here is pushed to both apps, tagged '(Prowlarr)')"
     echo
-    echo "== recyclarr: nothing to paste - the Direct Play quality profile is applied"
-    echo "   automatically from data/recyclarr/configs/*.yml (logs: docker logs recyclarr)"
-
+    hdr "seerr -> Settings"
+    panel "wire Jellyfin + the two arrs" \
+        "Jellyfin  http://jellyfin:8096  + API key from Jellyfin Dashboard -> API Keys" \
+        "Radarr    http://radarr:7878  $RADARR_KEY" \
+        "Sonarr    http://sonarr:8989  $SONARR_KEY"
+    muted "(when adding the arrs pick the Direct Play profile + the root folders above)"
     echo
-    echo "== seerr -> Settings =="
-    echo "  jellyfin  http://jellyfin:8096  + an API key created in Jellyfin Dashboard -> API Keys"
-    printf '  radarr    http://radarr:7878  %s\n' "$RADARR_KEY"
-    printf '  sonarr    http://sonarr:8989  %s\n' "$SONARR_KEY"
-
+    hdr "bazarr -> Settings -> Sonarr / Radarr (subtitles)"
+    panel "add both arrs so subtitles land next to the media" \
+        "Sonarr  http://sonarr:8989  $SONARR_KEY" \
+        "Radarr  http://radarr:7878  $RADARR_KEY"
+    muted "(after enabling, assign a language profile to the libraries - see docs/arrs.md)"
     echo
-    echo "done. Paste URL + key pairs from the sections above; test each connection in the UI."
+    muted "done - paste each URL + API key pair from the panels above and test the connection in the UI."
 
 # Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
 # The matching Tailscale admin setting is one-time: DNS -> Nameservers -> add
