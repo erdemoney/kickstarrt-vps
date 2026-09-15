@@ -345,6 +345,7 @@ init FORCE="":
     if ! skip_set "$TRAEFIK_ENV" CLOUDFLARE_DNS_TOKEN 0; then
         dns_domain="$(get_var "$TRAEFIK_ENV" DOMAIN)"
         [ -n "$dns_domain" ] || dns_domain="<DOMAIN>"
+        cur_dns=$(get_var "$TRAEFIK_ENV" CLOUDFLARE_DNS_TOKEN) || true
         muted "Create it: dash.cloudflare.com -> My Profile -> API Tokens -> Create Custom Token"
         panel "Create Custom Token" \
             "Permissions:" \
@@ -375,7 +376,11 @@ init FORCE="":
                 muted "This only checks validity - permissions surface at first cert issuance."
             fi
         else
-            muted "skipped"
+            if [ -n "$cur_dns" ]; then
+                muted "skipped - token left unchanged"
+            else
+                muted "skipped - set it later: re-run 'just init' or edit .env directly"
+            fi
         fi
     fi
     echo
