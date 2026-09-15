@@ -55,10 +55,17 @@ init FORCE="":
         printf '  %s' "$TL"
         i=0; while [ "$i" -lt "$((w+2))" ]; do printf '%s' "$H"; i=$((i+1)); done
         printf '%s\n' "$TR"
-        printf '  %s %s%s%s %s\n' "$V" "$B" "$(printf '%-*s' "$w" "$title")" "$R" "$V"
+        printf '  %s %s%s%s %s\n' "$V" "$B$MAG" "$(printf '%-*s' "$w" "$title")" "$R" "$V"
         printf '  %s %-*s %s\n' "$V" "$w" "" "$V"
         for line in "$@"; do
-            printf '  %s %-*s %s\n' "$V" "$w" "$line" "$V"
+            case "$line" in
+                *:)
+                    printf '  %s %s%s%-*s%s %s\n' "$V" "$B" "" "$w" "$line" "$R" "$V"
+                    ;;
+                *)
+                    printf '  %s %-*s %s\n' "$V" "$w" "$line" "$V"
+                    ;;
+            esac
         done
         printf '  %s' "$BL"
         i=0; while [ "$i" -lt "$((w+2))" ]; do printf '%s' "$H"; i=$((i+1)); done
@@ -71,7 +78,7 @@ init FORCE="":
             "$(dim "$3")"
     }
 
-    hdr "kickstArrt · just init"
+    hdr "kickstArrt"
     muted "Every secret, one at a time  -  safe to re-run, nothing is"
     muted "overwritten without consent. Written to: stacks/*/.env"
     echo
@@ -268,7 +275,6 @@ init FORCE="":
         auto_row TAILNET_IP "$ts_ip" "(not detectable - prompted below)"
     fi
     auto_row CROWDSEC_BOUNCER_API_KEY "${cs_key:0:8}${ELLIP}" "($cs_note)"
-    muted "TAILNET_IP is what the tailnet DNS resolver answers *.DOMAIN with (docs/tailnet.md)."
     if [ -z "$ts_note" ]; then
         prompt_value "$TRAEFIK_ENV" TAILNET_IP \
             "e.g. 100.64.0.3 (tailscale CLI unavailable - 'tailscale up' first, then re-run 'just init')"
@@ -290,10 +296,9 @@ init FORCE="":
     # deliverable. It cannot be a dummy either: Boulder rejects @example.com outright.
     # Defaulting to admin@$DOMAIN is always valid (they own the zone) and needs no thought.
     if ! skip_set "$TRAEFIK_ENV" ACME_EMAIL; then
-        printf '%s\n' \
-            "  ACME_EMAIL is the Let's Encrypt contact address. It does not have to receive mail" \
-            '  (they stopped sending it in 2025), but it must be a real domain - @example.com is' \
-            '  rejected by their API - so it defaults to admin@ your own domain.'
+        muted "ACME_EMAIL is the Let's Encrypt contact address. It does not have to receive mail"
+        muted "(they stopped sending it in 2025), but it must be a real domain - @example.com is"
+        muted "rejected by their API - so it defaults to admin@ your own domain."
         prompt_default "$TRAEFIK_ENV" ACME_EMAIL "admin@$(get_var "$TRAEFIK_ENV" DOMAIN)"
     fi
     echo
