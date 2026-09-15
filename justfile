@@ -739,12 +739,11 @@ bootstrap-torrentio:
     docker compose -f stacks/media-server/compose.yaml restart prowlarr 2>/dev/null \
         || echo "note: prowlarr is not running, the definition will load on next just up"
 
-# Print a wiring cheat sheet for the *arrs: reads each app's API key from
-# $CONFIG_DIR so you can paste the right values
-# into every UI (docs/arrs.md has the full walkthrough). Read-only; run on the
-# server. CONFIG_DIR is taken from stacks/media-server/.env (custom via
-# `just init`); override positionally: just wiring /custom/path
-wiring CONFIG_DIR="":
+# Print a wiring cheat sheet for the *arrs: reads each app's API key
+# from $CONFIG_DIR (taken from stacks/media-server/.env, custom via `just init`)
+# so you can paste the right values into every UI (docs/arrs.md has the full
+# walkthrough). Read-only; run on the server.
+wiring:
     #!/usr/bin/env bash
     set -uo pipefail
 
@@ -833,12 +832,8 @@ wiring CONFIG_DIR="":
         fi
     }
 
-    if [ -n "{{ CONFIG_DIR }}" ]; then
-        CONFIG_DIR="{{ CONFIG_DIR }}"
-    else
-        CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
-        CONFIG_DIR="${CONFIG_DIR:-{{ justfile_directory() }}/data}"
-    fi
+    CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
+    CONFIG_DIR="${CONFIG_DIR:-{{ justfile_directory() }}/data}"
 
     arr_key() {   # $1 = app name; echoes the ApiKey from its config.xml
         local f="$CONFIG_DIR/$1/config.xml"
@@ -872,13 +867,13 @@ wiring CONFIG_DIR="":
     echo
     sonarr_clients() {   # step 1: sonarr
         hdr "sonarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
-        panel "Decypharr (debrid) qBittorrent" \
+        panel "qBittorrent" \
             "Name: Decypharr (debrid)" \
             "Host: decypharr" \
             "Port: 8282" \
             "Username: http://sonarr:8989" \
             "Password: $SONARR_KEY"
-        panel "Decypharr (usenet) SABnzbd" \
+        panel "SABnzbd" \
             "Name: Decypharr (usenet)" \
             "Host: decypharr" \
             "Port: 8282" \
@@ -890,13 +885,13 @@ wiring CONFIG_DIR="":
     }
     radarr_clients() {   # step 2: radarr
         hdr "radarr -> Settings -> Download Clients: add BOTH (debrid + usenet)"
-        panel "Decypharr (debrid) qBittorrent" \
+        panel "qBittorrent" \
             "Name: Decypharr (debrid)" \
             "Host: decypharr" \
             "Port: 8282" \
             "Username: http://radarr:7878" \
             "Password: $RADARR_KEY"
-        panel "Decypharr (usenet) SABnzbd" \
+        panel "SABnzbd" \
             "Name: Decypharr (usenet)" \
             "Host: decypharr" \
             "Port: 8282" \
