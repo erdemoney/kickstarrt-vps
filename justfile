@@ -918,14 +918,14 @@ wiring:
         hdr "sonarr -> Settings -> Media Management -> Root Folders"
         panel "point the library at the Decypharr mount (same filesystem as imports)" \
             "/mnt/decypharr/shows"
-        muted "(same-mount root folder = imports move in as symlink renames - see docs/arrs.md)"
+        muted "(path must exist - create it: mkdir -p /mnt/debrid/decypharr/shows)"
         echo
     }
     radarr_root() {   # step 4: radarr root folder
         hdr "radarr -> Settings -> Media Management -> Root Folders"
         panel "point the library at the Decypharr mount (same filesystem as imports)" \
             "/mnt/decypharr/movies"
-        muted "(same-mount root folder = imports move in as symlink renames - see docs/arrs.md)"
+        muted "(path must exist - create it: mkdir -p /mnt/debrid/decypharr/movies)"
         echo
     }
     jellyfin_libs() {   # step 6: jellyfin libraries
