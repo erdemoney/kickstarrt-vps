@@ -13,6 +13,21 @@ Tailscale tailnet, close every other door, then build the stack and set it up pr
 the tailnet. The box is reachable from exactly one place — your tailnet — until the last step
 deliberately opens `:443`.
 
+Before you start, have:
+
+- **A VPS** — any provider, ≥ 2 vCPU / 4 GB RAM ([sizing](index)), with SSH access you can
+  reach. Bring it up in the next section.
+- **A domain you control** — used for every panel URL (`radarr.<DOMAIN>`, …) and the wildcard
+  TLS cert, so pick something you can keep. It should be **served by Cloudflare** (DNS records,
+  the DNS-01 cert challenge, and R2 backups all live there): move the domain's nameservers to
+  Cloudflare first if it isn't already.
+- **Cloudflare account** with the domain (and an API token made during section 5; **Cloudflare
+  R2** for the optional restic backups).
+- **Tailscale account** — you'll approve the box into your tailnet in the next section and
+  register the DNS resolver in [§6](quickstart#6-register-the-tailnet-dns-resolver).
+- **GitHub account** — the repo is meant to be forked ([§5](quickstart#5-fork-clone-and-fill-the-secrets)).
+- **A workstation** on the tailnet with a browser — this is where the admin panels are set up.
+
 ## 1. Create the VPS
 
 Any provider, any box with ≥ 2 vCPU / 4 GB RAM (sizing notes in the [overview](index)). Use a
