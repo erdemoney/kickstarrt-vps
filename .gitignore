@@ -4,9 +4,11 @@
 !.env.restic.example
 
 # data/ is app config state (untracked, never commit). `data/*` auto-covers any
-# new runtime subdir; only the traefik config-as-code files are tracked. Note
-# traefik.yml is RENDERED from traefik.template.yml by `just dirs`, so the
-# template is tracked and the output is not (it contains ACME_EMAIL).
+# new runtime subdir; only the traefik + recyclarr config-as-code files are
+# tracked. Note traefik.yml is RENDERED from traefik.template.yml by `just dirs`,
+# so the template is tracked and the output is not (it contains ACME_EMAIL).
+# Recyclarr's runtime state (secrets.yml, cache, logs) stays ignored; only the
+# shipped configs and the bootstrap script are tracked.
 data/*
 !data/traefik/
 data/traefik/*
@@ -14,3 +16,10 @@ data/traefik/*
 !data/traefik/dynamic.yml
 !data/traefik/crowdsec-acquis.yaml
 !data/traefik/coredns.Corefile
+!data/recyclarr/
+data/recyclarr/*
+!data/recyclarr/bootstrap.sh
+!data/recyclarr/configs/
+data/recyclarr/configs/*
+!data/recyclarr/configs/radarr.yml
+!data/recyclarr/configs/sonarr.yml

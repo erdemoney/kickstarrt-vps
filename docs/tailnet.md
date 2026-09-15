@@ -5,8 +5,7 @@ nav_order: 4
 
 # Tailnet DNS: admin panels by name
 
-The admin panels (Radarr, Sonarr, Prowlarr, Profilarr, Bazarr, Decypharr, the Traefik
-dashboard) have **no public DNS records** — inside your tailnet they resolve **by name**,
+The admin panels (Radarr, Sonarr, Prowlarr, Bazarr, Decypharr, the Traefik dashboard) have **no public DNS records** — inside your tailnet they resolve **by name**,
 `https://radarr.<DOMAIN>` and so on, with the same wildcard Let's Encrypt cert, no
 `/etc/hosts` editing, and no extra login. The one-time console registration happens during
 setup, **before** first boot ([Quickstart §6](quickstart#6-register-the-tailnet-dns-resolver));
@@ -62,8 +61,8 @@ all — there's no public record for the panels, by design.
   DNS update. Rejoin the tailnet, or flush: `sudo dscacheutil -flushcache` (macOS),
   `sudo systemctl restart systemd-resolved` (Linux), `ipconfig /flushdns` (Windows).
 - **The box was rebuilt / tailnet IP changed** — run the bootstrap script (or
-  `sudo tailscale up`) on the new box, re-run `just init` (Enter accepts the new detection),
-  then update the nameserver IP in the Tailscale admin console.
+  `sudo tailscale up`) on the new box, re-run `just init force` (it re-detects and
+  refreshes `TAILNET_IP`), then update the nameserver IP in the Tailscale admin console.
 - **Nothing answers on the box itself** — `just dnscheck`; confirm CoreDNS is up
   (`docker compose -f stacks/traefik/compose.yaml ps coredns`) and ufw has the `53` rules
   (`sudo ufw status`). From the **public internet**, nothing works until

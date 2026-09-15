@@ -32,8 +32,8 @@ Subscription/indexer picks that pair with the stack. Wiring ran through
   community.
 - **rrn / nzbgeek and friends** — extra Usenet indexers, mostly per-year; AltHub's lifetime deal
   usually beats them on cost.
-- **trash-guides profiles** (imported via Profilarr) — not a subscription, but the biggest
-  quality upgrade for free.
+- **trash-guides profiles** (applied automatically via Recyclarr) — not a subscription, but
+  the biggest quality upgrade for free.
 
 ## Budget stack
 

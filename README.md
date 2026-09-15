@@ -45,7 +45,7 @@ crosses its network), Tailscale + ufw/fail2ban hardening, no GPU. Hosting at hom
                  │ jellyfin     seerr      │
                  │ radarr       sonarr     │
                  │ prowlarr     bazarr     │
-                 │ profilarr    decypharr  │
+                 │ recyclarr    decypharr  │
                  └─────────────────────────┘
 ```
 
@@ -65,7 +65,7 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 | `radarr` / `sonarr` | Movies and TV automation — grabbing, renaming, library sync |
 | `prowlarr`  | Indexer manager, synced to the \*arrs |
 | `bazarr`    | Subtitle search & management |
-| `profilarr` | Quality-profile sync (trash-guides) |
+| `recyclarr` | TRaSH-Guide sync — ships **Direct Play** quality profiles, applied to Radarr/Sonarr automatically |
 | `decypharr` | Debrid gateway — resolves grabs to instant FUSE streams |
 
 ## Key features
@@ -97,7 +97,7 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash   # git, just, docker + tailscale join (idempotent); prints your tailnet SSH address
 git clone git@github.com:<you>/kickstarrt-vps.git && cd kickstarrt-vps
-just init             # walks every secret; Enter accepts sensible defaults
+just init             # prompts for every secret; Enter accepts the default (re-runs skip what's set; 'just init force' re-prompts)
 just dns              # paste the printed nameserver into Tailscale (one-time; see Quickstart §6)
 just up               # networks -> config dirs -> the whole stack; panels resolve on your tailnet immediately
 ```

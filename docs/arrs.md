@@ -34,7 +34,7 @@ break CORS, and add latency; they are for browsers only).
 | radarr    | `http://radarr:7878`    | 7878 | Settings → General → API Key                    |
 | sonarr    | `http://sonarr:8989`    | 8989 | Settings → General → API Key                    |
 | prowlarr  | `http://prowlarr:9696`  | 9696 | Settings → General → API Key                    |
-| profilarr | `http://profilarr:6868` | 6868 | profilarr → Settings → Radarr/Sonarr connection |
+| recyclarr | —                      | —    | automatic — nothing to paste (see below)        |
 | bazarr    | `http://bazarr:6767`    | 6767 | (outbound only)                                 |
 | decypharr | `http://decypharr:8282` | 8282 | Settings → API token (shown once after wizard)  |
 
@@ -109,7 +109,7 @@ both apps automatically (tagged `(Prowlarr)`).
    generated on the Jellyfin server** (Dashboard → API Keys — the admin account is created on
    Jellyfin's first login).
 2. Seerr → **Radarr** and **Sonarr**: enable, add `http://radarr:7878` / `http://sonarr:8989`
-   + API keys, pick the quality profile and root folder for each.
+   + API keys, pick the shipped **Direct Play** quality profile and the root folder for each.
 3. Users can now request via Seerr, which pushes to Radarr/Sonarr.
 
 ## Bazarr → Sonarr/Radarr (subtitles)
@@ -132,11 +132,35 @@ the easy-to-forget step.
 4. Rank providers by preference and raise each language's **minimum score** if subs arrive
    out of sync or machine-translated. Subtitle folder: **Alongside media file**.
 
-## Profilarr → Sonarr/Radarr (quality profiles)
+## Quality profiles (Recyclarr — automatic)
 
-1. In profilarr, add the Sonarr/Radarr instances (Settings → connections): URL + each API
-   key.
-2. Import TRaSH guides / create profiles; profilarr applies them to the apps.
+Quality profiles and custom formats are **not wired by hand** in this stack. [Recyclarr](https://recyclarr.dev)
+runs as a container and syncs the shipped **"Direct Play"** profile — TRaSH Guide definitions
+tuned for this CPU-only edition — into Radarr and Sonarr automatically:
+
+- **When**: right after first boot (it waits for the arrs to be up, then syncs once), and
+  daily after that. Nothing to paste anywhere; watch it with `docker logs recyclarr`.
+- **What**: release-group tiers, repack preferences and TRaSH file sizes from the guide, plus
+  `-10000` (never grab) scores for anything that would force a video transcode or break
+  playback — AV1/VP9/VC-1/MPEG2 codecs, Dolby Vision without an HDR10 fallback, Blu-ray disk
+  images, and low-quality/obfuscated groups. Audio is left unpenalized (audio transcodes are
+  cheap on the server). The ladder is WEB-DL → Bluray encode → Remux at 1080p and 2160p.
+- **Where**: `data/recyclarr/configs/radarr.yml` and `sonarr.yml`, tracked in the repo — edit
+  to tune (e.g. score AV1 at `0` if every client decodes it, or drop the 2160p qualities to
+  cap at 1080p), then apply immediately:
+
+  ```bash
+  docker compose -f stacks/media-server/compose.yaml exec recyclarr recyclarr sync
+  ```
+
+The profile is reset to match the config on every sync, so manual edits in the arr UI don't
+stick — the YAML is the source of truth. Pick **Direct Play** wherever an app asks for a
+quality profile (Seerr's Radarr/Sonarr settings, Radarr/Sonarr defaults). The arrs' API keys
+are read by the recyclarr container at start (never committed); if you regenerate an arr's
+API key, restart it: `just up-svc media-server recyclarr`.
+
+> Migrating from the old Profilarr setup? Nothing to migrate — its container and panel are
+> gone; the leftover `$CONFIG_DIR/profilarr` dir is inert and safe to delete.
 
 ## Managing from your phone
 

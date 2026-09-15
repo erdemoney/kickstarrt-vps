@@ -110,19 +110,20 @@ One housekeeping item first: the `docker` group the bootstrap script put you in 
 effect in a **new SSH session** — reconnect, then `docker run --rm hello-world` should work
 without sudo.
 
-Now run `just init` — it creates each stack's `.env` and walks you through every variable:
+Now run `just init` — it creates each stack's `.env`, prints the values it generates itself
+up front, then walks you through the rest:
 
 - `CONFIG_DIR` isn't asked: always the repo's own `data/` dir — app configs, `acme.json`, and
   Traefik's rendered config live there, and it's exactly what the backups cover.
-- `DOMAIN` is prompted once and synced to every stack; each `SUB_DOMAIN_*` defaults to the
-  example values (Enter to keep, type to change).
+- `TAILNET_IP` is auto-filled from `tailscale ip -4` — you're only prompted when the CLI
+  can't answer (e.g. Tailscale isn't up yet).
+- `CROWDSEC_BOUNCER_API_KEY` is generated for you (random 32-byte key).
+- `DOMAIN` is prompted once and synced to every stack; each `SUB_DOMAIN_*` is offered with
+  the app name as its default (Enter accepts, type to change).
 - `ENV_PUID`/`ENV_PGID` propose the running user's uid/gid, so container files match your
   user (fallback `1000` if you run as root).
 - `ACME_EMAIL` defaults to `admin@<DOMAIN>` — any address on a domain you control; it
   needn't receive mail ([why](faq#why-is-there-no-lets-encrypt-account-to-create)).
-- `TAILNET_IP` is auto-filled from `tailscale ip -4` — accept it unless Tailscale reports a
-  different address.
-- `CROWDSEC_BOUNCER_API_KEY` is generated for you (random 32-byte key).
 - A username/password prompt writes `TRAEFIK_DASHBOARD_CREDENTIALS`.
 - `CLOUDFLARE_DNS_TOKEN` — `just init` explains each permission, then **confirms before
   opening the Cloudflare page in your browser** (on a headless box it just prints the URL).
@@ -130,9 +131,11 @@ Now run `just init` — it creates each stack's `.env` and walks you through eve
 - Optionally sets up **restic backups to Cloudflare R2** — answer `y` to be prompted, or skip
   and fill `.env.restic` later ([Maintenance](maintenance)).
 
-Empty answers fall back to the current/default value, and it's safe to re-run. The full
-variable list, with comments, is in `stacks/*/.env.example`. The three secrets worth
-understanding:
+Empty answers accept the offered default, and it's safe to re-run: values that are already
+set are skipped, so a re-run only asks for what's missing (e.g. a restic step you deferred).
+To change a set value, run `just init force` — everything is re-prompted, and Enter keeps
+the current value. The full variable list, with comments, is in `stacks/*/.env.example`. The
+three secrets worth understanding:
 
 ### `CLOUDFLARE_DNS_TOKEN` — Cloudflare (wildcard TLS)
 
@@ -209,11 +212,14 @@ just dnscheck    # confirm the resolver answers: radarr.<DOMAIN> -> your tailnet
 What to check right after boot:
 
 - Every app answers at `https://<subdomain>.<DOMAIN>` **from any tailnet device** —
-  `jellyfin`, `seerr`, `radarr`, `sonarr`, `prowlarr`, `profilarr`, `bazarr`, `decypharr`,
-  `traefik` — with the real wildcard cert, issued by DNS-01 before any DNS record exists.
+  `jellyfin`, `seerr`, `radarr`, `sonarr`, `prowlarr`, `bazarr`, `decypharr`, `traefik` —
+  with the real wildcard cert, issued by DNS-01 before any DNS record exists.
 - A `Certificate` for `*.DOMAIN` appears in the Traefik dashboard's ACME panel (the first
   Traefik start also downloads the CrowdSec plugin — both need outbound internet).
 - CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` ([Security](security)).
+- Recyclarr applies the shipped **Direct Play** quality profile to Radarr/Sonarr within a
+  minute of the arrs being up (`docker logs recyclarr`) — see
+  [The \*arrs](arrs#quality-profiles-recyclarr--automatic).
 - Jellyfin's admin account is created on first login (its API key feeds Seerr in §8).
 
 A device that can't or won't use the resolver has the
@@ -230,7 +236,8 @@ it's configured.
    `/mnt/decypharr` → [Decypharr](decypharr#first-run-setup-wizard).
 2. **\*arrs** — one pass through each app: download clients pointing at Decypharr, root
    folders on the mount, Prowlarr app sync, Seerr → Jellyfin/Radarr/Sonarr, Bazarr language
-   profiles, Profilarr quality profiles → [The \*arrs](arrs).
+   profiles → [The \*arrs](arrs). Quality profiles need no step: Recyclarr applies the
+   shipped **Direct Play** profile automatically (§7) — just pick it where an app asks.
 3. **Indexers** — Prowlarr needs at least one before grabs work; Torrentio (debrid) and
    AltHub (Usenet) → [Indexers](indexers).
 4. **Jellyfin** — libraries pointing at subpaths of `/mnt/decypharr`, transcode path →

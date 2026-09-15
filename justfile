@@ -8,12 +8,15 @@ restic_image := "restic/restic:0.19.1"
 default:
     just --list
 
-# Full first-time setup: create each .env, then walk through every variable.
-# Secrets are generated or prompted (hidden); everything else defaults to the
-# example value (Enter = keep). Shared vars (DOMAIN, CONFIG_DIR) are synced
-# across stacks. Browser pages are only opened after confirmation, and only in
-# a GUI session. Safe to re-run — nothing is overwritten without consent.
-init:
+# Full first-time setup: create each .env, print the auto-generated values
+# (CONFIG_DIR, TAILNET_IP, CROWDSEC_BOUNCER_API_KEY) up front, then prompt for
+# the rest, offering defaults from this recipe (Enter accepts / keeps current).
+# Already-set values are skipped on re-run; `just init force` re-prompts them
+# (Enter keeps the current value, typing replaces it). Shared vars (DOMAIN,
+# CONFIG_DIR) are synced across stacks. Browser pages are only opened after
+# confirmation, and only in a GUI session. Safe to re-run — nothing is
+# overwritten without consent.
+init FORCE="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -27,11 +30,11 @@ init:
     fi
     case "${LC_ALL:-$LANG}" in
         *[Uu][Tt][Ff]*) G='─'; H='─'; V='│'; TL='╭'; TR='╮'; BL='╰'; BR='╯'
-                        S='▸'; OK='✓'; WARN='⚠'; DONE='✔' ;;
+                        S='▸'; OK='✓'; WARN='⚠'; DONE='✔'; ELLIP='…' ;;
         *)              G='-'; H='-'; V='|'; TL='+'; TR='+'; BL='+'; BR='+'
-                        S='>'; OK='ok'; WARN='!'; DONE='done' ;;
+                        S='>'; OK='ok'; WARN='!'; DONE='done'; ELLIP='...' ;;
     esac
-    RULE=$(printf "$G%.0s" {1..66})
+    RULE=$(printf -- "$G%.0s" {1..66})
 
     hr() { printf '%s\n' "${CYN}${RULE}${R}"; }
     hdr() { hr; printf '%s\n' "  ${B}${CYN}${S} $1${R}"; hr; }
@@ -61,11 +64,30 @@ init:
         i=0; while [ "$i" -lt "$((w+2))" ]; do printf '%s' "$H"; i=$((i+1)); done
         printf '%s\n' "$BR"
     }
+    auto_row() {   # LABEL VALUE NOTE: one aligned row of the auto-generated summary
+        printf '  %s %s %s\n' \
+            "$(lbl "$(printf '%-*s' 23 "$1")")" \
+            "$(cur "$2")" \
+            "$(dim "$3")"
+    }
 
     hdr "kickstArrt · just init"
     muted "Every secret, one at a time  -  safe to re-run, nothing is"
     muted "overwritten without consent. Written to: stacks/*/.env"
     echo
+
+    FORCE=0
+    case "{{ FORCE }}" in
+        ""|n|N|no|No|NO|0|false|False|FALSE) : ;;
+        f|F|force|Force|FORCE|-f|--force|y|Y|yes|Yes|YES|1|true|True|TRUE) FORCE=1 ;;
+        *)
+            FORCE=1
+            warn "unrecognized FORCE arg '{{ FORCE }}' (expected 'force') - continuing in force mode"
+            ;;
+    esac
+    if [ "$FORCE" -eq 1 ]; then
+        warn "force mode: already-set values are re-prompted (Enter keeps the current value)"
+    fi
 
     TRAEFIK_ENV=stacks/traefik/.env
     MEDIA_ENV=stacks/media-server/.env
@@ -105,6 +127,20 @@ init:
         for f in $(vars_defined_in "$var"); do
             set_var "$f" "$var" "$value"
         done
+    }
+
+    skip_set() {   # FILE VAR [SHOW]: when the value is set and not forcing, print
+        local cur show="${3:-1}"   # 'already set' and return 0 so callers skip the
+        cur=$(get_var "$1" "$2") || true   # prompt; SHOW=0 hides the value (secrets)
+        if [ -z "$cur" ] || [ "$FORCE" -eq 1 ]; then
+            return 1
+        fi
+        if [ "$show" = 1 ]; then
+            ok "$2 already set ($cur)"
+        else
+            ok "$2 already set"
+        fi
+        return 0
     }
 
     is_gui() {   # true when a display server (or macOS) is available
@@ -174,7 +210,7 @@ init:
             [ -z "$ans" ] && ans="$def"
         fi
         if [ -n "$ans" ] && [ "$ans" != "$cur" ]; then
-            set_var "$file" "$var" "$ans"
+            set_all "$var" "$ans"
         fi
         return 0
     }
@@ -191,113 +227,148 @@ init:
         fi
     }
 
-    prompt_id() {   # FILE VAR DEFAULT: propose DEFAULT (this user's id) while the value is
-        local file="$1" var="$2" def="$3" cur ans   # unset or still the example 1000
+    prompt_id() {   # FILE VAR DEFAULT: propose DEFAULT (this user's id) while the
+        local file="$1" var="$2" def="$3" cur ans   # value is unset; once set, offer to keep it
         cur=$(get_var "$file" "$var") || true
-        if [ "$cur" = "1000" ] || [ -z "$cur" ]; then
+        if [ -z "$cur" ]; then
             printf '  %s [%s, %s] > ' "$(lbl "$var")" "$(cur "$def")" "$(dim "Enter to use")"
             read -r ans || ans=""
-            if [ -z "$ans" ]; then
-                ans="$def"
-            fi
+            [ -z "$ans" ] && ans="$def"
         else
             printf '  %s [%s, %s] > ' "$(lbl "$var")" "$(cur "$cur")" "$(dim "Enter to keep")"
             read -r ans || ans=""
         fi
         if [ -n "$ans" ] && [ "$ans" != "$cur" ]; then
-            set_var "$file" "$var" "$ans"
+            set_all "$var" "$ans"
         fi
         return 0
     }
+
+    # ---- auto-generated values: derived or generated up front, shown together ----
 
     # CONFIG_DIR is derived, not configured: it is always the repo's own data/ dir.
     # The tracked traefik config, the app state and the restic backup scope all live
     # there, so pointing it elsewhere would silently split them apart.
     CONFIG_DIR_VALUE="$(abs_path "{{ justfile_directory() }}/data")"
-    hdr "Config directory"
-    printf '  %s %s\n' "$(cur "$CONFIG_DIR_VALUE")" "(fixed - app configs, acme.json and traefik's config live here)"
     set_all CONFIG_DIR "$CONFIG_DIR_VALUE"
-    muted "synced to stacks/*/.env"
+
+    # TAILNET_IP: this VPS's Tailscale address. The CoreDNS resolver in this stack
+    # answers *.DOMAIN with it, so admin panels resolve by name on the tailnet
+    # (see docs/tailnet.md). Detected via the tailscale CLI; prompted only when
+    # detection is impossible. Force mode re-detects and refreshes a set value.
+    ts_ip=$(get_var "$TRAEFIK_ENV" TAILNET_IP) || true
+    ts_note=""
+    if [ -n "$ts_ip" ] && [ "$FORCE" -eq 0 ]; then
+        ts_note="already set"
+    else
+        ts_def=""
+        if command -v tailscale >/dev/null 2>&1; then
+            ts_def=$(tailscale ip -4 2>/dev/null | head -n1 || true)
+        fi
+        if [ -z "$ts_def" ] && command -v sudo >/dev/null 2>&1; then
+            ts_def=$(sudo -n tailscale ip -4 2>/dev/null | head -n1 || true)
+        fi
+        if [ -n "$ts_def" ]; then
+            if [ "$ts_def" != "$ts_ip" ]; then
+                set_var "$TRAEFIK_ENV" TAILNET_IP "$ts_def"
+            fi
+            ts_ip="$ts_def"
+            ts_note="detected via 'tailscale ip -4'"
+        fi
+    fi
+
+    # CROWDSEC_BOUNCER_API_KEY: shared between the crowdsec container and Traefik's
+    # bouncer plugin - a random 32-byte key, generated once, never printed in full.
+    cs_key=$(get_var "$TRAEFIK_ENV" CROWDSEC_BOUNCER_API_KEY) || true
+    cs_note="already set"
+    if [ -z "$cs_key" ]; then
+        cs_key=$(openssl rand -hex 32)
+        set_var "$TRAEFIK_ENV" CROWDSEC_BOUNCER_API_KEY "$cs_key"
+        cs_note="random 32-byte key"
+    fi
+
+    hdr "Auto-generated values"
+    muted "Derived or generated for you - nothing to type. Full values live in stacks/*/.env."
+    echo
+    auto_row CONFIG_DIR "$CONFIG_DIR_VALUE" "(fixed - app configs, acme.json and traefik's config live here)"
+    if [ -n "$ts_note" ]; then
+        auto_row TAILNET_IP "$ts_ip" "($ts_note)"
+    else
+        auto_row TAILNET_IP "$ts_ip" "(not detectable - prompted below)"
+    fi
+    auto_row CROWDSEC_BOUNCER_API_KEY "${cs_key:0:8}${ELLIP}" "($cs_note)"
+    muted "TAILNET_IP is what the tailnet DNS resolver answers *.DOMAIN with (docs/tailnet.md)."
+    if [ -z "$ts_note" ]; then
+        prompt_value "$TRAEFIK_ENV" TAILNET_IP \
+            "e.g. 100.64.0.3 (tailscale CLI unavailable - 'tailscale up' first, then re-run 'just init')"
+    fi
     echo
 
     hdr "Domain and paths (shared across stacks)"
-    prompt_value "$TRAEFIK_ENV" DOMAIN "your domain, e.g. example.com"
+    if ! skip_set "$TRAEFIK_ENV" DOMAIN; then
+        prompt_value "$TRAEFIK_ENV" DOMAIN "your domain, e.g. example.com"
+    fi
     echo
 
     hdr "traefik"
-    prompt_value "$TRAEFIK_ENV" SUB_DOMAIN_TRAEFIK
+    if ! skip_set "$TRAEFIK_ENV" SUB_DOMAIN_TRAEFIK; then
+        prompt_default "$TRAEFIK_ENV" SUB_DOMAIN_TRAEFIK traefik
+    fi
     # Let's Encrypt only needs a syntactically valid contact on a real domain - it stopped
     # sending mail in June 2025 and no longer stores the address, so it does not have to be
     # deliverable. It cannot be a dummy either: Boulder rejects @example.com outright.
     # Defaulting to admin@$DOMAIN is always valid (they own the zone) and needs no thought.
-    printf '%s\n' \
-        "  ACME_EMAIL is the Let's Encrypt contact address. It does not have to receive mail" \
-        '  (they stopped sending it in 2025), but it must be a real domain - @example.com is' \
-        '  rejected by their API - so it defaults to admin@ your own domain.'
-    prompt_default "$TRAEFIK_ENV" ACME_EMAIL "admin@$(get_var "$TRAEFIK_ENV" DOMAIN)"
-    echo
-
-    chip "TAILNET_IP"
-    ts_ip_cur=$(get_var "$TRAEFIK_ENV" TAILNET_IP) || true
-    ts_ip_def=""
-    if command -v tailscale >/dev/null 2>&1; then
-        ts_ip_def=$(tailscale ip -4 2>/dev/null | head -n1 || true)
-    fi
-    if [ -z "$ts_ip_def" ] && command -v sudo >/dev/null 2>&1; then
-        ts_ip_def=$(sudo -n tailscale ip -4 2>/dev/null | head -n1 || true)
-    fi
-    if [ -n "$ts_ip_cur" ]; then
-        ok "already set ($ts_ip_cur)"
-    else
-        muted "This VPS's Tailscale address. The CoreDNS resolver in this stack"
-        muted "answers *.DOMAIN with it, so admin panels resolve by name on the"
-        muted "tailnet (see docs/tailnet.md)."
-        if [ -n "$ts_ip_def" ]; then
-            prompt_default "$TRAEFIK_ENV" TAILNET_IP "$ts_ip_def"
-        else
-            prompt_value "$TRAEFIK_ENV" TAILNET_IP \
-                "e.g. 100.64.0.3 (tailscale CLI unavailable - 'tailscale up' first, then re-run 'just init')"
-        fi
-    fi
-    echo
-
-    chip "CROWDSEC_BOUNCER_API_KEY"
-    if [ -n "$(get_var "$TRAEFIK_ENV" CROWDSEC_BOUNCER_API_KEY)" ]; then
-        ok "already set (stacks/traefik/.env)"
-    else
-        set_var "$TRAEFIK_ENV" CROWDSEC_BOUNCER_API_KEY "$(openssl rand -hex 32)"
-        ok "generated a random 32-byte key"
+    if ! skip_set "$TRAEFIK_ENV" ACME_EMAIL; then
+        printf '%s\n' \
+            "  ACME_EMAIL is the Let's Encrypt contact address. It does not have to receive mail" \
+            '  (they stopped sending it in 2025), but it must be a real domain - @example.com is' \
+            '  rejected by their API - so it defaults to admin@ your own domain.'
+        prompt_default "$TRAEFIK_ENV" ACME_EMAIL "admin@$(get_var "$TRAEFIK_ENV" DOMAIN)"
     fi
     echo
 
     chip "TRAEFIK_DASHBOARD_CREDENTIALS"
-    if [ -n "$(get_var "$TRAEFIK_ENV" TRAEFIK_DASHBOARD_CREDENTIALS)" ]; then
-        ok "already set (stacks/traefik/.env)"
-    else
-        muted "htpasswd-style user:hash for the Traefik dashboard (blank password ="
-        muted "generate nothing, username defaults to admin)."
-        ask "dashboard username (default admin)"
+    if ! skip_set "$TRAEFIK_ENV" TRAEFIK_DASHBOARD_CREDENTIALS 0; then
+        cur_cred=$(get_var "$TRAEFIK_ENV" TRAEFIK_DASHBOARD_CREDENTIALS) || true
+        cur_user=""
+        if [ -n "$cur_cred" ]; then
+            cur_user=${cur_cred%\'}; cur_user=${cur_user#\'}; cur_user=${cur_user%%:*}
+        fi
+        if [ -n "$cur_user" ]; then
+            muted "Currently set for user '$cur_user' - a blank password keeps the existing"
+            muted "hash, a new one replaces it."
+        else
+            muted "htpasswd-style user:hash for the Traefik dashboard (blank password ="
+            muted "generate nothing, username defaults to admin)."
+        fi
+        ask "dashboard username (default ${cur_user:-admin})"
         read -r dash_user || dash_user=""
         ask "dashboard password (hidden)"
         read -rs dash_pass || dash_pass=""
         printf '\n'
-        [ -n "$dash_user" ] || dash_user="admin"
-        hash=$(openssl passwd -apr1 "$dash_pass" 2>/dev/null) || hash=""
-        case "$hash" in
-            \$apr1\$*) : ;;
-            *) hash=$(docker run --rm httpd:2.4-alpine htpasswd -nbB "$dash_user" "$dash_pass" | cut -d: -f2) ;;
-        esac
-        set_var "$TRAEFIK_ENV" TRAEFIK_DASHBOARD_CREDENTIALS "'$dash_user:$hash'"
-        ok "set (single-quoted so compose doesn't eat the hash)"
+        if [ -z "$dash_pass" ]; then
+            if [ -n "$cur_user" ]; then
+                muted "blank password - credentials left unchanged"
+            else
+                muted "blank password - nothing generated (re-run 'just init' to set them)"
+            fi
+        else
+            [ -n "$dash_user" ] || dash_user="${cur_user:-admin}"
+            hash=$(openssl passwd -apr1 "$dash_pass" 2>/dev/null) || hash=""
+            case "$hash" in
+                \$apr1\$*) : ;;
+                *) hash=$(docker run --rm httpd:2.4-alpine htpasswd -nbB "$dash_user" "$dash_pass" | cut -d: -f2) ;;
+            esac
+            set_var "$TRAEFIK_ENV" TRAEFIK_DASHBOARD_CREDENTIALS "'$dash_user:$hash'"
+            ok "set (single-quoted so compose doesn't eat the hash)"
+        fi
     fi
     echo
 
     chip "CLOUDFLARE_DNS_TOKEN"
-    dns_domain="$(get_var "$TRAEFIK_ENV" DOMAIN)"
-    [ -n "$dns_domain" ] || dns_domain="<DOMAIN>"
-    if [ -n "$(get_var "$TRAEFIK_ENV" CLOUDFLARE_DNS_TOKEN)" ]; then
-        ok "already set (stacks/traefik/.env): $dns_domain - Zone:Read, DNS:Edit"
-    else
+    if ! skip_set "$TRAEFIK_ENV" CLOUDFLARE_DNS_TOKEN 0; then
+        dns_domain="$(get_var "$TRAEFIK_ENV" DOMAIN)"
+        [ -n "$dns_domain" ] || dns_domain="<DOMAIN>"
         muted "Create it: dash.cloudflare.com -> My Profile -> API Tokens -> Create Custom Token"
         panel "Create Custom Token" \
             "Permissions:" \
@@ -320,8 +391,8 @@ init:
             muted "verifying with Cloudflare..."
             if command -v curl >/dev/null 2>&1 && \
                curl -fsS --connect-timeout 10 --max-time 20 \
-                    "https://api.cloudflare.com/client/v4/user/tokens/verify" \
-                    -H "Authorization: Bearer $token" | grep -q '"status":"active"'; then
+                   "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+                   -H "Authorization: Bearer $token" | grep -q '"status":"active"'; then
                 ok "verified: token is active"
             else
                 warn "could not verify the token (offline, wrong paste, or revoked)."
@@ -340,11 +411,16 @@ init:
         muted "(running as root - proposing 1000:1000 so containers don't run as root;"
         muted "re-run as your deploy user to use its uid/gid)"
     fi
-    prompt_id "$MEDIA_ENV" ENV_PUID "$sid"
-    prompt_id "$MEDIA_ENV" ENV_PGID "$sgid"
+    if ! skip_set "$MEDIA_ENV" ENV_PUID; then
+        prompt_id "$MEDIA_ENV" ENV_PUID "$sid"
+    fi
+    if ! skip_set "$MEDIA_ENV" ENV_PGID; then
+        prompt_id "$MEDIA_ENV" ENV_PGID "$sgid"
+    fi
     echo
-    for sub in JELLYFIN SEERR RADARR SONARR PROWLARR PROFILARR BAZARR DECYPHARR; do
-        prompt_value "$MEDIA_ENV" "SUB_DOMAIN_$sub"
+    for sub in JELLYFIN SEERR RADARR SONARR PROWLARR BAZARR DECYPHARR; do
+        if skip_set "$MEDIA_ENV" "SUB_DOMAIN_$sub"; then continue; fi
+        prompt_default "$MEDIA_ENV" "SUB_DOMAIN_$sub" "${sub,,}"
     done
     echo
 
@@ -354,7 +430,7 @@ init:
         cp .env.restic.example .env.restic
         ok "created $BACKUP_ENV from .env.restic.example"
     fi
-    if [ -n "$(get_var "$BACKUP_ENV" RESTIC_REPOSITORY)" ] && [ -n "$(get_var "$BACKUP_ENV" RESTIC_PASSWORD)" ]; then
+    if [ "$FORCE" -eq 0 ] && [ -n "$(get_var "$BACKUP_ENV" RESTIC_REPOSITORY)" ] && [ -n "$(get_var "$BACKUP_ENV" RESTIC_PASSWORD)" ]; then
         ok "already configured ($(get_var "$BACKUP_ENV" RESTIC_REPOSITORY))"
     else
         muted "Back up this repo (all .env files + data/) to an encrypted restic repository"
@@ -431,7 +507,13 @@ init:
                 warn "left incomplete - fill RESTIC_REPOSITORY + RESTIC_PASSWORD in .env.restic later."
             fi
             ;;
-        *) muted "skipped - fill .env.restic later and run 'just backup-init'." ;;
+        *)
+            if [ -n "$(get_var "$BACKUP_ENV" RESTIC_REPOSITORY)" ] && [ -n "$(get_var "$BACKUP_ENV" RESTIC_PASSWORD)" ]; then
+                muted "skipped - .env.restic left as configured"
+            else
+                muted "skipped - fill .env.restic later and run 'just backup-init'."
+            fi
+            ;;
         esac
     fi
     echo
@@ -439,6 +521,7 @@ init:
     hr
     printf '%s\n' "  ${B}${GRN}${DONE}${R} ${B}init complete${R}"
     muted "Review stacks/*/.env, then run 'just up'."
+    muted "Re-runs skip what's already set; 'just init force' re-prompts those values."
     muted "Keep ufw closed (SSH tailnet-only) - the stack stays private until you add the"
     muted "public DNS records and open :443 (+ :80, the http->https redirect) (docs/ingress.md)."
     hr
@@ -695,7 +778,7 @@ wiring CONFIG_DIR="":
     if [ -z "$PING_SRC" ]; then
         echo "  no running exec source (sonarr/radarr/prowlarr/bazarr all down) - start the stack, then re-run"
     else
-        for p in jellyfin:8096 seerr:5055 radarr:7878 sonarr:8989 prowlarr:9696 profilarr:6868 bazarr:6767 decypharr:8282; do
+        for p in jellyfin:8096 seerr:5055 radarr:7878 sonarr:8989 prowlarr:9696 bazarr:6767 decypharr:8282; do
             if $TO docker compose -f "$CS" exec -T "$PING_SRC" bash -c "exec 3<>/dev/tcp/$p" >/dev/null 2>&1; then
                 printf '  ok    %s\n' "$p"
             else
@@ -779,9 +862,8 @@ wiring CONFIG_DIR="":
     printf '  http://radarr:7878  %s\n' "$RADARR_KEY"
 
     echo
-    echo "== profilarr -> Settings -> connections (add Sonarr/Radarr) =="
-    printf '  http://sonarr:8989  %s\n' "$SONARR_KEY"
-    printf '  http://radarr:7878  %s\n' "$RADARR_KEY"
+    echo "== recyclarr: nothing to paste - the Direct Play quality profile is applied"
+    echo "   automatically from data/recyclarr/configs/*.yml (logs: docker logs recyclarr)"
 
     echo
     echo "== seerr -> Settings =="
@@ -1109,7 +1191,7 @@ dirs CONFIG_DIR="" PUID="auto" PGID="auto":
         PGID=$(id -g)
         [ "$PGID" -eq 0 ] && PGID=1000
     fi
-    mkdir -p "$CONFIG_DIR"/{jellyfin/config,seerr/config,radarr,sonarr,prowlarr,profilarr/config,bazarr/config,decypharr/configs,crowdsec/config,crowdsec/data}
+    mkdir -p "$CONFIG_DIR"/{jellyfin/config,seerr/config,radarr,sonarr,prowlarr,recyclarr,bazarr/config,decypharr/configs,crowdsec/config,crowdsec/data}
 
     # traefik: logs dir (crowdsec reads it) + acme.json as a FILE with 0600, or
     # docker creates a directory there and cert storage silently fails.

@@ -20,8 +20,8 @@ services:
     container_name: jellyfin
     <<: *common
     environment:
-      PUID: ${ENV_PUID}
-      PGID: ${ENV_PGID}
+      PUID: ${ENV_PUID:-1000}
+      PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/jellyfin/config:/config
@@ -73,8 +73,8 @@ services:
     container_name: radarr
     <<: *hardened
     environment:
-      PUID: ${ENV_PUID}
-      PGID: ${ENV_PGID}
+      PUID: ${ENV_PUID:-1000}
+      PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/radarr:/config
@@ -101,8 +101,8 @@ services:
     container_name: sonarr
     <<: *hardened
     environment:
-      PUID: ${ENV_PUID}
-      PGID: ${ENV_PGID}
+      PUID: ${ENV_PUID:-1000}
+      PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/sonarr:/config
@@ -129,8 +129,8 @@ services:
     container_name: prowlarr
     <<: *hardened
     environment:
-      PUID: ${ENV_PUID}
-      PGID: ${ENV_PGID}
+      PUID: ${ENV_PUID:-1000}
+      PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/prowlarr:/config
@@ -151,37 +151,43 @@ services:
       retries: 3
       start_period: 30s
 
-  profilarr:
-    image: ghcr.io/dictionarry-hub/profilarr:2.2.0
-    container_name: profilarr
+  recyclarr:
+    # Syncs the shipped TRaSH-tuned "Direct Play" quality profiles to
+    # radarr/sonarr (data/recyclarr/configs/*.yml, auto-applied on first boot).
+    # No web UI, so no traefik labels. Rootless image: user replaces PUID/PGID.
+    image: ghcr.io/recyclarr/recyclarr:8.7.2
+    container_name: recyclarr
     <<: *common
+    user: ${ENV_PUID:-1000}:${ENV_PGID:-1000}
+    depends_on:
+      radarr:
+        condition: service_healthy
+      sonarr:
+        condition: service_healthy
     environment:
-      PUID: ${ENV_PUID}
-      PGID: ${ENV_PGID}
-      ORIGIN: https://${SUB_DOMAIN_PROFILARR}.${DOMAIN}
+      CRON_SCHEDULE: "@daily"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/profilarr/config:/config
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.profilarr.entrypoints=https"
-      - "traefik.http.routers.profilarr.rule=Host(`${SUB_DOMAIN_PROFILARR}.${DOMAIN}`)"
-      - "traefik.http.routers.profilarr.tls=true"
-      - "traefik.http.services.profilarr.loadbalancer.server.port=6868"
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:6868/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/recyclarr:/config
+      # arrs' config dirs, read-only: bootstrap.sh reads their generated API
+      # keys at start and renders /config/secrets.yml (never committed)
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/radarr:/radarr:ro
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/sonarr:/sonarr:ro
+      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/recyclarr/bootstrap.sh:/bootstrap.sh:ro
+    # bootstrap: wait for the arrs' keys -> secrets.yml -> one immediate sync,
+    # then hand off to the stock entrypoint (supercronic on CRON_SCHEDULE)
+    entrypoint: ["/sbin/tini", "--", "/bootstrap.sh"]
+    read_only: true
+    tmpfs:
+      - /tmp
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:1.6.0
     container_name: bazarr
     <<: *hardened
     environment:
-      PUID: ${ENV_PUID}
-      PGID: ${ENV_PGID}
+      PUID: ${ENV_PUID:-1000}
+      PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/bazarr/config:/config
@@ -211,8 +217,8 @@ services:
       - no-new-privileges:true
       - apparmor:unconfined
     environment:
-      PUID: ${ENV_PUID}
-      PGID: ${ENV_PGID}
+      PUID: ${ENV_PUID:-1000}
+      PGID: ${ENV_PGID:-1000}
     volumes:
       - /mnt/debrid:/mnt:rshared
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/decypharr/configs:/app

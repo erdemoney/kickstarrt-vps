@@ -26,7 +26,7 @@ the rule they enforce:
 1. **Set up every app first over the tailnet** — the panels resolve by name there from first
    boot ([Tailnet DNS](tailnet)), and that's where the [app wiring](arrs) happens.
 2. **Minimum before exposing each app: its setup is finished** — an admin account exists and
-   auth is on: Jellyfin (admin on first login), Sonarr/Radarr/Prowlarr/Bazarr/Profilarr
+   auth is on: Jellyfin (admin on first login), Sonarr/Radarr/Prowlarr/Bazarr
    (Settings → General → Authentication), Seerr (admin on first login), Decypharr (wizard
    completed). An app that goes public before its login exists is claimable by anyone.
 3. **Only then open the door** — A records for `seerr` + `jellyfin`, then

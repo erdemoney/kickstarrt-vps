@@ -1,0 +1,130 @@
+# Sonarr + Recyclarr: the shipped "Direct Play" quality profile.
+#
+# Auto-loaded by recyclarr (files in configs/ load as if passed via --config).
+# Applied automatically on first boot and kept in sync daily - nothing to paste
+# in the Sonarr UI. Edit this file to tune, then force a sync:
+#   docker compose -f stacks/media-server/compose.yaml exec recyclarr recyclarr sync
+#
+# Based on the TRaSH Guides, tailored for this stack: a CPU-only VPS where
+# Jellyfin should never video-transcode. The ladder is Remux + WEB + Bluray
+# (H.264/HEVC direct-play everywhere); audio is left unpenalized because audio
+# transcodes are cheap. Anything that would force a video transcode or break
+# playback scores -10000 (below the profile's minimum score of 0 = never
+# grabbed): exotic codecs (AV1/VP9/VC-1/MPEG2), Dolby Vision without an HDR10
+# fallback, Blu-ray disk images, and low-quality/obfuscated release groups.
+sonarr:
+  tv:
+    base_url: http://sonarr:8989
+    api_key: !secret sonarr_api_key
+
+    # TRaSH Guide preferred file sizes (min/max/preferred MB-per-minute)
+    quality_definition:
+      type: series
+
+    quality_profiles:
+      - name: Direct Play
+        upgrade:
+          allowed: true
+          until_quality: Bluray-2160p Remux
+        min_format_score: 0 # anything scoring below 0 (the -10000 rejects) is never grabbed
+        min_upgrade_format_score: 1
+        reset_unmatched_scores:
+          enabled: true # this file owns the profile: unmanaged CF scores reset to 0
+        quality_sort: top
+        # best ... worst. Only the first six are allowed; the rest stay listed
+        # (disabled) so their sort order and cutoff behavior stay deterministic.
+        # Sonarr names its remux qualities "Bluray-<res> Remux" (unlike Radarr).
+        qualities:
+          - name: Bluray-2160p Remux
+          - name: WEB 2160p
+            qualities: [WEBRip-2160p, WEBDL-2160p]
+          - name: Bluray-2160p
+          - name: Bluray-1080p Remux
+          - name: WEB 1080p
+            qualities: [WEBRip-1080p, WEBDL-1080p]
+          - name: Bluray-1080p
+          - name: HDTV-2160p
+            enabled: false
+          - name: Bluray-720p
+            enabled: false
+          - name: WEB 720p
+            qualities: [WEBRip-720p, WEBDL-720p]
+            enabled: false
+          - name: Raw-HD
+            enabled: false
+          - name: HDTV-1080p
+            enabled: false
+          - name: HDTV-720p
+            enabled: false
+          - name: Bluray-576p
+            enabled: false
+          - name: Bluray-480p
+            enabled: false
+          - name: DVD
+            enabled: false
+          - name: WEB 480p
+            qualities: [WEBRip-480p, WEBDL-480p]
+            enabled: false
+          - name: SDTV
+            enabled: false
+          - name: Unknown
+            enabled: false
+
+    custom_formats:
+      # --- release-group quality tiers (TRaSH Guide scores) ---
+      - trash_ids: [9965a052eb87b0d10313b1cea89eb451] # Remux Tier 01
+        assign_scores_to: [{ name: Direct Play, score: 1900 }]
+      - trash_ids: [8a1d0c3d7497e741736761a1da866a2e] # Remux Tier 02
+        assign_scores_to: [{ name: Direct Play, score: 1850 }]
+      - trash_ids: [d6819cba26b1a6508138d25fb5e32293] # HD Bluray Tier 01
+        assign_scores_to: [{ name: Direct Play, score: 1800 }]
+      - trash_ids: [c2216b7b8aa545dc1ce8388c618f8d57] # HD Bluray Tier 02
+        assign_scores_to: [{ name: Direct Play, score: 1750 }]
+      - trash_ids: [e6258996055b9fbab7e9cb2f75819294] # WEB Tier 01
+        assign_scores_to: [{ name: Direct Play, score: 1700 }]
+      - trash_ids: [58790d4e2fdcd9733aa7ae68ba2bb503] # WEB Tier 02
+        assign_scores_to: [{ name: Direct Play, score: 1650 }]
+      - trash_ids: [d84935abd3f8556dcd51d4f27e22d0a6] # WEB Tier 03
+        assign_scores_to: [{ name: Direct Play, score: 1600 }]
+
+      # --- HDR: direct-plays on HDR clients (SDR-only household? zero these) ---
+      - trash_ids: [505d871304820ba7106b693be6fe4a9e] # HDR
+        assign_scores_to: [{ name: Direct Play, score: 500 }]
+      - trash_ids: [0c4b99df9206d2cfac3c05ab897dd62a] # HDR10+ Boost
+        assign_scores_to: [{ name: Direct Play, score: 100 }]
+
+      # --- prefer repacks over propers (TRaSH Guide scores) ---
+      - trash_ids: [ec8fa7296b64e8cd390a1600981f3923] # Repack/Proper
+        assign_scores_to: [{ name: Direct Play, score: 5 }]
+      - trash_ids: [eb3d5cc0a2be0db205fb823640db6a3c] # Repack2
+        assign_scores_to: [{ name: Direct Play, score: 6 }]
+      - trash_ids: [44e7c4de10ae50265753082e5dc76047] # Repack3
+        assign_scores_to: [{ name: Direct Play, score: 7 }]
+
+      # --- never grab: forces a video transcode or broken playback ---
+      - trash_ids: [85c61753df5da1fb2aab6f2a47426b09] # BR-DISK (disk image)
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [6f808933a71bd9666531610cb8c059cc] # BR-DISK (BTN variant)
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [9b27ab6498ec0f31a3353992e19434ca] # DV (no HDR10 fallback): pink/green or transcode on non-DV clients
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [15a05bc7c1a36e2b57fd628f8977e2fc] # AV1: clients without AV1 decode make Jellyfin transcode (0 if every client decodes it)
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [90501962793d580d011511155c97e4e5] # VP9
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [7470a681e6205243983c4410ee4c920f] # VC-1 (pre-H.264 Blu-ray codec)
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [4aee45b0868229c4fbd8bad3e315f1d0] # MPEG2 (broadcast caps)
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [47435ece6b99a0b477caf360e79ba0bb] # x265 (720/1080p): mini-encode territory; x264 direct-plays everywhere
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [9b64dff695c2115facf1b6ea59c9bd07] # x265 (no HDR/DV): SDR HEVC encodes
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+
+      # --- never grab: junk groups (TRaSH Guide scores) ---
+      - trash_ids: [9c11cd3f07101cdba90a2d81cf0e56b4] # LQ (Low Quality Releases)
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [e2315f990da2e2cbfc9fa5b7a6fcfe48] # LQ (Release Title)
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+      - trash_ids: [e1a997ddb54e3ecbfe06341ad323c458] # Obfuscated
+        assign_scores_to: [{ name: Direct Play, score: -10000 }]

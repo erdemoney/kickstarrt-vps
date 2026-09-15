@@ -29,7 +29,7 @@ a home box behind NAT with hardware transcoding, use the
               | jellyfin     seerr      |
               | radarr       sonarr     |
               | prowlarr     bazarr     |
-              | profilarr    decypharr  |
+              | recyclarr    decypharr  |
               +-------------------------+
 ```
 
@@ -78,9 +78,10 @@ command in this wiki is identical). The full Oracle walkthrough is the
 stacks/                  compose files (one folder per stack) + .env per stack
   traefik/               edge router on :443, CrowdSec container, CoreDNS, plugin + ACME
   media-server/          jellyfin, seerr, radarr, sonarr, prowlarr,
-                         profilarr, bazarr, decypharr
+                         recyclarr, bazarr, decypharr
 data/                    runtime config that lives in code
   traefik/               traefik.yml, dynamic.yml, crowdsec-acquis.yaml
+  recyclarr/             shipped Direct Play quality profiles + bootstrap (synced by recyclarr)
 .github/                 CI checks (workflow) + Renovate pipeline (workflow + global config)
 docs/                    this wiki (GitHub Pages)
 justfile                 ops recipes (just up, just update-all, ...)
@@ -96,7 +97,7 @@ Read the pages in order for a first deploy; after that they're reference.
 | [Hardening](hardening)       | optional extras: SSH key-only auth, fail2ban, non-root Docker         |
 | [Tailnet DNS](tailnet)       | admin panels by name over the tailnet: CoreDNS + split DNS mechanics |
 | [Decypharr](decypharr)       | debrid gateway: wizard, mounts, its side of the arr wiring            |
-| [The \*arrs](arrs)           | app wiring: internal DNS names, API keys, download clients, mounts   |
+| [The \*arrs](arrs)           | app wiring: internal DNS names, API keys, download clients, mounts; the Recyclarr-synced quality profiles |
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
 | [Security](security)         | CrowdSec WAF: components and behavior defaults                        |
 | [Ingress](ingress)           | direct `:443`: the security gate, DNS records, certificates, dashboard |
