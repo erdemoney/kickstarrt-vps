@@ -261,7 +261,7 @@ init FORCE="":
     hdr "Auto-generated values"
     muted "Derived or generated for you - nothing to type. Full values live in stacks/*/.env."
     echo
-    auto_row CONFIG_DIR "$CONFIG_DIR_VALUE" "(fixed - app configs, acme.json and traefik's config live here)"
+    auto_row CONFIG_DIR "$CONFIG_DIR_VALUE" ""
     if [ -n "$ts_note" ]; then
         auto_row TAILNET_IP "$ts_ip" "($ts_note)"
     else
@@ -404,27 +404,28 @@ init FORCE="":
     if [ "$FORCE" -eq 0 ] && [ -n "$(get_var "$BACKUP_ENV" RESTIC_REPOSITORY)" ] && [ -n "$(get_var "$BACKUP_ENV" RESTIC_PASSWORD)" ]; then
         ok "already configured ($(get_var "$BACKUP_ENV" RESTIC_REPOSITORY))"
     else
-        muted "Back up this repo (all .env files + data/) to an encrypted restic repository"
-        muted "in Cloudflare R2 (this stack lives on Cloudflare); restic runs in a container."
-        panel "Create API token" \
-            "Token name:" \
-            "  anything (e.g. kickstarrt-restic)" \
-            "Permissions:" \
-            "  Object -> Read & Write" \
-            "Specify bucket(s):" \
-            "  Apply to specific buckets only -> <BUCKET>" \
-            "TTL: optional" \
-            "Client IP Address Filtering:" \
-            "  skip - your ISP can change your public IP and break backups" \
-            "  (see docs/maintenance.md)"
-        muted "Different backend? Edit RESTIC_REPOSITORY + creds in .env.restic -"
-        muted "that's the only supported deviation. The values are prompted below."
-        show_url "https://dash.cloudflare.com/?to=/:account/r2/overview"
-        show_url "https://dash.cloudflare.com/?to=/:account/r2/api-tokens"
         ask "Configure R2 restic backups now? [y/N]"
         read -r yes_backup || yes_backup=""
         case "$yes_backup" in
         y|Y|yes|Yes|YES)
+            muted "Back up this repo (all .env files + data/) to an encrypted restic repository"
+            muted "in Cloudflare R2 (this stack lives on Cloudflare); restic runs in a container."
+            panel "Create API token" \
+                "Token name:" \
+                "  anything (e.g. kickstarrt-restic)" \
+                "Permissions:" \
+                "  Object -> Read & Write" \
+                "Specify bucket(s):" \
+                "  Apply to specific buckets only -> <BUCKET>" \
+                "TTL: optional" \
+                "Client IP Address Filtering:" \
+                "  skip - your ISP can change your public IP and break backups" \
+                "  (see docs/maintenance.md)"
+            muted "Different backend? Edit RESTIC_REPOSITORY + creds in .env.restic -"
+            muted "that's the only supported deviation. The values are prompted below."
+            show_url "https://dash.cloudflare.com/?to=/:account/r2/overview"
+            show_url "https://dash.cloudflare.com/?to=/:account/r2/api-tokens"
+            echo
             cur_act=$(get_var "$BACKUP_ENV" R2_ACCOUNT_ID) || true
             if [ -n "$cur_act" ]; then
                 printf '  %s [%s, %s] > ' "$(lbl "R2 Account ID")" "$(cur "$cur_act")" "$(dim "Enter to keep")"
