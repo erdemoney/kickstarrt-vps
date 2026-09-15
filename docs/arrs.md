@@ -56,7 +56,8 @@ Decypharr, add **two** clients pointing at it — Decypharr exposes both APIs
   - Password: that **arr's own API key** (Settings → General) — *not* the Decypharr token.
   - Category `sonarr` / `radarr`; priority `0`.
 - **SABnzbd** — name `Decypharr (usenet)`, only if you configured Usenet in Decypharr
-  - Host `decypharr`, port `8282`, **URL base `/sabnzbd`**
+  - Host `decypharr`, port `8282`, **URL base `/sabnzbd`** — the **URL Base** field is hidden
+    by default in Sonarr/Radarr; click the **gear icon** on the SABnzbd form to reveal it.
   - Same username/password as above.
   - Category `sonarr` / `radarr`; priority `0`.
 

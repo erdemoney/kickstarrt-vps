@@ -914,25 +914,51 @@ wiring:
         muted "(enable the repair worker + queue cleanup so failed grabs don't pile up)"
         echo
     }
-    root_folders() {   # step 4: media roots + jellyfin
-        hdr "root folders + jellyfin (set in the app UIs)"
-        panel "all under the Decypharr mount - same filesystem as the import" \
-            "Sonarr    /mnt/decypharr/shows" \
-            "Radarr    /mnt/decypharr/movies" \
-            "Jellyfin  libraries on those same folders" \
-            "Jellyfin  Playback -> Transcode path /transcodes"
-        muted "(imports are same-mount symlink renames - see docs/arrs.md)"
+    sonarr_root() {   # step 2: sonarr root folder
+        hdr "sonarr -> Settings -> Media Management -> Root Folders"
+        panel "point the library at the Decypharr mount (same filesystem as imports)" \
+            "/mnt/decypharr/shows"
+        muted "(same-mount root folder = imports move in as symlink renames - see docs/arrs.md)"
         echo
     }
-    prowlarr_apps() {   # step 5: prowlarr
+    radarr_root() {   # step 4: radarr root folder
+        hdr "radarr -> Settings -> Media Management -> Root Folders"
+        panel "point the library at the Decypharr mount (same filesystem as imports)" \
+            "/mnt/decypharr/movies"
+        muted "(same-mount root folder = imports move in as symlink renames - see docs/arrs.md)"
+        echo
+    }
+    jellyfin_libs() {   # step 6: jellyfin libraries
+        hdr "jellyfin -> Dashboard -> Libraries"
+        panel "add one library per arr, on the same folders" \
+            "Shows   /mnt/decypharr/shows" \
+            "Movies  /mnt/decypharr/movies"
+        muted "(Jellyfin reads straight off the mount - no extra paths needed)"
+        echo
+    }
+    jellyfin_transcode() {   # step 7: jellyfin transcode path
+        hdr "jellyfin -> Dashboard -> Playback"
+        panel "keep transcode scratch off disk" \
+            "Transcode path  /transcodes"
+        muted "(/transcodes is a tmpfs - software transcodes stay in RAM; see docs/jellyfin.md)"
+        echo
+    }
+    prowlarr_apps() {   # step 8: prowlarr
         hdr "prowlarr -> Settings -> Apps (indexer sync)"
-        panel "add Sonarr + Radarr so indexers get pushed to both" \
-            "Sonarr  url http://sonarr:8989  api key $SONARR_KEY" \
-            "Radarr  url http://radarr:7878  api key $RADARR_KEY"
+        panel "Sonarr" \
+            "Name: Sonarr" \
+            "Prowlarr Server: http://prowlarr:9696" \
+            "Sonarr Server: http://sonarr:8989" \
+            "API Key: $SONARR_KEY"
+        panel "Radarr" \
+            "Name: Radarr" \
+            "Prowlarr Server: http://prowlarr:9696" \
+            "Radarr Server: http://radarr:7878" \
+            "API Key: $RADARR_KEY"
         muted "(every indexer added here is pushed to both apps, tagged '(Prowlarr)')"
         echo
     }
-    seerr() {   # step 6: seerr
+    seerr() {   # step 9: seerr
         hdr "seerr -> Settings"
         panel "wire Jellyfin + the two arrs" \
             "Jellyfin  http://jellyfin:8096  + API key from Jellyfin Dashboard -> API Keys" \
@@ -941,7 +967,7 @@ wiring:
         muted "(when adding the arrs pick the Direct Play profile + the root folders above)"
         echo
     }
-    bazarr_subs() {   # step 7: bazarr
+    bazarr_subs() {   # step 10: bazarr
         hdr "bazarr -> Settings -> Sonarr / Radarr (subtitles)"
         panel "add both arrs so subtitles land next to the media" \
             "Sonarr  http://sonarr:8989  $SONARR_KEY" \
@@ -951,12 +977,18 @@ wiring:
     }
 
     sonarr_clients
+    pause "sonarr root folders"
+    sonarr_root
     pause "radarr download clients"
     radarr_clients
+    pause "radarr root folders"
+    radarr_root
     pause "decypharr arrs"
     decypharr_arrs
-    pause "root folders + jellyfin"
-    root_folders
+    pause "jellyfin libraries"
+    jellyfin_libs
+    pause "jellyfin transcode path"
+    jellyfin_transcode
     pause "prowlarr apps"
     prowlarr_apps
     pause "seerr"
