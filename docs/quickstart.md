@@ -96,9 +96,27 @@ are in [Hardening](hardening).
 
 ## 5. Fork, clone, and fill the secrets
 
-This repo is meant to be **forked**. Fork it, make the fork **private** (Settings → change
-visibility — a secret committed to a public fork leaks it to the world), then clone it on the
-box:
+First give git an identity and an authentication path on the box. The GitHub CLI (`gh`) is the
+easiest way — it generates the SSH key and uploads it to GitHub for you, no keypairs to manage:
+
+```bash
+sudo apt install gh        # not in your distro's repos? follow https://cli.github.com
+git config --global user.name  "<you>"
+git config --global user.email "you@example.com"
+gh auth login              # GitHub.com > SSH > "Generate a new key", upload it
+```
+
+This repo is meant to be **forked**, and `gh` can fork + clone in one command:
+
+```bash
+cd ~/docker
+gh repo fork erdemoney/kickstarrt-vps --clone --remote
+gh repo edit --visibility private     # public forks leak any secret you commit
+# --- or fork it in the browser ---
+```
+
+If you fork in the browser instead, make the fork **private** (Settings → change visibility — a
+secret committed to a public fork leaks it to the world), then clone it on the box:
 
 ```bash
 git clone git@github.com:<you>/kickstarrt-vps.git ~/docker/kickstarrt-vps
