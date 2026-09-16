@@ -27,26 +27,30 @@ crosses its network), Tailscale + ufw/fail2ban hardening, no GPU. Hosting at hom
 ## Architecture
 
 ```
-              Internet
+              Internet                          Tailscale
+                 │                                │
+                 ▼                                ▼
+  Cloudflare DNS (grey-cloud A records        tailnet IP :443
+  + DNS-01 certs; no video traffic)           (100.x.y.z = TAILNET_IP)
+                 │                                │
+                 ▼                                ▼
+  VPS public IP :443                           Traefik https-tailnet
+  (ufw: 443 opened last;                        (panels + dashboard:
+   :80 = https-redirect only,                   radarr sonarr prowlarr bazarr
+   :22 = tailnet only)                          decypharr; tailnet-only, always on)
+                 │                                │
+                 ▼                                │
+  Traefik https  ────► CrowdSec (WAF/blocking) ──┘
+  (PUBLIC_BIND:443)
                  │
                  ▼
- Cloudflare DNS (grey-cloud A records + DNS-01 certs; no video traffic)
-                 │
-                 ▼
-  VPS public IP :443 (ufw: 443 opened last; 80 = https-redirect only; 22 tailnet-only)
-                 │
-                 ▼
-  Traefik ────────► CrowdSec   edge WAF / IP blocking
-                 │
-                 └──────────────┐
-                                ▼
-                 Docker "internal" network
-                 ┌─────────────────────────┐
-                 │ jellyfin     seerr      │
-                 │ radarr       sonarr     │
-                 │ prowlarr     bazarr     │
-                 │ recyclarr    decypharr  │
-                 └─────────────────────────┘
+  Docker "internal" network
+  ┌─────────────────────────────┐
+  │ jellyfin     seerr          │   jellyfin + seerr also served on the tailnet
+  │ radarr       sonarr         │
+  │ prowlarr     bazarr         │   everything else (panels, dashboard):
+  │ recyclarr    decypharr      │   https-tailnet only
+  └─────────────────────────────┘
 ```
 
 **The media loop:** Prowlarr finds releases → Sonarr/Radarr grab them → Decypharr resolves the

@@ -12,25 +12,30 @@ a home box behind NAT with hardware transcoding, use the
 [self-hosted edition](https://github.com/erdemoney/kickstarrt) instead.
 
 ```text
-                      Internet
-                          |
-                          v
-          Cloudflare DNS (grey-cloud A records + DNS-01 certs; no video traffic)
-                          |
-                          v
-             VPS public IP :443  (ufw: 443 opened last; 80 = https-redirect only; 22 = tailnet only)
-                          |
-                          v
-      Traefik :443 ----> CrowdSec (WAF / IP blocking)      Tailscale (join after first SSH -> daily ops)
+                      Internet                           Tailscale
+                          |                                 |
+                          v                                 v
+          Cloudflare DNS (grey-cloud A records          tailnet IP :443
+          + DNS-01 certs; no video traffic)             (100.x.y.z = TAILNET_IP)
+                          |                                 |
+                          v                                 v
+             VPS public IP :443                          Traefik https-tailnet
+             (ufw: 443 opened last;                      (panels + dashboard:
+              :80 = https-redirect only,                  radarr sonarr prowlarr bazarr
+              :22 = tailnet only)                         decypharr; tailnet-only, always on)
+                          |                                 |
+                          v                                 |
+      Traefik https  ----> CrowdSec (WAF/blocking) -----------+
+      (PUBLIC_BIND:443)
                           |
                           v
               Docker "internal" network
-              +-------------------------+
-              | jellyfin     seerr      |
-              | radarr       sonarr     |
-              | prowlarr     bazarr     |
-              | recyclarr    decypharr  |
-              +-------------------------+
+              +------------------------------+
+              | jellyfin     seerr           |   jellyfin + seerr also served on the tailnet
+              | radarr       sonarr          |
+              | prowlarr     bazarr          |   everything else (panels, dashboard):
+              | recyclarr    decypharr       |   https-tailnet only
+              +------------------------------+
 ```
 
 Media flow: Prowlarr finds releases (incl. the Torrentio debrid indexer) → Sonarr/Radarr grab
