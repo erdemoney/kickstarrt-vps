@@ -99,7 +99,7 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 > [Quickstart](https://erdemoney.github.io/kickstarrt-vps/quickstart).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash   # git, just, docker, ufw (+ ufw-docker forward gate) + tailscale join (idempotent); prints your tailnet SSH address
+curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash   # git, just, docker, ufw + tailscale join (idempotent); installs ufw but does NOT enable it - you lock down with `just firewall`; prints your tailnet SSH address
 git clone git@github.com:<you>/kickstarrt-vps.git && cd kickstarrt-vps
 just init             # prompts for every secret; Enter accepts the default (re-runs skip what's set; 'just init force' re-prompts)
 just dns              # paste the printed nameserver into Tailscale (one-time; see Quickstart §6)

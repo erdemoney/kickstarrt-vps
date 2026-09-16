@@ -562,6 +562,17 @@ firewall:
         echo "Join the tailnet first: sudo tailscale up" >&2
         exit 1
     fi
+    echo "About to lock the box down:"
+    echo "  - ufw default-deny incoming (tailnet 22/53/443 allowed, no public ports)"
+    echo "  - ufw --force enable"
+    echo "  - re-apply the ufw-docker DOCKER-USER forward gate (and ufw-docker.service)"
+    echo "This only re-applies the tailnet lockdown - public 443/80 rules you added are untouched."
+    echo "If this SSH session is still over the public IP, ufw will DROP it - reconnect over the tailnet."
+    read -r -p "Continue? [y/N] " firewall_confirm
+    if [ "$firewall_confirm" != "y" ] && [ "$firewall_confirm" != "Y" ]; then
+        echo "aborted."
+        exit 1
+    fi
     sudo ufw default deny incoming
     sudo ufw default allow outgoing
     sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp

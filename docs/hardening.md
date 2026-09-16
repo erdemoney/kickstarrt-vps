@@ -7,16 +7,16 @@ nav_order: 3
 
 The mandatory hardening — the Tailscale join, the ufw deny-incoming ruleset, closing the
 public SSH door — is part of the walkthrough and lives in
-[Quickstart §4](quickstart#4-lock-the-box-down-ufw). This page is the optional depth on top
+[Quickstart §5](quickstart#5-lock-the-box-down-ufw). This page is the optional depth on top
 of that baseline.
 
-The baseline you already have by the end of quickstart §4:
+The baseline you already have by the end of quickstart §5:
 
 - **Public surface = Traefik on `443`, plus `80` as a pure `http → https` redirect** — both
   opened deliberately as the [last setup step](quickstart#10-go-public-last) — **plus the
   tailnet**. sshd is reachable only from `100.64.0.0/10`.
 - **The firewall actually reaches the containers** — the [ufw-docker](https://github.com/chaifeng/ufw-docker)
-  gate (installed by the [bootstrap script](quickstart#2-get-in-join-the-tailnet)) routes
+  gate (installed by [`just firewall`](quickstart#5-lock-the-box-down-ufw)) routes
   Docker's forwarded traffic through UFW, so "deny incoming" really is
   deny-everything-except-what-a `ufw allow` opens
   ([the forward gate](#docker-and-ufw-the-forward-gate) below).
@@ -50,20 +50,21 @@ and DOCKER chains". Nothing else needs touching: Docker's own chains keep workin
 -A DOCKER-USER -j RETURN                                 # everything else returns to DOCKER-FORWARD
 ```
 
-UFW mirrors every `ufw allow` rule into `ufw-user-forward`, so the §4 tailnet rules
+UFW mirrors every `ufw allow` rule into `ufw-user-forward`, so the §5 tailnet rules
 (`allow from 100.64.0.0/10 to any port 53/443/22`) and the §10 public rules (`allow 80`,
 `allow 443`) are exactly what opens the forward path — same commands, same reversibility.
 Before §10, an internet peer's NEW connection to a container drops; traffic from
 RFC1918/LAN sources (or established sessions) passes. That RFC1918 trust is ufw-docker's
 default stance — a LAN device is trusted by default — and it's the one deliberate trade-off
 this setup inherits from upstream. (The tailnet's `100.64.0.0/10` is *not* RFC1918, so
-tailnet peers still need the explicit `allow from 100.64.0.0/10` rule — which §4 applies.)
+tailnet peers still need the explicit `allow from 100.64.0.0/10` rule — which §5 applies.)
 
-**Installed and kept applied by the bootstrap:** `scripts/prerequisites.sh` runs
-`ufw-docker install --system` — which writes the block above, installs the man page, and
-installs `ufw-docker.service` (`WantedBy=multi-user.target`, tied to `docker.service`) so
-the rules re-apply after every Docker start and reboot, then restarts UFW to load them.
-Verify any time:
+**Installed and kept applied by [`just firewall`](quickstart#5-lock-the-box-down-ufw):** the
+recipe runs `ufw-docker install --system` — which writes the block above, installs the man
+page, and installs `ufw-docker.service` (`WantedBy=multi-user.target`, tied to
+`docker.service`) so the rules re-apply after every Docker start and reboot, then restarts
+UFW to load them. The bootstrap script ([Quickstart §2](quickstart#2-get-in-join-the-tailnet))
+only *installs* ufw — the boxes stay open until you run `just firewall`. Verify any time:
 
 ```bash
 sudo ufw-docker check        # diffs after.rules/after6.rules against the intended block

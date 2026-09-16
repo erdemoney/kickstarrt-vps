@@ -31,7 +31,7 @@ nav_order: 13
 | `just dns` / `dnscheck`         | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
 | `just firewall`                 | re-apply the ufw lockdown + forward gate (idempotent; refuses unless the box is on the tailnet) |
-| `sudo ufw-docker check`         | verify the Docker forward gate (installed by the bootstrap; see [Hardening](hardening)) |
+| `sudo ufw-docker check`         | verify the Docker forward gate (installed by `just firewall`; see [Hardening](hardening)) |
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)       |
 | `just backup` / `backup-list` / `backup-check` / `backup-prune` / `backup-restore` | restic snapshots, integrity, retention, restore — see below |
 

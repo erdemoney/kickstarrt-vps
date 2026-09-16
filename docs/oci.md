@@ -9,7 +9,7 @@ The provider-specific walkthrough from zero to a running Ubuntu 26.04 box on Ora
 **Always Free**. Once the box exists, everything else is the standard
 [Quickstart](quickstart). The overview's [access model](index#the-access-model) applies here
 like everywhere: the box's only wide-open door is `:443`, opened last; a short public-SSH
-window during setup is closed by [Quickstart §4](quickstart#4-lock-the-box-down-ufw).
+window during setup is closed by [Quickstart §5](quickstart#5-lock-the-box-down-ufw).
 
 ## 0. About the free tier
 
@@ -58,7 +58,7 @@ for **TCP, destination port `443`, source `0.0.0.0/0`** ("Allow public HTTPS to 
 one for **TCP, destination port `80`, source `0.0.0.0/0`** ("Allow public HTTP — serves only
 the `http → https` redirect"). Leave the rest alone: the wizard's default `22` ingress rule
 stays **for now** — that's the door you `ssh` in through during setup, and it's deleted in
-[Quickstart §4](quickstart#4-lock-the-box-down-ufw). The OS firewall (ufw) is the real
+[Quickstart §5](quickstart#5-lock-the-box-down-ufw). The OS firewall (ufw) is the real
 per-port enforcement point either way: nothing answers from the internet until the
 [going-public](quickstart#10-go-public-last) step.
 
@@ -96,7 +96,7 @@ ssh ubuntu@<PUBLIC-IP>     # key you pasted at creation; proceed even if a "host
 Then continue with the [Quickstart](quickstart#2-get-in-join-the-tailnet): the bootstrap
 one-liner installs the stack's prerequisites and joins the box to your tailnet — approve the
 auth URL it prints, and it hands you the tailnet address that becomes your SSH address from
-then on. Once tailnet SSH is confirmed, [Quickstart §4](quickstart#4-lock-the-box-down-ufw)
+then on. Once tailnet SSH is confirmed, [Quickstart §5](quickstart#5-lock-the-box-down-ufw)
 closes the `22` door (delete the VCN ingress rule, lock ufw to tailnet-only) and every later
 login goes over the tailnet.
 

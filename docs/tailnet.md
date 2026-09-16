@@ -42,8 +42,8 @@ The server side is handled by the standard flow: `just init` fills `TAILNET_IP`,
 renders the Corefile from the tracked template and starts CoreDNS bound to `TAILNET_IP:53`
 only (it deliberately doesn't bind `0.0.0.0:53` — systemd-resolved already holds the
 loopback). Reachability is enforced in two places: the ufw rules from
-[Quickstart §4](quickstart#4-lock-the-box-down-ufw) allow `53` and `443` from the tailnet,
-and the ufw-docker gate from the [bootstrap script](quickstart#2-get-in-join-the-tailnet)
+[Quickstart §5](quickstart#5-lock-the-box-down-ufw) allow `53` and `443` from the tailnet,
+and the ufw-docker gate installed by [`just firewall`](quickstart#5-lock-the-box-down-ufw)
 is what makes those rules apply to this container at all — published ports ride Docker's
 `FORWARD` chain, which UFW's `INPUT` rules never inspect
 (mechanics in [Hardening](hardening#docker-and-ufw-the-forward-gate)).
