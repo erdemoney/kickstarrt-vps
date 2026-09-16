@@ -103,6 +103,8 @@ sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
 sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
 sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
 sudo ufw enable
+sudo curl -fsSL https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker -o /usr/bin/ufw-docker   # §2 did this too
+sudo chmod 0755 /usr/bin/ufw-docker
 sudo ufw-docker install --system           # the Docker forward gate (§2 does this too)
 ```
 

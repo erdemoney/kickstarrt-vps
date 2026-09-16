@@ -569,11 +569,15 @@ firewall:
     sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
     sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
     sudo ufw --force enable
-    if [ ! -x /usr/local/bin/ufw-docker ]; then
+    if [ ! -x /usr/bin/ufw-docker ]; then
         sudo curl -fsSL https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker \
-            -o /usr/local/bin/ufw-docker
-        sudo chmod 0755 /usr/local/bin/ufw-docker
+            -o /usr/bin/ufw-docker
+        sudo chmod 0755 /usr/bin/ufw-docker
     fi
+    # ufw-docker's `install` copies itself to /usr/local/bin - a stale copy there
+    # would shadow /usr/bin via PATH and fail with `cp: same file`. Drop it; the
+    # install step recreates it.
+    sudo rm -f /usr/local/bin/ufw-docker
     sudo ufw-docker install --system
     sudo systemctl restart ufw
     echo

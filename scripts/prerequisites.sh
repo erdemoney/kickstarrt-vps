@@ -53,6 +53,9 @@ PM_DEPS=()
 detect_pm() {
     if has apt-get; then
         PM=apt;    PM_DEPS=(apt-get install -y)
+        # ufw can ask debconf questions and this script is usually piped in with
+        # no controlling tty; silence the noninteractive fallback song-and-dance.
+        export DEBIAN_FRONTEND=noninteractive
     elif has dnf; then
         PM=dnf;    PM_DEPS=(dnf install -y)
     elif has yum; then
@@ -187,6 +190,12 @@ install_ufw() {
         warn "cannot install ufw (no supported package manager)"
         return
     fi
+    # Distros that ship ufw out of the box skip above. Oracle's Ubuntu images
+    # don't include it (they preconfigure the host firewall with
+    # iptables-persistent instead, which apt swaps out for ufw.service here) -
+    # that replacement is exactly what this repo's model wants: ufw owns the
+    # deny-incoming ruleset and persists it at boot. The VCN security list
+    # remains the outer gate regardless.
     "${PM_DEPS[@]}" ufw
     if has ufw; then
         ok "installed"
@@ -238,13 +247,19 @@ install_ufw_docker() {
         warn "docker missing - skipping the Docker forward gate for now"
         return
     fi
-    if [ ! -x /usr/local/bin/ufw-docker ]; then
+    # ufw-docker is a self-installing single binary: `install` copies itself to
+    # /usr/local/bin, so the copy we run must live somewhere else or it trips
+    # `cp: same file`. /usr/bin is the path upstream's own README uses.
+    if [ ! -x /usr/bin/ufw-docker ]; then
         curl -fsSL https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker \
-            -o /usr/local/bin/ufw-docker
-        chmod 0755 /usr/local/bin/ufw-docker
+            -o /usr/bin/ufw-docker
+        chmod 0755 /usr/bin/ufw-docker
     else
         skip "binary already in place"
     fi
+    # A leftover at /usr/local/bin from an interrupted run shadows /usr/bin via
+    # PATH and fails exactly the same way; drop it and let install recreate it.
+    rm -f /usr/local/bin/ufw-docker
     # install --system writes the DOCKER-USER gate into /etc/ufw/after.rules
     # (+ after6.rules), installs the man page, and enables the ufw-docker.service
     # that re-applies the rules after every Docker start/reboot.
