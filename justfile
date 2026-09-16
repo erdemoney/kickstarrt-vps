@@ -1090,24 +1090,24 @@ wiring:
     }
     sonarr_root() {   # step 2: sonarr root folder
         hdr "sonarr -> Settings -> Media Management -> Root Folders"
-        panel "point the library at the Decypharr mount (same filesystem as imports)" \
-            "/mnt/decypharr/shows"
-        muted "(path must exist - create it first: mkdir -p /mnt/debrid/decypharr/shows  # after the DFS mount is up)"
+        panel "point the library at a plain dir on the shared bind (the DFS mount root is read-only)" \
+            "/mnt/shows"
+        muted "(created by 'just prepare' - owned to ENV_PUID/ENV_PGID)"
         echo
     }
     radarr_root() {   # step 4: radarr root folder
         hdr "radarr -> Settings -> Media Management -> Root Folders"
-        panel "point the library at the Decypharr mount (same filesystem as imports)" \
-            "/mnt/decypharr/movies"
-        muted "(path must exist - create it first: mkdir -p /mnt/debrid/decypharr/movies  # after the DFS mount is up)"
+        panel "point the library at a plain dir on the shared bind (the DFS mount root is read-only)" \
+            "/mnt/movies"
+        muted "(created by 'just prepare' - owned to ENV_PUID/ENV_PGID)"
         echo
     }
     jellyfin_libs() {   # step 6: jellyfin libraries
         hdr "jellyfin -> Dashboard -> Libraries"
-        panel "add one library per arr, on the same folders" \
-            "Shows   /mnt/decypharr/shows" \
-            "Movies  /mnt/decypharr/movies"
-        muted "(Jellyfin reads straight off the mount - no extra paths needed)"
+        panel "add one library per arr, on the same plain dirs" \
+            "Shows   /mnt/shows" \
+            "Movies  /mnt/movies"
+        muted "(created by 'just prepare' - same paths the *arrs use)"
         echo
     }
     jellyfin_transcode() {   # step 7: jellyfin transcode path
@@ -1412,8 +1412,9 @@ backup-unschedule:
 # traefik.yml. CONFIG_DIR comes from stacks/media-server/.env (the repo's data/ dir).
 # PUID/PGID: media-server .env ENV_PUID/ENV_PGID, else this user's ids, else
 # 1000 - so ownership always matches what the containers run as.
-# Also prepares the Decypharr host bind tree (/mnt/debrid) + its DFS mountpoint,
-# owned to PUID/PGID (sudo) - see docs/decypharr.md.
+# Also prepares the Decypharr host bind tree (/mnt/debrid): its DFS mountpoint and the
+# *arr library dirs (shows/movies), owned to PUID/PGID (sudo when actually needed) -
+# see docs/decypharr.md.
 prepare:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -1434,17 +1435,17 @@ prepare:
     # Host bind tree (/mnt/debrid - the compose binds it into every media container
     # as /mnt). Decypharr mounts DFS at /mnt/debrid/decypharr as the stack user, and a
     # root-owned mountpoint is exactly the "fusermount3: user has no write access to
-    # mountpoint" failure. Nothing under it is owned on the host - the *arrs and
-    # Jellyfin read through the FUSE mount - so fix ownership non-recursively: on a
-    # live stack a recursive chown would walk straight into the mount, and re-owning
-    # the live decypharr mountpoint itself would hit the FUSE fs.
+    # mountpoint" failure. The DFS mount root is a read-only virtual filesystem, so the
+    # library lives in plain sibling dirs (shows/movies) - create/own those too. Fix all
+    # of it non-recursively: on a live stack a recursive chown would walk straight into
+    # the mount, and re-owning the live decypharr mountpoint itself would hit the FUSE fs.
     #
     # Only the pieces that are actually missing/mis-owned get touched, so a normal
     # `just up` needs no sudo at all: the first run prompts once, a repair prompts
     # only when something is genuinely wrong.
     HOST_LIB=/mnt/debrid
     FIX=()
-    for d in "$HOST_LIB" "$HOST_LIB/decypharr"; do
+    for d in "$HOST_LIB" "$HOST_LIB/decypharr" "$HOST_LIB/shows" "$HOST_LIB/movies"; do
         findmnt -rno TARGET "$d" >/dev/null 2>&1 && continue   # a live mount - never re-own
         [ -e "$d" ] || { FIX+=("$d"); continue; }
         [ "$(stat -c %u:%g "$d" 2>/dev/null)" = "$PUID:$PGID" ] || FIX+=("$d")

@@ -24,10 +24,9 @@ Wizard order:
 2. **Debrid account** — add at least one provider (Real-Debrid, AllDebrid, Debrid-Link,
    Torbox, Premiumize) with its API key; Torbox also provides Usenet ([Services](services)).
 3. **Usenet (optional)** — NNTP server details, only if downloading from Usenet.
-4. **Download Folder Path** — `/mnt/decypharr/downloads` — where Decypharr places the symlinks
-   the \*arrs import. Keep it **on the same mount as the root folders** or imports degrade to
-   slow disk copies that dereference the symlink
-   ([The \*arrs](arrs#imports-are-symlinks-not-hardlinks)). Don't point it at an off-mount dir.
+4. **Download Folder Path** — `/mnt/decypharr/downloads` — where Decypharr stages the symlinks
+   the \*arrs import. Imports copy those symlinks (never the backing data) into the \*arr root
+   folders ([The \*arrs](arrs#imports-are-symlinks-not-hardlinks)).
 5. **Mount System** — pick **DFS**, mount path `/mnt/decypharr` (what the \*arrs import from),
    and a cache dir. Keep the **Cache Directory** default `/tmp/decypharr-cache`: it's a
    disposable chunk cache (re-warms on demand; wiping it on redeploys costs nothing) and
@@ -36,10 +35,13 @@ Wizard order:
    chunk cache is sized in GB — RAM is for Jellyfin's transcode). Cap the **Disk Cache Size**
    at a few GB so the rolling cache can't fill the system disk.
 
-Outside the wizard: **root folders** are lowercase subpaths of the same mount, and they must
-match *exactly*: `/mnt/decypharr/shows` for Sonarr, `/mnt/decypharr/movies` for Radarr, and
-Jellyfin's libraries point at those same folders
-([Jellyfin](jellyfin#1-libraries-on-the-decypharr-mount)).
+Outside the wizard: the mount root is a **read-only virtual filesystem** — Decypharr's own
+entries only (`downloads/`, `torrents/`, `nzbs/`, provider folders, virtual folders) — so
+`mkdir` under `/mnt/decypharr/*` fails with `Operation not supported`, even as root. The \*arr
+**root folders** are plain siblings of the mount on the shared bind, not subpaths of it:
+Sonarr → `/mnt/shows`, Radarr → `/mnt/movies` (`just prepare` creates and owns both to
+`ENV_PUID`/`ENV_PGID`). Jellyfin's libraries point at the same folders
+([Jellyfin](jellyfin#1-libraries)).
 
 Config is written to `$CONFIG_DIR/decypharr/configs/config.json`.
 
@@ -83,8 +85,9 @@ mount appears inside them when it's created; restarting Decypharr re-propagates 
 leaving the others with a stale `Transport endpoint is not connected` handle.
 
 Host prep is handled by **`just prepare`** (before the stack's first `just up`): it creates the
-host bind tree `/mnt/debrid` and the DFS mountpoint `/mnt/debrid/decypharr`, owning both to
-`ENV_PUID`/`ENV_PGID` from `stacks/media-server/.env`. Sudo only fires when a target is actually
+host bind tree `/mnt/debrid`, its DFS mountpoint (`/mnt/debrid/decypharr`), and the \*arr library
+dirs (`/mnt/debrid/shows`, `/mnt/debrid/movies`), owning all of them to `ENV_PUID`/`ENV_PGID`
+from `stacks/media-server/.env`. Sudo only fires when a target is actually
 missing or mis-owned — normal `just up` runs are prompt-free, and a re-run when the mount is live
 leaves it alone. Never run a manual `chown -R` over
 `/mnt/debrid` — on a live stack that recurses straight into the FUSE mount. Two things make DFS

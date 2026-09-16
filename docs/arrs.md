@@ -64,31 +64,28 @@ Decypharr, add **two** clients pointing at it — Decypharr exposes both APIs
 Give them different priorities to prefer one protocol over the other — the arr sends a
 release to the highest-priority client that can handle it. Test each client.
 
-## Root folders and the mount
+## Root folders
 
-Sonarr/Radarr root folders must point at paths inside their own containers. In this stack the
-library lives on Decypharr's FUSE mount (`/mnt/decypharr`), already reachable from every
-service that touches media files — `sonarr`, `radarr`, `bazarr` (subtitles land next to the
-video) and `jellyfin` (playback) — via the shared bind `- /mnt/debrid:/mnt:rslave`. Nothing
-to add by hand: point Sonarr's root folder at `/mnt/decypharr/shows` and Radarr's at
-`/mnt/decypharr/movies`. **The subfolders must already exist** — Sonarr/Radarr refuse a root
-folder whose path they can't see, and the remote won't have them until created. **The order
-matters** — Decypharr must actually be mounted before anything else:
+Sonarr/Radarr root folders must point at paths inside their own containers. The Decypharr DFS
+mount (`/mnt/decypharr`) is a **read-only virtual filesystem** — its root only ever holds
+Decypharr's own entries (`downloads/`, `torrents/`, `nzbs/`, provider folders, virtual
+folders), and creating directories under it fails with `Operation not supported`, even as root.
+The library therefore lives in **plain directories on the shared bind tree**, siblings of the
+mount:
 
-1. Confirm the mount is live:
-   `docker exec decypharr sh -c 'grep -w decypharr /proc/mounts'` (must return an entry; if not,
-   check `docker compose -f stacks/media-server/compose.yaml logs decypharr` for a `[dfs]` error).
-2. Then create the root folders **through the mount** (they become virtual dirs; no sudo, and
-   don't `sudo mkdir` the *arrs' path — a plain host dir would just shadow what the mount
-   presents):
-   `mkdir -p /mnt/debrid/decypharr/shows /mnt/debrid/decypharr/movies`
-   (or tick *Create folder* in Sonarr/Radarr's add dialog — same effect).
-3. Add Root Folder in Sonarr (`/mnt/decypharr/shows`) and Radarr (`/mnt/decypharr/movies`).
+- Sonarr → `/mnt/shows`
+- Radarr → `/mnt/movies`
 
-If the mount is up but a freshly created folder isn't visible on the mount, use Decypharr →
-Mounts → *Refresh Directories* on the DFS entry: that flushes the VFS directory cache so the
-arrs/jellyfin see entries created elsewhere. It does **not** create folders itself.
-Then in
+`just prepare` creates and owns both (to `ENV_PUID`/`ENV_PGID`), so there's nothing to run
+first — no mount-ordering, because they're ordinary dirs the *arrs can write whatever the DFS
+mount state. (By hand it's just `mkdir -p /mnt/debrid/shows /mnt/debrid/movies` on the host —
+no sudo once the tree is owned by the PUID.) Then **Add Root Folder** in Sonarr/Radarr.
+
+Every service that touches media — `sonarr`, `radarr`, `bazarr` (subtitles land next to the
+video) and `jellyfin` (playback) — reaches both halves through the shared bind
+`- /mnt/debrid:/mnt:rslave`: the library dirs at `/mnt/shows` `/mnt/movies`, and the DFS mount
+at `/mnt/decypharr`, so the symlinks Decypharr stages into its download folder resolve at the
+same place everywhere. Then in
 Jellyfin add the libraries the same way ([Jellyfin setup](jellyfin) covers libraries plus the
 transcode policy). Also set Jellyfin → Playback → **Transcode path**
 to `/transcodes` (a tmpfs — transcode scratch never hits disk; this edition transcodes in

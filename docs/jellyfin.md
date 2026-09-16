@@ -6,20 +6,21 @@ nav_order: 7
 # Jellyfin: playback setup
 
 The admin account is created on Jellyfin's **first login** (the setup wizard). From there
-the two things that need configuring are the libraries — they point at the Decypharr mount —
-and the transcode policy, tuned for a CPU-only VPS.
+the two things that need configuring are the libraries — they point at the library dirs on the
+shared bind (`/mnt/shows`, `/mnt/movies`) — and the transcode policy, tuned for a CPU-only VPS.
 
-## 1. Libraries on the Decypharr mount
+## 1. Libraries
 
-No path mapping needed: the compose already binds Decypharr's FUSE mount into Jellyfin at
-`/mnt/decypharr` (`- /mnt/debrid:/mnt:rslave`), the identical absolute path the \*arrs import
-from, so the symlinks Decypharr hands over resolve at the same place everywhere
-([Decypharr](decypharr#visibility-of-the-mount)).
+No path mapping needed: the compose already binds the whole shared tree into Jellyfin at `/mnt`
+(`- /mnt/debrid:/mnt:rslave`), so the library dirs (`/mnt/shows`, `/mnt/movies`), Decypharr's
+DFS mount (`/mnt/decypharr`), and the symlinks Decypharr hands over all resolve at the same
+places as in the \*arrs ([Decypharr](decypharr#visibility-of-the-mount)).
 
 Dashboard → **Libraries** → **Add Media Library**:
 
 - **Content type** — Movies / Shows (or whatever your folder holds).
-- **Folders** → **+** → add a subpath of `/mnt/decypharr`, e.g. `/mnt/decypharr/movies`.
+- **Folders** → **+** → add the library folder on the shared bind, e.g. `/mnt/shows` or
+  `/mnt/movies`.
 - Save, then **Scan All Libraries**.
 
 If a library shows empty here but populated on the host, it's the classic mount-propagation
