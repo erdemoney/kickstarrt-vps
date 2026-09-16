@@ -72,11 +72,22 @@ service that touches media files — `sonarr`, `radarr`, `bazarr` (subtitles lan
 video) and `jellyfin` (playback) — via the shared bind `- /mnt/debrid:/mnt:rslave`. Nothing
 to add by hand: point Sonarr's root folder at `/mnt/decypharr/shows` and Radarr's at
 `/mnt/decypharr/movies`. **The subfolders must already exist** — Sonarr/Radarr refuse a root
-folder whose path they can't see, and the remote won't have them until created. Create them
-once on the box (or tick *Create folder* in the add dialog):
-`mkdir -p /mnt/debrid/decypharr/shows /mnt/debrid/decypharr/movies`
-(host view of the mount; if that path is empty or missing, Decypharr hasn't mounted the
-remote yet — check `docker compose -f stacks/media-server/compose.yaml logs decypharr`).
+folder whose path they can't see, and the remote won't have them until created. **The order
+matters** — Decypharr must actually be mounted before anything else:
+
+1. Confirm the mount is live:
+   `docker exec decypharr sh -c 'grep -w decypharr /proc/mounts'` (must return an entry; if not,
+   check `docker compose -f stacks/media-server/compose.yaml logs decypharr` for a `[dfs]` error).
+2. Then create the root folders **through the mount** (they become virtual dirs; no sudo, and
+   don't `sudo mkdir` the *arrs' path — a plain host dir would just shadow what the mount
+   presents):
+   `mkdir -p /mnt/debrid/decypharr/shows /mnt/debrid/decypharr/movies`
+   (or tick *Create folder* in Sonarr/Radarr's add dialog — same effect).
+3. Add Root Folder in Sonarr (`/mnt/decypharr/shows`) and Radarr (`/mnt/decypharr/movies`).
+
+If the mount is up but a freshly created folder isn't visible on the mount, use Decypharr →
+Mounts → *Refresh Directories* on the DFS entry: that flushes the VFS directory cache so the
+arrs/jellyfin see entries created elsewhere. It does **not** create folders itself.
 Then in
 Jellyfin add the libraries the same way ([Jellyfin setup](jellyfin) covers libraries plus the
 transcode policy). Also set Jellyfin → Playback → **Transcode path**

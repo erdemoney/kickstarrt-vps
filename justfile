@@ -1092,14 +1092,14 @@ wiring:
         hdr "sonarr -> Settings -> Media Management -> Root Folders"
         panel "point the library at the Decypharr mount (same filesystem as imports)" \
             "/mnt/decypharr/shows"
-        muted "(path must exist - create it: mkdir -p /mnt/debrid/decypharr/shows)"
+        muted "(path must exist - create it first: mkdir -p /mnt/debrid/decypharr/shows  # after the DFS mount is up)"
         echo
     }
     radarr_root() {   # step 4: radarr root folder
         hdr "radarr -> Settings -> Media Management -> Root Folders"
         panel "point the library at the Decypharr mount (same filesystem as imports)" \
             "/mnt/decypharr/movies"
-        muted "(path must exist - create it: mkdir -p /mnt/debrid/decypharr/movies)"
+        muted "(path must exist - create it first: mkdir -p /mnt/debrid/decypharr/movies  # after the DFS mount is up)"
         echo
     }
     jellyfin_libs() {   # step 6: jellyfin libraries
@@ -1412,6 +1412,8 @@ backup-unschedule:
 # traefik.yml. CONFIG_DIR comes from stacks/media-server/.env (the repo's data/ dir).
 # PUID/PGID: media-server .env ENV_PUID/ENV_PGID, else this user's ids, else
 # 1000 - so ownership always matches what the containers run as.
+# Also prepares the Decypharr host bind tree (/mnt/debrid) + its DFS mountpoint,
+# owned to PUID/PGID (sudo) - see docs/decypharr.md.
 prepare:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -1428,6 +1430,39 @@ prepare:
         PGID=$(id -g)
         [ "$PGID" -eq 0 ] && PGID=1000
     fi
+
+    # Host bind tree (/mnt/debrid - the compose binds it into every media container
+    # as /mnt). Decypharr mounts DFS at /mnt/debrid/decypharr as the stack user, and a
+    # root-owned mountpoint is exactly the "fusermount3: user has no write access to
+    # mountpoint" failure. Nothing under it is owned on the host - the *arrs and
+    # Jellyfin read through the FUSE mount - so fix ownership non-recursively: on a
+    # live stack a recursive chown would walk straight into the mount, and re-owning
+    # the live decypharr mountpoint itself would hit the FUSE fs.
+    #
+    # Only the pieces that are actually missing/mis-owned get touched, so a normal
+    # `just up` needs no sudo at all: the first run prompts once, a repair prompts
+    # only when something is genuinely wrong.
+    HOST_LIB=/mnt/debrid
+    FIX=()
+    for d in "$HOST_LIB" "$HOST_LIB/decypharr"; do
+        findmnt -rno TARGET "$d" >/dev/null 2>&1 && continue   # a live mount - never re-own
+        [ -e "$d" ] || { FIX+=("$d"); continue; }
+        [ "$(stat -c %u:%g "$d" 2>/dev/null)" = "$PUID:$PGID" ] || FIX+=("$d")
+    done
+    if [ "${#FIX[@]}" -gt 0 ]; then
+        if [ "$(id -u)" -eq 0 ]; then
+            mkdir -p -- "${FIX[@]}" && chown "$PUID":"$PGID" -- "${FIX[@]}"
+        elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+            sudo mkdir -p -- "${FIX[@]}" && sudo chown "$PUID":"$PGID" -- "${FIX[@]}"
+        elif command -v sudo >/dev/null 2>&1; then
+            sudo mkdir -p -- "${FIX[@]}"
+            sudo chown "$PUID":"$PGID" -- "${FIX[@]}"
+        else
+            echo "no root or sudo available: create and chown $HOST_LIB yourself"
+            echo "(see docs/decypharr.md) - else decypharr's DFS mount will fail"
+        fi
+    fi
+
     mkdir -p "$CONFIG_DIR"/{jellyfin/config,seerr/config,radarr,sonarr,prowlarr,recyclarr,bazarr/config,decypharr/configs,crowdsec/config,crowdsec/data}
 
     # traefik: logs dir (crowdsec reads it) + acme.json as a FILE with 0600, or

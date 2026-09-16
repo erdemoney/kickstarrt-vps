@@ -82,17 +82,32 @@ The net effect: **no startup order to respect** — consumers can boot before De
 mount appears inside them when it's created; restarting Decypharr re-propagates instead of
 leaving the others with a stale `Transport endpoint is not connected` handle.
 
-One-time host prep and recovery:
+Host prep is handled by **`just prepare`** (before the stack's first `just up`): it creates the
+host bind tree `/mnt/debrid` and the DFS mountpoint `/mnt/debrid/decypharr`, owning both to
+`ENV_PUID`/`ENV_PGID` from `stacks/media-server/.env`. Sudo only fires when a target is actually
+missing or mis-owned — normal `just up` runs are prompt-free, and a re-run when the mount is live
+leaves it alone. Never run a manual `chown -R` over
+`/mnt/debrid` — on a live stack that recurses straight into the FUSE mount. Two things make DFS
+mount instead of silently failing:
+
+- **The mountpoint must be writable by the stack user before the mount.** If it's root-owned,
+  `fusermount3` refuses with `user has no write access to mountpoint` and no mount appears.
+- **FUSE needs setuid.** The decypharr service deliberately does **not** inherit the stack-wide
+  `security_opt: no-new-privileges` (see the compose comment): Decypharr mounts via setuid
+  `/usr/bin/fusermount3`, and with `no_new_privs` the privilege raise is blocked and the mount
+  dies with `fusermount3: mount failed: Operation not permitted` — the mount never appears and
+  the \*arrs reject every root folder as `not writable by user 'abc'`.
+
+If a consumer comes up empty (`/mnt/decypharr` shows nothing inside a container), check the two
+mount-propagation rules above; if the mount is simply missing, verify it first:
 
 ```bash
-sudo mkdir -p /mnt/debrid                    # before first `just up` (explicit > root-owned auto-create)
+docker exec decypharr sh -c 'grep -w decypharr /proc/mounts'   # a DFS entry must exist
+docker compose -f stacks/media-server/compose.yaml logs --tail=40 decypharr  # or find the [dfs] error here
 sudo fusermount -u -z /mnt/debrid/decypharr  # clear a stale mountpoint after an unclean kill
 findmnt -o TARGET,PROPAGATION /mnt/debrid    # want "shared"; systemd makes / rshared at boot,
 sudo mount --make-rshared /mnt/debrid        # so this fix is rarely needed
 ```
-
-If a consumer comes up empty (`/mnt/decypharr` shows nothing inside a container), it's one of
-the three above.
 
 ## Reference
 
