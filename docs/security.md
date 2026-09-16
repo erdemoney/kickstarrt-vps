@@ -17,10 +17,11 @@ it behaves.
   It reads Traefik's JSON access log via `$CONFIG_DIR/traefik/crowdsec-acquis.yaml` (tracked
   at `data/traefik/`).
 - Traefik plugin `bouncer` — the **`crowdsec@file`** middleware in
-  `$CONFIG_DIR/traefik/dynamic.yml`, in stream mode. It is attached to the **https
-  entrypoint** (`data/traefik/traefik.template.yml`), so it guards every router that
-  terminates TLS — current and future — with no per-router labels (the dashboard router
-  additionally keeps its own `dashboardAcl` + basic-auth in front). The LAPI key is
+  `$CONFIG_DIR/traefik/dynamic.yml`, in stream mode. It is attached to the **https and
+  https-tailnet entrypoints** (`data/traefik/traefik.template.yml`), so it guards every
+  router that terminates TLS — current and future — with no per-router labels (the dashboard
+  router additionally keeps basic-auth in front, and panels are reachable only on the
+  tailnet-bound entrypoint — [Ingress](ingress#the-security-gate)). The LAPI key is
   `CROWDSEC_BOUNCER_API_KEY`, injected via Traefik's Go templating (`env` in `dynamic.yml`) —
   Traefik renders dynamic config files as Go templates and does **not** substitute
   shell-style `${VAR}`.

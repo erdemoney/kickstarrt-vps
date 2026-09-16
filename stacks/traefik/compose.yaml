@@ -16,12 +16,19 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      # :80 serves one thing: the entrypoint-level http -> https redirect (in
-      # traefik.template.yml). No router is on http, CrowdSec stays on the https
-      # entrypoint, and secHeaders@file's HSTS makes browsers skip :80 after the
-      # first https visit.
-      - 80:80
-      - 443:443
+      # Specific-IP publishes, one per entrypoint: docker binds each mapping to
+      # its own host IP, so nothing listens on 0.0.0.0:80/443. PUBLIC_BIND (the
+      # provider-mapped IP) reaches the container's public https listener (:8443,
+      # traefik.template.yml: PUBLIC_BIND:80 -> :80 redirect, PUBLIC_BIND:443 ->
+      # :8443 = the https entrypoint, which only public apps use). TAILNET_IP
+      # reaches the https-tailnet listener (:443, panels only). Because the two
+      # listeners are different sockets, a panel Host: header coming in on the
+      # public IP lands on an entrypoint with no router for it (404) - privacy at
+      # the socket layer, no per-router IP allow-list to maintain.
+      - "${PUBLIC_BIND}:80:80"
+      - "${PUBLIC_BIND}:443:8443"
+      - "${TAILNET_IP}:80:80"
+      - "${TAILNET_IP}:443:443"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -36,9 +43,9 @@ services:
       - "traefik.http.routers.traefik.rule=Host(`${SUB_DOMAIN_TRAEFIK}.${DOMAIN}`)"
       - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_CREDENTIALS}"
       - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
-      - "traefik.http.routers.traefik-secure.entrypoints=https"
+      - "traefik.http.routers.traefik-secure.entrypoints=https-tailnet"
       - "traefik.http.routers.traefik-secure.rule=Host(`${SUB_DOMAIN_TRAEFIK}.${DOMAIN}`)"
-      - "traefik.http.routers.traefik-secure.middlewares=dashboardAcl@file,traefik-auth"
+      - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
       - "traefik.http.routers.traefik-secure.tls=true"
       - "traefik.http.routers.traefik-secure.tls.certresolver=cloudflare"
       - "traefik.http.routers.traefik-secure.tls.domains[0].main=${DOMAIN}"
@@ -86,8 +93,10 @@ services:
       - no-new-privileges:true
     # Tailnet DNS resolver (see docs/tailnet.md): answers *.DOMAIN with the VPS's
     # tailnet IP so admin panels resolve by name on the tailnet. Bound to the
-    # tailnet IP only (systemd-resolved holds 127.0.0.53) and reachable only from
-    # the tailnet (ufw allows 53 just from 100.64.0.0/10).
+    # tailnet IP only (systemd-resolved holds 127.0.0.53). Published ports ride
+    # Docker's FORWARD chain, which UFW's INPUT rules never inspect - the ufw
+    # "allow 53 from 100.64.0.0/10" rule only bites once the ufw-docker gate
+    # routes forwarded traffic through ufw-user-forward (see docs/hardening.md).
     ports:
       - ${TAILNET_IP:?set TAILNET_IP in the stack .env}:53:53/udp
       - ${TAILNET_IP:?set TAILNET_IP in the stack .env}:53:53/tcp

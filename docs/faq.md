@@ -49,10 +49,11 @@ and you're on the [tailnet](tailnet), where they resolve by name with the real w
 and no extra login: **being on the tailnet is the gate**. That's one fewer public,
 brute-forceable login surface per app.
 
-Honest caveat: Traefik answers any `Host:` header it has a router for, so a determined client
-can reach a panel by IP + header even without a DNS record. Every panel still has its own
-auth, and any panel can be *hard*-blocked from the internet with an `ipAllowList` middleware
-([Ingress](ingress#the-security-gate)).
+Honest caveat: Traefik is reachable on the box's *public* IP (that's the point of going
+public), so a determined client can connect there and send a panel's `Host:` header. It
+lands on the public entrypoint, which has **no router for panels** — a 404, not the app.
+Only the tailnet bind serves panels ([Ingress](ingress#the-security-gate)); every panel
+also keeps its own auth layered on top.
 
 ## Why is everything closed until "going public"?
 

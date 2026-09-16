@@ -3,9 +3,10 @@
 # prerequisites.sh - one-shot bootstrap for a fresh VPS (see docs/quickstart.md).
 #
 # Installs, idempotently: Tailscale, git, just, Docker (with the compose
-# plugin), and adds the invoking user to the `docker` group. Only needs curl.
-# Cross-distro: Debian/Ubuntu (apt), Fedora/RHEL (dnf/yum), openSUSE (zypper),
-# Arch (pacman) and Alpine (apk).
+# plugin), ufw (with the deny-incoming ruleset), the ufw-docker forward gate
+# (so ufw really gates Docker's published ports), and adds the invoking user to
+# the `docker` group. Only needs curl. Cross-distro: Debian/Ubuntu (apt),
+# Fedora/RHEL (dnf/yum), openSUSE (zypper), Arch (pacman) and Alpine (apk).
 #
 #     curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
 #
@@ -13,6 +14,17 @@
 # and waits up to 120s for you to approve it, then prints the box's tailnet
 # address - your only SSH address. Approval is always yours; if the window
 # passes, it falls back to printing the manual `sudo tailscale up` step.
+#
+# Once the box is on the tailnet the script also flips ufw to deny-incoming
+# (allowing the tailnet only) and installs the ufw-docker forward gate, in one
+# shot - so the "lock the box down" and "gate the containers" steps have no
+# ceremony to remember. The flip is guarded: if the tailnet isn't actually
+# reachable yet (tailscale ip -4 fails), ufw is left off so the public IP route
+# survives and the script tells you what to finish by hand.
+#
+# Enabling ufw can drop your current SSH session if it is still riding the
+# public IP: reconnect over the tailnet and re-run this script (idempotent) to
+# finish.
 
 set -euo pipefail
 
@@ -165,6 +177,89 @@ ensure_docker_group() {
     ok "$REAL_USER added to docker - log out and back in before 'just up'"
 }
 
+install_ufw() {
+    msg "ufw"
+    if has ufw; then
+        skip "already installed"
+        return
+    fi
+    if [ -z "$PM" ]; then
+        warn "cannot install ufw (no supported package manager)"
+        return
+    fi
+    "${PM_DEPS[@]}" ufw
+    if has ufw; then
+        ok "installed"
+    else
+        printf 'ufw install failed\n' >&2
+        exit 1
+    fi
+}
+
+enable_ufw() {
+    msg "ufw deny-incoming ruleset"
+    if ufw status | grep -Fq "Status: active"; then
+        skip "already active"
+        return
+    fi
+    # Enabling deny-incoming cuts the public IP route, so only flip it once the
+    # box is really on the tailnet - otherwise this could be the last SSH session.
+    if ! tailscale ip -4 >/dev/null 2>&1; then
+        warn "tailnet not connected - leaving ufw OFF so the public IP route stays open"
+        warn "  1. 'sudo tailscale up' and approve the URL it prints"
+        warn "  2. re-run this script (idempotent) to finish the lockdown"
+        return
+    fi
+    ufw default deny incoming
+    ufw default allow outgoing
+    # Allow the tailnet (100.64.0.0/10 is CGNAT - only your tailnet). The 22/53/443
+    # rules are the same set Quickstart §4 documents; ufw mirrors them into
+    # ufw-user-forward, which the ufw-docker gate (next step) applies to the
+    # containers. There is deliberately no public 22/80/443 rule yet.
+    ufw allow from 100.64.0.0/10 to any port 22 proto tcp
+    ufw allow from 100.64.0.0/10 to any port 53 proto udp
+    ufw allow from 100.64.0.0/10 to any port 53 proto tcp
+    ufw allow from 100.64.0.0/10 to any port 443 proto tcp
+    if ufw --force enable; then
+        ok "active - tailnet allowed; everything else denied"
+        warn "if your SSH session dropped just now, reconnect over the tailnet and re-run this script to finish"
+    else
+        warn "could not enable ufw - run 'sudo ufw enable' manually"
+    fi
+}
+
+install_ufw_docker() {
+    msg "ufw-docker forward gate"
+    if ! has ufw || ! ufw status 2>/dev/null | grep -Fq "Status: active"; then
+        warn "ufw not active - skipping the Docker forward gate for now"
+        return
+    fi
+    if ! has docker; then
+        warn "docker missing - skipping the Docker forward gate for now"
+        return
+    fi
+    if [ ! -x /usr/local/bin/ufw-docker ]; then
+        curl -fsSL https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker \
+            -o /usr/local/bin/ufw-docker
+        chmod 0755 /usr/local/bin/ufw-docker
+    else
+        skip "binary already in place"
+    fi
+    # install --system writes the DOCKER-USER gate into /etc/ufw/after.rules
+    # (+ after6.rules), installs the man page, and enables the ufw-docker.service
+    # that re-applies the rules after every Docker start/reboot.
+    if ! ufw-docker install --system; then
+        printf 'ufw-docker install failed\n' >&2
+        exit 1
+    fi
+    if has systemctl; then
+        systemctl restart ufw
+    else
+        ufw reload
+    fi
+    ok "installed - ufw now gates Docker's published ports too"
+}
+
 join_tailnet() {
     msg "Tailscale join"
     if ! has tailscale; then
@@ -200,7 +295,10 @@ main() {
     install_just
     install_docker
     ensure_docker_group
+    install_ufw
     join_tailnet
+    enable_ufw
+    install_ufw_docker
     printf '\n'
     if [ -n "$TS_IP" ]; then
         if [ "$REAL_USER" = root ]; then
@@ -212,6 +310,6 @@ main() {
         printf '   1. sudo tailscale up   # approve the URL it prints\n'
         printf '   2. tailscale ip -4     # your only SSH address\n'
     fi
-    msg 'then continue with docs/quickstart.md (Sections 3 and 4).'
+    msg 'then continue with docs/quickstart.md (Sections 3 and 4 - the firewall work is already done).'
 }
 main "$@"

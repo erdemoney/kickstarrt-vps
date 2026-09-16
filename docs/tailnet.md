@@ -24,8 +24,10 @@ Tailscale's supported mechanism for that is **split DNS**:
    tailnet clients send just `*.DOMAIN` lookups to it; everything else still uses
    MagicDNS/public DNS.
 3. From any tailnet device, `radarr.<DOMAIN>` resolves to the box's tailnet address → the
-   request rides the WireGuard mesh to Traefik `:443` → routed by `Host()` → served with the
-   real cert. **Being on the tailnet is the gate** — there is no extra auth to configure.
+   request rides the WireGuard mesh to Traefik's **`https-tailnet` entrypoint** — published
+   on no IP except `TAILNET_IP` ([Ingress](ingress#the-security-gate)) — → routed by
+   `Host()` → served with the real cert. **Being on the tailnet is the gate** — there is no
+   extra auth to configure, and off-tailnet peers can't even reach the panel's socket.
 
 Two consequences of the split-DNS registration, both worth knowing up front:
 
@@ -39,8 +41,12 @@ Two consequences of the split-DNS registration, both worth knowing up front:
 The server side is handled by the standard flow: `just init` fills `TAILNET_IP`, `just up`
 renders the Corefile from the tracked template and starts CoreDNS bound to `TAILNET_IP:53`
 only (it deliberately doesn't bind `0.0.0.0:53` — systemd-resolved already holds the
-loopback), and the ufw rules from [Quickstart §4](quickstart#4-lock-the-box-down-ufw)
-already allow `53` and `443` from the tailnet.
+loopback). Reachability is enforced in two places: the ufw rules from
+[Quickstart §4](quickstart#4-lock-the-box-down-ufw) allow `53` and `443` from the tailnet,
+and the ufw-docker gate from the [bootstrap script](quickstart#2-get-in-join-the-tailnet)
+is what makes those rules apply to this container at all — published ports ride Docker's
+`FORWARD` chain, which UFW's `INPUT` rules never inspect
+(mechanics in [Hardening](hardening#docker-and-ufw-the-forward-gate)).
 
 ## Verify from a tailnet device
 
@@ -64,7 +70,8 @@ all — there's no public record for the panels, by design.
   `sudo tailscale up`) on the new box, re-run `just init force` (it re-detects and
   refreshes `TAILNET_IP`), then update the nameserver IP in the Tailscale admin console.
 - **Nothing answers on the box itself** — `just dnscheck`; confirm CoreDNS is up
-  (`docker compose -f stacks/traefik/compose.yaml ps coredns`) and ufw has the `53` rules
-  (`sudo ufw status`). From the **public internet**, nothing works until
+  (`docker compose -f stacks/traefik/compose.yaml ps coredns`), ufw has the `53` rules
+  (`sudo ufw status`), and the forward gate is applied (`sudo ufw-docker check`; verify with
+  `sudo iptables -nL DOCKER-USER`). From the **public internet**, nothing works until
   [going public](quickstart#10-go-public-last) — that's by design.
 - **You skipped the console step** — `just dns` prints exactly what to paste in.

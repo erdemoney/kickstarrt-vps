@@ -49,8 +49,9 @@ ssh <user>@<PUBLIC-IP>
 
 Then bootstrap the box with this repo's setup script. It is **idempotent** (safe to re-run)
 and cross-distro, and installs everything the rest of this guide needs — `git`, `just`, Docker
-with the compose plugin, your user in the `docker` group — **and joins the box to your
-tailnet**:
+with the compose plugin, your user in the `docker` group, plus **ufw** with the §4 deny-incoming
+ruleset and the **ufw-docker** forward gate (so ufw really does gate the containers) — **and
+joins the box to your tailnet**:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
@@ -60,6 +61,12 @@ The script prints an **auth URL** and waits up to two minutes — open it in a b
 approve the node. (Missed the window? `sudo tailscale up` prints it again.) It ends by
 printing the box's **tailnet address** — a `100.x.y.z` from Tailscale's CGNAT range. That
 address is your SSH address from now on.
+
+Once the box is on the tailnet, the script also flips ufw to deny-incoming (allowing the
+tailnet only) and installs the ufw-docker forward gate — so [§4](#4-lock-the-box-down-ufw)
+becomes **verify, not set-up**. If enabling ufw cuts your current session (you were still
+riding the public IP), just reconnect over the tailnet and re-run the command — it's
+idempotent and finishes the firewall work.
 
 ## 3. Verify SSH over the tailnet
 
@@ -81,13 +88,14 @@ the `100.x.y.z` address is the one that matters later.
 
 ## 4. Lock the box down (ufw)
 
-The tailnet is now your only door — enforce it. While the box is reachable only from your
-tailnet, update the OS and switch the firewall to deny-incoming, with sshd, DNS, and Traefik
-reachable **from the tailnet only**:
+The tailnet is now your only door — enforce it. The bootstrap script ([§2](#2-get-in-join-the-tailnet))
+already did most of this: ufw is installed, default-deny incoming, the tailnet allowed, and the
+Docker forward gate applied. On a fresh box this step is **verify, then close the provider
+door**. The rule set — for reference, and for a box that predates §2:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install ufw
+sudo apt install ufw                       # if you're not on a §2-bootstrapped box
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp
@@ -95,12 +103,26 @@ sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
 sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
 sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
 sudo ufw enable
+sudo ufw-docker install --system           # the Docker forward gate (§2 does this too)
 ```
 
 `100.64.0.0/10` is the CGNAT range Tailscale uses — nothing but your tailnet can reach `22`
 (sshd), `53` (the [tailnet DNS](tailnet) resolver), and `443` (Traefik). There is deliberately
 **no public `22`/`80`/`443` rule**: the public surface opens only at
 [§10](#10-go-public-last).
+
+> **Docker and UFW.** These rules filter the host's `INPUT` chain — and Docker-published
+> ports bypass it. Ports bound in compose (`80:80`, `443:443`, `TAILNET_IP:53:53`) are
+> DNAT'd and filtered in the `FORWARD` chain, which UFW doesn't inspect by default. The
+> **ufw-docker** gate ([Hardening](hardening#docker-and-ufw-the-forward-gate)) closes that
+> gap: `ufw-docker install` fills Docker's own `DOCKER-USER` extension chain so the allow
+> rules above (and the identical §10 commands) really do decide who reaches each container
+> port, and `install --system` also installs a systemd unit (`ufw-docker.service`) that
+> re-applies it after every Docker restart/reboot — nothing to remember later. §2 already
+> ran this; verify any time with `sudo ufw-docker check`. To re-apply the whole lockdown by
+> hand, `just firewall` does it in one go — and it **refuses to run unless** the box is on
+> the tailnet (`tailscale ip -4`), so you can't accidentally drop the public IP route before
+> the tailnet is actually up.
 
 Then close the delivery door at the provider: on **Oracle Cloud**, delete the wizard's default
 `22` ingress rule (VCN → Default Security List → the `TCP 22 / 0.0.0.0/0` rule → Delete). SSH
@@ -237,9 +259,10 @@ domain with no fallback, and nothing is listening yet. Expected — it heals at 
 ## 7. First boot
 
 ```bash
-just up          # creates networks, config dirs, acme.json + rendered traefik.yml, then brings up every stack
-just ps          # confirm everything is running
-just dnscheck    # confirm the resolver answers: radarr.<DOMAIN> -> your tailnet IP
+just up              # creates networks, config dirs, acme.json + rendered traefik.yml, then brings up every stack
+sudo ufw-docker check   # confirm the Docker forward gate from §2 is live (DOCKER-USER filled)
+just ps              # confirm everything is running
+just dnscheck        # confirm the resolver answers: radarr.<DOMAIN> -> your tailnet IP
 ```
 
 What to check right after boot:
@@ -303,6 +326,10 @@ the serving ports — in that order.
 sudo ufw allow 443/tcp     # the real way in
 sudo ufw allow 80/tcp      # http -> https redirect only; nothing is served on it
 ```
+
+Because the ufw-docker gate routes container traffic through UFW, these two rules are exactly
+what lets Docker-forwarded `:443`/`:80` through — the same syntax that opened the tailnet
+doors in §4.
 
 That's it — the stack is public on those two hostnames: Cloudflare DNS → VPS `:443` →
 Traefik → CrowdSec → the apps. Admin panels stay off the public DNS and are reached over the

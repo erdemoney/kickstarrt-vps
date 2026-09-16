@@ -33,6 +33,7 @@ jobs:
           # environment (which outranks .env in compose interpolation).
           export CONFIG_DIR=/tmp/ci-config
           export TAILNET_IP=127.0.0.1
+          export PUBLIC_BIND=127.0.0.1
           for stack in traefik media-server; do
             echo "::group::docker compose config stacks/$stack"
             docker compose -f "stacks/$stack/compose.yaml" config -q

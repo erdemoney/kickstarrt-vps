@@ -1,8 +1,12 @@
 # Template for Traefik's STATIC config. `just prepare` renders this to
-# data/traefik/traefik.yml (untracked) with ${ACME_EMAIL} from stacks/traefik/.env.
-# Traefik does not support templating or env vars in its static config, so the
-# substitution has to happen before the container starts. Edit this file, not the
-# rendered one - `just up` overwrites the output on every run.
+# data/traefik/traefik.yml (untracked), substituting ${ACME_EMAIL} from
+# stacks/traefik/.env. Traefik does not support templating or env vars in its
+# static config, so the substitution has to happen before the container starts.
+# Edit this file, not the rendered one - `just up` overwrites the output every run.
+#
+# The PUBLIC/tailnet bind IPs are NOT set here: the container listeners bind
+# container-local ports (:8443 / :443) and stacks/traefik/compose.yaml publishes
+# each host IP to its own container listener, so nothing listens on 0.0.0.0.
 
 api:
   dashboard: true
@@ -25,12 +29,30 @@ entryPoints:
           to: https
           scheme: https
           permanent: true
+  # PUBLIC https: published only on PUBLIC_BIND (the IP the provider maps to the
+  # internet - the default-route source; on Oracle that's the VNIC private IP the
+  # VCN 1:1-NATs to :443, on direct-IP hosts the public IPv4 itself). No panel
+  # router is on this entrypoint, so a panel Host: header arriving here gets a
+  # 404. Public apps (jellyfin/seerr) use this one.
   https:
-    address: ":443"
+    address: ":8443"
     http:
       middlewares:
         # crowdsec first: reject banned IPs before spending rate-limit tokens or
         # adding headers to requests we're about to deny anyway.
+        - crowdsec@file
+        - secHeaders@file
+        - rateLimit@file
+  # TAILNET-only https: published only on TAILNET_IP (the box's tailnet address),
+  # so it is reachable only by traffic that came through the tailnet - no IP
+  # allow-list to attach or forget on each panel router. Panels
+  # (radarr/sonarr/prowlarr/bazarr/decypharr + the traefik dashboard) use this
+  # one. Same middleware chain as https so panels behave identically, just
+  # unreachable from the public path.
+  https-tailnet:
+    address: ":443"
+    http:
+      middlewares:
         - crowdsec@file
         - secHeaders@file
         - rateLimit@file

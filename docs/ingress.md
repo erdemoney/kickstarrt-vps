@@ -31,16 +31,23 @@ the rule they enforce:
    completed). An app that goes public before its login exists is claimable by anyone.
 3. **Only then open the door** — A records for `seerr` + `jellyfin`, then
    `sudo ufw allow 443/tcp` + `sudo ufw allow 80/tcp`. Reversible either way: delete the
-   records, or `sudo ufw delete allow 443/tcp` and `allow 80/tcp`.
+   records, or `sudo ufw delete allow 443/tcp` and `allow 80/tcp`. (These same-syntax
+   commands are what actually open Docker-published ports too, once the ufw-docker gate
+   from the [bootstrap script](quickstart#2-get-in-join-the-tailnet) routes forwarded
+   traffic through UFW.)
 
-One honest caveat: Traefik answers any hostname it has a router for, even with no DNS record —
-a determined client can connect to the IP and send a `Host:` header directly, so the absence
-of a DNS record is a de-facto boundary, not a hard one. Every panel is still behind its own
-login (and the Traefik dashboard behind basic-auth *and* an IP allow-list). To *hard*-block
-any panel from the internet, add an `ipAllowList` middleware (allow your tailnet/LAN ranges,
-e.g. `100.64.0.0/10`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) to that service's
-router labels in `stacks/media-server/compose.yaml`, then
-`just update-svc media-server <svc>`.
+One honest caveat: public traffic and tailnet traffic arrive on **different sockets**, not
+different hostnames. Traefik's two https entrypoints are published on separate IPs by
+`stacks/traefik/compose.yaml`: `PUBLIC_BIND` (the provider-mapped IP) reaches the `https`
+entrypoint, and `TAILNET_IP` (the box's tailnet address) reaches the `https-tailnet`
+entrypoint (`traefik.template.yml`). `jellyfin` and `seerr` have routers on **both**
+entrypoints — they're public anyway, so being able to reach them by name on the tailnet costs
+nothing and keeps first-run setup possible before [going public](quickstart#10-go-public-last) —
+while every panel and the dashboard use only `https-tailnet`. Nothing listens on
+`0.0.0.0:80/443`, so off-tailnet peers cannot even reach a panel socket: a panel `Host:`
+header sent at the public IP lands on an entrypoint with **no router for it** (404), and any
+other host IP refuses the connection. No per-router IP allow-list exists to attach or forget;
+being on the tailnet is the requirement to reach the panels ([Tailnet DNS](tailnet)).
 
 ## Adding a public hostname (DNS record)
 
@@ -92,15 +99,17 @@ just down && rm -f data/traefik/acme.json && just up   # dirs re-creates it 0600
 Traefik's static config is **rendered, not copied**: the repo tracks
 `data/traefik/traefik.template.yml`, and `just up` renders it to
 `$CONFIG_DIR/traefik/traefik.yml` (untracked) with your `ACME_EMAIL` filled in. **Edit the
-template, never the rendered file** — `just up` overwrites the output every run.
+template, never the rendered file** — `just up` overwrites the output every run. The
+entrypoint bind IPs (`PUBLIC_BIND` / `TAILNET_IP`) are published from
+`stacks/traefik/compose.yaml`'s ports instead of the template — see that file's port comment.
 `dynamic.yml` and `crowdsec-acquis.yaml` need no rendering and are mounted as tracked files
 (`dynamic.yml` resolves its one secret at runtime with Traefik's Go templating).
 
 ## Traefik dashboard
 
-`https://traefik.<DOMAIN>`, behind basic auth (`TRAEFIK_DASHBOARD_CREDENTIALS`) plus an IP
-allow-list (`dashboardAcl@file` in `data/traefik/dynamic.yml`, covering your LAN and tailnet
-CGNAT ranges). For any \*arr-scale question — "is the cert issued?", "which routers exist?" —
-it's the fastest place to look. Reach it over the tailnet (the allow-list covers
-`100.64.0.0/10`); the loopback of an SSH port-forward is deliberately blocked — get on the
-tailnet first ([Quickstart §3](quickstart#3-verify-ssh-over-the-tailnet)).
+`https://traefik.<DOMAIN>`, behind basic auth (`TRAEFIK_DASHBOARD_CREDENTIALS`). Its router
+sits on the `https-tailnet` entrypoint, so it is served only to the tailnet IP like the
+panels (see [the security gate](#the-security-gate)); the loopback of an SSH port-forward is
+deliberately not covered — get on the tailnet first ([Quickstart §3](quickstart#3-verify-ssh-over-the-tailnet)).
+For any \*arr-scale question — "is the cert issued?", "which routers exist?" — it's the
+fastest place to look. Reach it over the tailnet at `https://traefik.<DOMAIN>`.

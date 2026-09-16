@@ -15,8 +15,68 @@ The baseline you already have by the end of quickstart §4:
 - **Public surface = Traefik on `443`, plus `80` as a pure `http → https` redirect** — both
   opened deliberately as the [last setup step](quickstart#10-go-public-last) — **plus the
   tailnet**. sshd is reachable only from `100.64.0.0/10`.
+- **The firewall actually reaches the containers** — the [ufw-docker](https://github.com/chaifeng/ufw-docker)
+  gate (installed by the [bootstrap script](quickstart#2-get-in-join-the-tailnet)) routes
+  Docker's forwarded traffic through UFW, so "deny incoming" really is
+  deny-everything-except-what-a `ufw allow` opens
+  ([the forward gate](#docker-and-ufw-the-forward-gate) below).
 - [CrowdSec](security) blocks scanner IPs at the Traefik layer; each app guards itself with
   its own login. Together the layers cover everything that can reach the box.
+
+## Docker and UFW: the forward gate
+
+The one place the deny-incoming model above silently falls short is **Docker published
+ports**. `ports:` entries are DNAT'd and filtered in the `FORWARD` chain, which UFW's rules
+(INPUT) never inspect — so by themselves, `ufw allow/deny` do not constrain the containers.
+An internet peer with the box's IP could reach Traefik's `:80`/`:443` and CoreDNS's `:53`
+the moment the stack boots, firewall rules or not. On Oracle the VCN security list happens
+to be an outer door; on providers without a separate cloud firewall, nothing else is.
+
+This repo closes it with the [ufw-docker](https://github.com/chaifeng/ufw-docker) project
+(used as-is, no forks) — the community's battle-tested fix. Its `install` fills Docker's
+`DOCKER-USER` chain — Docker's documented
+[extension point for user firewall rules](https://docs.docker.com/engine/network/firewall-iptables/):
+"a placeholder for user-defined rules that will be processed before rules in the DOCKER-FORWARD
+and DOCKER chains". Nothing else needs touching: Docker's own chains keep working, and
+`iptables` is never disabled. The installed block (in `/etc/ufw/after.rules`, idempotently):
+
+```text
+-A DOCKER-USER -j ufw-user-forward                      # the ufw allow rules decide first
+-A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+-A DOCKER-USER -j RETURN -s 10.0.0.0/8                  # RFC1918 sources are trusted
+-A DOCKER-USER -j RETURN -s 172.16.0.0/12               # (incl. the internal 172.30.0.0/16)
+-A DOCKER-USER -j RETURN -s 192.168.0.0/16
+-A DOCKER-USER -j ufw-docker-logging-deny -m conntrack --ctstate NEW -d <RFC1918>  # drop NEW
+-A DOCKER-USER -j RETURN                                 # everything else returns to DOCKER-FORWARD
+```
+
+UFW mirrors every `ufw allow` rule into `ufw-user-forward`, so the §4 tailnet rules
+(`allow from 100.64.0.0/10 to any port 53/443/22`) and the §10 public rules (`allow 80`,
+`allow 443`) are exactly what opens the forward path — same commands, same reversibility.
+Before §10, an internet peer's NEW connection to a container drops; traffic from
+RFC1918/LAN sources (or established sessions) passes. That RFC1918 trust is ufw-docker's
+default stance — a LAN device is trusted by default — and it's the one deliberate trade-off
+this setup inherits from upstream. (The tailnet's `100.64.0.0/10` is *not* RFC1918, so
+tailnet peers still need the explicit `allow from 100.64.0.0/10` rule — which §4 applies.)
+
+**Installed and kept applied by the bootstrap:** `scripts/prerequisites.sh` runs
+`ufw-docker install --system` — which writes the block above, installs the man page, and
+installs `ufw-docker.service` (`WantedBy=multi-user.target`, tied to `docker.service`) so
+the rules re-apply after every Docker start and reboot, then restarts UFW to load them.
+Verify any time:
+
+```bash
+sudo ufw-docker check        # diffs after.rules/after6.rules against the intended block
+sudo iptables -nL DOCKER-USER
+sudo ip6tables -nL DOCKER-USER
+sudo iptables -L ufw-user-forward -n   # the ufw rules being mirrored
+```
+
+To reapply by hand after a change (e.g. a new Docker network):
+`just firewall` re-runs the whole lockdown and refuses unless the box is on the tailnet; or
+step by step: `sudo ufw-docker install --system` then `sudo systemctl restart ufw`. Upstream
+notes the rules can occasionally not take effect after a UFW restart — a reboot restores
+them; `ufw-docker.service` is what makes reboots and docker restarts self-healing.
 
 ## SSH keys, no password auth
 

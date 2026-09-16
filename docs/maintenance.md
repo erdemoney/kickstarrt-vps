@@ -29,7 +29,9 @@ nav_order: 13
 | `just bootstrap-torrentio`      | install the Torrentio indexer definition into prowlarr (see [Indexers](indexers)) |
 | `just wiring`                   | print the \*arrs' URLs/API keys, stepping through each service interactively (Enter/q; piped = full dump; see [The \*arrs](arrs)) |
 | `just dns` / `dnscheck`         | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
-| `just networks`                 | create the shared `internal` network                                              |
+| `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
+| `just firewall`                 | re-apply the ufw lockdown + forward gate (idempotent; refuses unless the box is on the tailnet) |
+| `sudo ufw-docker check`         | verify the Docker forward gate (installed by the bootstrap; see [Hardening](hardening)) |
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)       |
 | `just backup` / `backup-list` / `backup-check` / `backup-prune` / `backup-restore` | restic snapshots, integrity, retention, restore — see below |
 

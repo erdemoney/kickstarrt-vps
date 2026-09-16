@@ -9,7 +9,7 @@ default:
     just --list
 
 # Full first-time setup: create each .env, print the auto-generated values
-# (CONFIG_DIR, TAILNET_IP, CROWDSEC_BOUNCER_API_KEY) up front, then prompt for
+# (CONFIG_DIR, TAILNET_IP, PUBLIC_BIND, CROWDSEC_BOUNCER_API_KEY) up front, then prompt for
 # the rest, offering defaults from this recipe (Enter accepts / keeps current).
 # Already-set values are skipped on re-run; `just init force` re-prompts them
 # (Enter keeps the current value, typing replaces it). Shared vars (DOMAIN,
@@ -255,6 +255,32 @@ init FORCE="":
         fi
     fi
 
+    # PUBLIC_BIND: the IP Traefik binds its PUBLIC entrypoints to - the address
+    # the provider maps the internet to (the default-route source IP: on
+    # direct-IP hosts the public IPv4 itself, on Oracle the VNIC private IP the
+    # VCN 1:1-NATs to :443). Detected via `ip route`; won't pick a tailnet
+    # (100.64.0.0/10) or loopback address. Detectable almost always; override in
+    # stacks/traefik/.env if the box has several public paths.
+    pb=$(get_var "$TRAEFIK_ENV" PUBLIC_BIND) || true
+    pb_note=""
+    if [ -n "$pb" ] && [ "$FORCE" -eq 0 ]; then
+        pb_note="already set"
+    else
+        pb_def=$(ip -4 route get 1.1.1.1 2>/dev/null \
+            | sed -n 's/.*src \([0-9.]*\).*/\1/p' \
+            | grep -Ev '^(127\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)' \
+            | head -n1 || true)
+        [ -n "$pb_def" ] || pb_def=$(ip -4 -o addr show scope global 2>/dev/null \
+            | awk '{ split($4,a,"/"); if (a[1] !~ /^(127\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)/) { print a[1]; exit } }' || true)
+        if [ -n "$pb_def" ]; then
+            if [ "$pb_def" != "$pb" ]; then
+                set_var "$TRAEFIK_ENV" PUBLIC_BIND "$pb_def"
+            fi
+            pb="$pb_def"
+            pb_note="detected via 'ip route'"
+        fi
+    fi
+
     # CROWDSEC_BOUNCER_API_KEY: shared between the crowdsec container and Traefik's
     # bouncer plugin - a random 32-byte key, generated once, never printed in full.
     cs_key=$(get_var "$TRAEFIK_ENV" CROWDSEC_BOUNCER_API_KEY) || true
@@ -274,10 +300,19 @@ init FORCE="":
     else
         auto_row TAILNET_IP "$ts_ip" "(not detectable - prompted below)"
     fi
+    if [ -n "$pb_note" ]; then
+        auto_row PUBLIC_BIND "$pb" "($pb_note)"
+    else
+        auto_row PUBLIC_BIND "$pb" "(not detectable - prompted below)"
+    fi
     auto_row CROWDSEC_BOUNCER_API_KEY "${cs_key:0:8}${ELLIP}" "($cs_note)"
     if [ -z "$ts_note" ]; then
         prompt_value "$TRAEFIK_ENV" TAILNET_IP \
             "e.g. 100.64.0.3 (tailscale CLI unavailable - 'tailscale up' first, then re-run 'just init')"
+    fi
+    if [ -z "$pb_note" ]; then
+        prompt_value "$TRAEFIK_ENV" PUBLIC_BIND \
+            "the provider-mapped public IP (ip route detection failed - 'ip' missing?)"
     fi
     echo
 
@@ -508,9 +543,42 @@ init FORCE="":
     muted "public DNS records and open :443 (+ :80, the http->https redirect) (docs/ingress.md)."
     hr
 
-# Create the shared Docker network (idempotent)
+# Create the shared Docker network (idempotent). The subnet is pinned inside
+# 172.16.0.0/12 so the ufw-docker forward gate (installed by the bootstrap
+# script) already covers this network's egress with its default RFC1918 subnets.
+# Only change it if you re-provision the gate with `sudo ufw-docker install --docker-subnets`.
 networks:
-    docker network inspect internal >/dev/null 2>&1 || docker network create internal
+    docker network inspect internal >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/16 internal
+
+# Lock the box down: deny-incoming ufw (tailnet allowed) plus the ufw-docker
+# forward gate. Idempotent. Enabling deny-incoming cuts the public IP route, so
+# this first refuses to run unless the box is on the tailnet (tailscale ip -4)
+# - the bootstrap script applies the same rules + guard automatically.
+firewall:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! tailscale ip -4 >/dev/null 2>&1; then
+        echo "tailscale is not connected - refusing to drop the public IP route." >&2
+        echo "Join the tailnet first: sudo tailscale up" >&2
+        exit 1
+    fi
+    sudo ufw default deny incoming
+    sudo ufw default allow outgoing
+    sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp
+    sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
+    sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
+    sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
+    sudo ufw --force enable
+    if [ ! -x /usr/local/bin/ufw-docker ]; then
+        sudo curl -fsSL https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker \
+            -o /usr/local/bin/ufw-docker
+        sudo chmod 0755 /usr/local/bin/ufw-docker
+    fi
+    sudo ufw-docker install --system
+    sudo systemctl restart ufw
+    echo
+    echo "firewall locked down: tailnet only, containers gated by ufw."
+    echo "Verify any time with: sudo ufw-docker check"
 
 # Validate every compose file against the docker compose schema.
 # Read-only: never creates or edits a .env (compose treats .env as optional and the
@@ -1262,23 +1330,11 @@ prepare:
     [ -e "$CONFIG_DIR/traefik/acme.json" ] || touch "$CONFIG_DIR/traefik/acme.json"
     chmod 600 "$CONFIG_DIR/traefik/acme.json" 2>/dev/null || true
 
-    # traefik's static config cannot read env vars, so render it here.
-    TPL="{{ justfile_directory() }}/data/traefik/traefik.template.yml"
-    if [ -f "$TPL" ]; then
-        ACME_EMAIL=$(sed -n 's|^ACME_EMAIL=\(.*\)|\1|p' stacks/traefik/.env 2>/dev/null | tail -n1 || true)
-        ACME_EMAIL="${ACME_EMAIL:-}"
-        sed "s|\${ACME_EMAIL}|$ACME_EMAIL|g" "$TPL" > "$CONFIG_DIR/traefik/traefik.yml.tmp"
-        mv "$CONFIG_DIR/traefik/traefik.yml.tmp" "$CONFIG_DIR/traefik/traefik.yml"
-        if [ -z "$ACME_EMAIL" ]; then
-            echo "warning: ACME_EMAIL is empty in stacks/traefik/.env - traefik requires it for"
-            echo "         the ACME resolver, so no certificates will be issued. Run 'just init'."
-            echo "         (There is no Let's Encrypt account to sign up for - see docs/ingress.md.)"
-        fi
-    fi
-
-    # CoreDNS (tailnet DNS): bake the VPS's tailnet IP into the resolver config so
-    # admin panels resolve by name on the tailnet (see docs/tailnet.md). Existing
-    # installs upgrade seamlessly: if TAILNET_IP is unset, fill it from tailscale.
+    # Entrypoint bind IPs: PUBLIC_BIND (the provider-mapped IP) and TAILNET_IP
+    # (the box's Tailscale IP) are published on separate host IPs by
+    # stacks/traefik/compose.yaml's ports - never on 0.0.0.0 - so each entrypoint
+    # gets its own :443 socket. Existing installs upgrade seamlessly: fill them
+    # from tailscale / the default route when they're unset.
     if ! grep -q "^TAILNET_IP=" stacks/traefik/.env 2>/dev/null; then
         echo "TAILNET_IP=" >> stacks/traefik/.env
     fi
@@ -1290,7 +1346,47 @@ prepare:
             sed "s|^TAILNET_IP=.*|TAILNET_IP=$TS_NEW|" stacks/traefik/.env > stacks/traefik/.env.tmp \
                 && mv stacks/traefik/.env.tmp stacks/traefik/.env
             TAILNET_IP="$TS_NEW"
-            echo "tailnet DNS: filled TAILNET_IP=$TAILNET_IP (stacks/traefik/.env)"
+            echo "tailnet entrypoint: filled TAILNET_IP=$TAILNET_IP (stacks/traefik/.env)"
+        fi
+    fi
+    if ! grep -q "^PUBLIC_BIND=" stacks/traefik/.env 2>/dev/null; then
+        echo "PUBLIC_BIND=" >> stacks/traefik/.env
+    fi
+    PUBLIC_BIND=$(sed -n 's|^PUBLIC_BIND=\(.*\)|\1|p' stacks/traefik/.env | tail -n1 || true)
+    if [ -z "$PUBLIC_BIND" ]; then
+        PUB_NEW=$(ip -4 route get 1.1.1.1 2>/dev/null \
+            | sed -n 's/.*src \([0-9.]*\).*/\1/p' \
+            | grep -Ev '^(127\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)' \
+            | head -n1 || true)
+        [ -n "$PUB_NEW" ] || PUB_NEW=$(ip -4 -o addr show scope global 2>/dev/null \
+            | awk '{ split($4,a,"/"); if (a[1] !~ /^(127\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)/) { print a[1]; exit } }' || true)
+        if [ -n "$PUB_NEW" ]; then
+            sed "s|^PUBLIC_BIND=.*|PUBLIC_BIND=$PUB_NEW|" stacks/traefik/.env > stacks/traefik/.env.tmp \
+                && mv stacks/traefik/.env.tmp stacks/traefik/.env
+            PUBLIC_BIND="$PUB_NEW"
+            echo "public entrypoint: filled PUBLIC_BIND=$PUB_NEW (stacks/traefik/.env)"
+        fi
+    fi
+
+    # traefik's static config cannot read env vars, so render it here.
+    TPL="{{ justfile_directory() }}/data/traefik/traefik.template.yml"
+    if [ -f "$TPL" ]; then
+        if [ -z "$TAILNET_IP" ] || [ -z "$PUBLIC_BIND" ]; then
+            echo "error: TAILNET_IP/PUBLIC_BIND are empty - docker publishes each of traefik's"
+            echo "       entrypoints on its own host IP (compose.yaml ports), and an empty bind"
+            echo "       would make those mappings invalid. tailscale must be up (TAILNET_IP)"
+            echo "       and a default route present (PUBLIC_BIND); otherwise set them by hand"
+            echo "       in stacks/traefik/.env."
+            exit 1
+        fi
+        ACME_EMAIL=$(sed -n 's|^ACME_EMAIL=\(.*\)|\1|p' stacks/traefik/.env 2>/dev/null | tail -n1 || true)
+        ACME_EMAIL="${ACME_EMAIL:-}"
+        sed "s|\${ACME_EMAIL}|$ACME_EMAIL|g" "$TPL" > "$CONFIG_DIR/traefik/traefik.yml.tmp"
+        mv "$CONFIG_DIR/traefik/traefik.yml.tmp" "$CONFIG_DIR/traefik/traefik.yml"
+        if [ -z "$ACME_EMAIL" ]; then
+            echo "warning: ACME_EMAIL is empty in stacks/traefik/.env - traefik requires it for"
+            echo "         the ACME resolver, so no certificates will be issued. Run 'just init'."
+            echo "         (There is no Let's Encrypt account to sign up for - see docs/ingress.md.)"
         fi
     fi
     COREPL="{{ justfile_directory() }}/data/traefik/coredns.Corefile"
