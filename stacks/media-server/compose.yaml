@@ -232,7 +232,10 @@ services:
     container_name: decypharr
     <<: *common
     security_opt:
-      - no-new-privileges:true
+      # FUSE mounts via setuid /usr/bin/fusermount3; the x-common no-new-privileges
+      # anchor would block the privilege raise and DFS fails to mount with
+      # "fusermount3: mount failed: Operation not permitted". Decypharr ships
+      # without it (see docs/decypharr.md).
       - apparmor:unconfined
     environment:
       PUID: ${ENV_PUID:-1000}
