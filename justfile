@@ -578,7 +578,20 @@ firewall:
     # would shadow /usr/bin via PATH and fail with `cp: same file`. Drop it; the
     # install step recreates it.
     sudo rm -f /usr/local/bin/ufw-docker
+    # `install --system` runs `mandb -q` under `set -e`; on minimal images
+    # without man-db that aborts after writing the rules but before installing
+    # ufw-docker.service. Shim a no-op mandb for the duration of the install.
+    shim_mandb=0
+    if ! command -v mandb >/dev/null 2>&1; then
+        printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/bin/mandb >/dev/null
+        sudo chmod 0755 /usr/bin/mandb
+        shim_mandb=1
+    fi
+    cleanup_mandb() { [ "$shim_mandb" -eq 1 ] && sudo rm -f /usr/bin/mandb; }
+    trap cleanup_mandb EXIT
     sudo ufw-docker install --system
+    cleanup_mandb
+    trap - EXIT
     sudo systemctl restart ufw
     echo
     echo "firewall locked down: tailnet only, containers gated by ufw."

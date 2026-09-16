@@ -105,7 +105,7 @@ sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
 sudo ufw enable
 sudo curl -fsSL https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker -o /usr/bin/ufw-docker   # §2 did this too
 sudo chmod 0755 /usr/bin/ufw-docker
-sudo ufw-docker install --system           # the Docker forward gate (§2 does this too)
+sudo ufw-docker install --system           # the Docker forward gate; install man-db first if `mandb` is missing (it runs mandb). The §2 bootstrap does all of this for you.
 ```
 
 `100.64.0.0/10` is the CGNAT range Tailscale uses — nothing but your tailnet can reach `22`

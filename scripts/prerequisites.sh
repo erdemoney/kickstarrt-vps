@@ -260,6 +260,20 @@ install_ufw_docker() {
     # A leftover at /usr/local/bin from an interrupted run shadows /usr/bin via
     # PATH and fails exactly the same way; drop it and let install recreate it.
     rm -f /usr/local/bin/ufw-docker
+    # `install --system` also runs `mandb -q` to refresh the man-page index.
+    # That is cosmetic, but upstream runs under `set -e`, so on images without
+    # man-db (Oracle's minimal Ubuntu) it aborts AFTER writing the firewall
+    # rules but BEFORE installing ufw-docker.service - leaving the gate half
+    # applied. Shim a no-op mandb for the duration of the install; the man page
+    # itself is still installed and `man ufw-docker` works without the index.
+    shim_mandb=0
+    if ! has mandb; then
+        printf '#!/bin/sh\nexit 0\n' > /usr/bin/mandb
+        chmod 0755 /usr/bin/mandb
+        shim_mandb=1
+    fi
+    cleanup_mandb() { [ "$shim_mandb" -eq 1 ] && rm -f /usr/bin/mandb; }
+    trap cleanup_mandb EXIT
     # install --system writes the DOCKER-USER gate into /etc/ufw/after.rules
     # (+ after6.rules), installs the man page, and enables the ufw-docker.service
     # that re-applies the rules after every Docker start/reboot.
@@ -267,6 +281,8 @@ install_ufw_docker() {
         printf 'ufw-docker install failed\n' >&2
         exit 1
     fi
+    cleanup_mandb
+    trap - EXIT
     if has systemctl; then
         systemctl restart ufw
     else
