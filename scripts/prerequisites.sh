@@ -3,7 +3,7 @@
 # prerequisites.sh - one-shot bootstrap for a fresh VPS (see docs/quickstart.md).
 #
 # Installs, idempotently: Tailscale, git, just, Docker (with the compose
-# plugin), ufw, and adds the invoking user to the `docker` group. Only needs
+# plugin), and adds the invoking user to the `docker` group. Only needs
 # curl. Cross-distro: Debian/Ubuntu (apt), Fedora/RHEL (dnf/yum), openSUSE
 # (zypper), Arch (pacman) and Alpine (apk).
 #
@@ -14,12 +14,12 @@
 # address - your only SSH address. Approval is always yours; if the window
 # passes, it falls back to printing the manual `sudo tailscale up` step.
 #
-# It deliberately does NOT touch the firewall rules. Closing the public door is
-# a lockdown you do consciously, with `just firewall` (Quickstart §5): it
-# refuses to run unless the box is on the tailnet, prints what it's about to
-# do, and asks for confirmation before ufw drops the public IP route. ufw is
-# only *installed* here; nothing is enabled, so a fresh box can never be locked
-# out by this script alone.
+# It deliberately does NOT install ufw or touch any firewall rules. The
+# lockdown is a conscious step you run with `just lockdown` (Quickstart §5):
+# that recipe installs ufw (if missing) and enables it, after refusing unless
+# the box is on the tailnet and printing+confirming what it's about to do.
+# Nothing here can lock a fresh box out, and nothing here can silently
+# dismantle a distro image's shipped firewall before the lockdown replaces it.
 
 set -euo pipefail
 
@@ -175,31 +175,6 @@ ensure_docker_group() {
     ok "$REAL_USER added to docker - log out and back in before 'just up'"
 }
 
-install_ufw() {
-    msg "ufw"
-    if has ufw; then
-        skip "already installed"
-        return
-    fi
-    if [ -z "$PM" ]; then
-        warn "cannot install ufw (no supported package manager)"
-        return
-    fi
-    # Distros that ship ufw out of the box skip above. Oracle's Ubuntu images
-    # don't include it (they preconfigure the host firewall with
-    # iptables-persistent instead, which apt swaps out for ufw.service here) -
-    # that replacement is exactly what this repo's model wants: ufw owns the
-    # deny-incoming ruleset and persists it at boot. The VCN security list
-    # remains the outer gate regardless.
-    "${PM_DEPS[@]}" ufw
-    if has ufw; then
-        ok "installed"
-    else
-        printf 'ufw install failed\n' >&2
-        exit 1
-    fi
-}
-
 join_tailnet() {
     msg "Tailscale join"
     if ! has tailscale; then
@@ -235,7 +210,6 @@ main() {
     install_just
     install_docker
     ensure_docker_group
-    install_ufw
     join_tailnet
     printf '\n'
     if [ -n "$TS_IP" ]; then
@@ -249,6 +223,6 @@ main() {
         printf '   2. tailscale ip -4     # your only SSH address\n'
     fi
     msg 'then continue with docs/quickstart.md: Section 3 to verify SSH over the tailnet, then'
-    msg 'Section 5 (just firewall) to lock the box down - ufw is installed but not yet enabled.'
+    msg 'Section 5 (just lockdown) installs ufw if needed and locks the box down.'
 }
 main "$@"

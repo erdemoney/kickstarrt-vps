@@ -539,22 +539,29 @@ init FORCE="":
     printf '%s\n' "  ${B}${GRN}${DONE}${R} ${B}init complete${R}"
     muted "Review stacks/*/.env, then run 'just up'."
     muted "Re-runs skip what's already set; 'just init force' re-prompts those values."
-    muted "Keep ufw closed (SSH tailnet-only) - the stack stays private until you add the"
-    muted "public DNS records and open :443 (+ :80, the http->https redirect) (docs/ingress.md)."
+    muted "Keep the box locked down (SSH tailnet-only) - go public with 'just go-public'"
+    muted "(Cloudflare A records + open :443/:80; docs/ingress.md, Quickstart §10)."
     hr
 
 # Create the shared Docker network (idempotent). The subnet is pinned inside
-# 172.16.0.0/12 so the ufw-docker forward gate (installed by the bootstrap
-# script) already covers this network's egress with its default RFC1918 subnets.
+# 172.16.0.0/12 so the ufw-docker forward gate (installed by `just lockdown`)
+# already covers this network's egress with its default RFC1918 subnets.
 # Only change it if you re-provision the gate with `sudo ufw-docker install --docker-subnets`.
 networks:
     docker network inspect internal >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/16 internal
 
-# Lock the box down: deny-incoming ufw (tailnet allowed) plus the ufw-docker
-# forward gate. Idempotent. Enabling deny-incoming cuts the public IP route, so
-# this first refuses to run unless the box is on the tailnet (tailscale ip -4)
-# - the bootstrap script applies the same rules + guard automatically.
-firewall:
+# Lock the box down: install ufw (if missing), apply the tailnet-only
+# deny-incoming ruleset, and install the ufw-docker forward gate. Idempotent.
+# Enabling deny-incoming cuts the public IP route, so this first refuses to
+# run unless the box is on the tailnet (tailscale ip -4), then prints what it
+# will do and asks before executing.
+#
+# On distros that shipped iptables-persistent/netfilter-persistent (Oracle's
+# Ubuntu images), installing ufw under apt removes those as a side effect. That
+# transition happens HERE, in the same command that immediately enables a
+# replacement firewall - so there is never a reboot between "old firewall
+# removed" and "ufw in charge" (the hole you'd otherwise get on the next boot).
+lockdown:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! tailscale ip -4 >/dev/null 2>&1; then
@@ -563,14 +570,39 @@ firewall:
         exit 1
     fi
     echo "About to lock the box down:"
+    echo "  - install ufw if the bootstrap hasn't (also swaps out a distro-shipped iptables-persistent)"
     echo "  - ufw default-deny incoming (tailnet 22/53/443 allowed, no public ports)"
     echo "  - ufw --force enable"
     echo "  - re-apply the ufw-docker DOCKER-USER forward gate (and ufw-docker.service)"
     echo "This only re-applies the tailnet lockdown - public 443/80 rules you added are untouched."
     echo "If this SSH session is still over the public IP, ufw will DROP it - reconnect over the tailnet."
-    read -r -p "Continue? [y/N] " firewall_confirm
-    if [ "$firewall_confirm" != "y" ] && [ "$firewall_confirm" != "Y" ]; then
+    read -r -p "Continue? [y/N] " lockdown_confirm
+    if [ "$lockdown_confirm" != "y" ] && [ "$lockdown_confirm" != "Y" ]; then
         echo "aborted."
+        exit 1
+    fi
+    if ! command -v ufw >/dev/null 2>&1; then
+        echo "installing ufw..."
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ufw
+        elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y ufw
+        elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y ufw
+        elif command -v zypper >/dev/null 2>&1; then
+            sudo zypper install -y ufw
+        elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -Sy --noconfirm ufw
+        elif command -v apk >/dev/null 2>&1; then
+            sudo apk add --no-cache ufw
+        else
+            echo "no supported package manager found - install ufw first, then re-run: just lockdown" >&2
+            exit 1
+        fi
+    fi
+    if ! command -v ufw >/dev/null 2>&1; then
+        echo "ufw install failed - install it manually, then re-run: just lockdown" >&2
         exit 1
     fi
     sudo ufw default deny incoming
@@ -605,8 +637,54 @@ firewall:
     trap - EXIT
     sudo systemctl restart ufw
     echo
-    echo "firewall locked down: tailnet only, containers gated by ufw."
+    echo "lockdown applied: tailnet only, containers gated by ufw."
     echo "Verify any time with: sudo ufw-docker check"
+    echo "Open the public serving ports when you're ready with: just go-public"
+
+# Open (or close) the public serving ports for going public (Quickstart §10).
+# Default action `open`; `just go-public close` removes them again. The other
+# half - Cloudflare A records for the public hostnames - stays a manual step.
+# Pair with `just lockdown` (which never touches public rules) for a quick
+# public/private toggle.
+go-public action="open":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "{{action}}" = "close" ]; then
+        echo "About to close the public serving ports:"
+        echo "  - remove ufw allow 443/tcp"
+        echo "  - remove ufw allow 80/tcp (the http -> https redirect)"
+        echo "Tailnet doors are untouched - the box stays reachable."
+        read -r -p "Continue? [y/N] " go_public_confirm
+        if [ "$go_public_confirm" != "y" ] && [ "$go_public_confirm" != "Y" ]; then
+            echo "aborted."
+            exit 1
+        fi
+        sudo ufw delete allow 443/tcp
+        sudo ufw delete allow 80/tcp
+        echo
+        echo "public serving ports closed - the box is tailnet-only again."
+        echo "Re-assert the lockdown any time with: just lockdown"
+        exit 0
+    fi
+    echo "About to open the public serving ports:"
+    echo "  - allow 443/tcp (Traefik https - the real way in)"
+    echo "  - allow 80/tcp (http -> https redirect only; nothing is served on it)"
+    echo "Do the manual half first: Cloudflare A records for seerr.<DOMAIN> and jellyfin.<DOMAIN>"
+    echo "pointing at the public IP (DNS only - never proxied), or no DNS name reaches these."
+    echo "See docs/ingress.md and Quickstart §10."
+    if ! command -v ufw >/dev/null 2>&1 || ! sudo ufw status 2>/dev/null | grep -Fq "Status: active"; then
+        echo "WARNING: ufw is not active - these rules only take effect once you run 'just lockdown'." >&2
+    fi
+    read -r -p "Continue? [y/N] " go_public_confirm
+    if [ "$go_public_confirm" != "y" ] && [ "$go_public_confirm" != "Y" ]; then
+        echo "aborted."
+        exit 1
+    fi
+    sudo ufw allow 443/tcp
+    sudo ufw allow 80/tcp
+    echo
+    echo "public serving ports open: Cloudflare -> VPS :443 -> Traefik -> CrowdSec -> the apps."
+    echo "Close them again any time with: just go-public close"
 
 # Validate every compose file against the docker compose schema.
 # Read-only: never creates or edits a .env (compose treats .env as optional and the

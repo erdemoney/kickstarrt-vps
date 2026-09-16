@@ -49,7 +49,7 @@ ssh <user>@<PUBLIC-IP>
 
 Then bootstrap the box with this repo's setup script. It is **idempotent** (safe to re-run)
 and cross-distro, and installs everything the rest of this guide needs — `git`, `just`, Docker
-with the compose plugin, your user in the `docker` group, plus **ufw** — **and joins the box to
+with the compose plugin, and your user in the `docker` group — **and joins the box to
 your tailnet**:
 
 ```bash
@@ -62,9 +62,10 @@ printing the box's **tailnet address** — a `100.x.y.z` from Tailscale's CGNAT 
 address is your SSH address from now on.
 
 The script deliberately does **not** touch the firewall — closing the public door is a
-conscious step, done in [§5](#5-lock-the-box-down-ufw) with `just firewall` (which shows what
-it's about to do and asks before ufw drops the public IP route). So the box is still fully
-open until then — fine for now, since you're the only one who can reach it.
+conscious step, done in [§5](#5-lock-the-box-down-ufw) with `just lockdown` (which also
+installs ufw if the bootstrap hasn't, shows what it's about to do, and asks before
+dropping the public IP route). So the box is still fully open until then — fine for now,
+since you're the only one who can reach it.
 
 ## 3. Verify SSH over the tailnet
 
@@ -81,8 +82,9 @@ the `100.x.y.z` address is the one that matters later.
 
 > The provider's web console stays available as the **break-glass** door for the box's whole
 > life — it rides the provider's network, not yours, so a tailnet hiccup can never lock you
-> out. Caveat on Oracle Cloud: Ubuntu images there configure no console password, so your SSH
-> key is the only way in ([details](oci#after-creation)).
+> out. On Oracle Cloud, Ubuntu images configure no console password by default — set one
+> (`sudo passwd ubuntu`) so the console can actually log you in when nothing else can; the
+> full recovery walkthrough is in the [OCI appendix](oci#3-recovery-the-console-break-glass).
 
 ## 4. Fork, clone, and fill the secrets
 
@@ -189,14 +191,17 @@ for — CrowdSec and Traefik use it to authenticate with each other. It must be 
 ## 5. Lock the box down (ufw)
 
 The tailnet is now your door — this is the conscious step that makes it your **only** door.
-The bootstrap ([§2](#2-get-in-join-the-tailnet)) installed ufw but left it off, so nothing
-has been closed yet. Run the lockdown deliberately:
+`just lockdown` installs ufw if the bootstrap ([§2](#2-get-in-join-the-tailnet)) didn't,
+then enables it — both in the same command, so there's never an unprotected reboot between
+dismantling whatever your provider image shipped (Oracle's Ubuntu images preconfigure the
+host firewall with `iptables-persistent`, which apt swaps out for ufw here) and ufw taking
+charge. Run the lockdown deliberately:
 
 ```bash
-just firewall
+just lockdown
 ```
 
-`just firewall` prints exactly what it's about to do, then asks before executing: ufw
+`just lockdown` prints exactly what it's about to do, then asks before executing: ufw
 default-deny incoming with the tailnet allowed (`100.64.0.0/10` — the CGNAT range Tailscale
 uses, so nothing but your tailnet can reach `22`/`53`/`443`), ufw enabled, and the
 **ufw-docker** forward gate ([Hardening](hardening#docker-and-ufw-the-forward-gate))
@@ -204,7 +209,7 @@ installed, including its `ufw-docker.service` that keeps the gate in place acros
 Docker restart/reboot. It **refuses to run unless** the box is on the tailnet
 (`tailscale ip -4`) — and if your SSH session is still riding the public IP, it warns that
 ufw will drop it. There is deliberately **no public `22`/`80`/`443` rule**: the public
-surface opens only at [§10](#10-go-public-last).
+surface opens only at [§10](#10-go-public-last) with `just go-public`.
 
 Verify the result:
 
@@ -310,9 +315,12 @@ the serving ports — in that order.
 2. Open the public ports:
 
 ```bash
-sudo ufw allow 443/tcp     # the real way in
-sudo ufw allow 80/tcp      # http -> https redirect only; nothing is served on it
+just go-public
 ```
+
+This runs `ufw allow 443/tcp` (the real way in) and `ufw allow 80/tcp` (an http → https
+redirect only — nothing is served on it), after reminding you the A records above are the
+other half of the door. Fully reversible with `just go-public close`.
 
 Because the ufw-docker gate routes container traffic through UFW, these two rules are exactly
 what lets Docker-forwarded `:443`/`:80` through — the same syntax that opened the tailnet
@@ -321,7 +329,7 @@ doors in §5.
 That's it — the stack is public on those two hostnames: Cloudflare DNS → VPS `:443` →
 Traefik → CrowdSec → the apps. Admin panels stay off the public DNS and are reached over the
 tailnet by name ([Tailnet DNS](tailnet)). Fully reversible: delete the records, or
-`sudo ufw delete allow 443/tcp` and `allow 80/tcp` — the tailnet doors stay intact either way.
+`just go-public close` — the tailnet doors stay intact either way.
 
 From here: [Indexers](indexers) and [Services](services) can be set up any time after the
 stack is up; [Updates & CI](updates) and [Maintenance](maintenance) are the ongoing-ops pages.

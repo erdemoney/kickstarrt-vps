@@ -16,7 +16,7 @@ The baseline you already have by the end of quickstart §5:
   opened deliberately as the [last setup step](quickstart#10-go-public-last) — **plus the
   tailnet**. sshd is reachable only from `100.64.0.0/10`.
 - **The firewall actually reaches the containers** — the [ufw-docker](https://github.com/chaifeng/ufw-docker)
-  gate (installed by [`just firewall`](quickstart#5-lock-the-box-down-ufw)) routes
+  gate (installed by [`just lockdown`](quickstart#5-lock-the-box-down-ufw)) routes
   Docker's forwarded traffic through UFW, so "deny incoming" really is
   deny-everything-except-what-a `ufw allow` opens
   ([the forward gate](#docker-and-ufw-the-forward-gate) below).
@@ -59,12 +59,13 @@ default stance — a LAN device is trusted by default — and it's the one delib
 this setup inherits from upstream. (The tailnet's `100.64.0.0/10` is *not* RFC1918, so
 tailnet peers still need the explicit `allow from 100.64.0.0/10` rule — which §5 applies.)
 
-**Installed and kept applied by [`just firewall`](quickstart#5-lock-the-box-down-ufw):** the
+**Installed and kept applied by [`just lockdown`](quickstart#5-lock-the-box-down-ufw):** the
 recipe runs `ufw-docker install --system` — which writes the block above, installs the man
 page, and installs `ufw-docker.service` (`WantedBy=multi-user.target`, tied to
 `docker.service`) so the rules re-apply after every Docker start and reboot, then restarts
 UFW to load them. The bootstrap script ([Quickstart §2](quickstart#2-get-in-join-the-tailnet))
-only *installs* ufw — the boxes stay open until you run `just firewall`. Verify any time:
+doesn't touch the firewall at all — `just lockdown` installs ufw (if missing) *and* enables it
+in the same command, so the boxes stay open until then. Verify any time:
 
 ```bash
 sudo ufw-docker check        # diffs after.rules/after6.rules against the intended block
@@ -74,7 +75,7 @@ sudo iptables -L ufw-user-forward -n   # the ufw rules being mirrored
 ```
 
 To reapply by hand after a change (e.g. a new Docker network):
-`just firewall` re-runs the whole lockdown and refuses unless the box is on the tailnet; or
+`just lockdown` re-runs the whole lockdown and refuses unless the box is on the tailnet; or
 step by step: `sudo ufw-docker install --system` then `sudo systemctl restart ufw`. Upstream
 notes the rules can occasionally not take effect after a UFW restart — a reboot restores
 them; `ufw-docker.service` is what makes reboots and docker restarts self-healing.
@@ -93,6 +94,14 @@ sudo systemctl reload ssh
 
 Test login in a second terminal before closing the first. Root login over SSH should be off
 too — if you use a root user, create a normal user first and `sudo` from it.
+
+### Recovery door
+
+Key-only SSH is a strong door and a single point of failure: if the box ever drops off the
+tailnet, there's no SSH path left. Give the provider console a way in — a long random
+`sudo passwd user` (console-only: it does not turn on sshd password auth), and use that VNC /
+serial console to re-join the tailnet on a lockout ([OCI walkthrough](oci#3-recovery-the-console-break-glass);
+other providers' consoles work the same way).
 
 ## Non-root Docker
 

@@ -100,10 +100,46 @@ then on. Once tailnet SSH is confirmed, [Quickstart §5](quickstart#5-lock-the-b
 closes the `22` door (delete the VCN ingress rule, lock ufw to tailnet-only) and every later
 login goes over the tailnet.
 
-The **Console connection** can't help here: Canonical Ubuntu images configure **no console
-password**, so the console never accepts a login. Your SSH key — pasted at creation — is the
-only way onto the box; recovery for a tailnet-locked box is the volume-attach rescue (detach
-the boot volume, mount it on a second instance, and fix the node).
+When the tailnet drops and nothing else can reach the box, the **provider console is the only
+door left** — it rides OCI's management plane, not your network or ufw. Ubuntu images
+configure **no console password** by default, so a single one-time step is what makes that
+door usable:
+
+## 3. Recovery: the console break-glass
+
+### Set the console password (one-time, while you still have tailnet SSH)
+
+```bash
+sudo passwd ubuntu     # a long random password; store it in your password manager
+```
+
+This does **not** open sshd: Ubuntu's sshd keeps password auth disabled, so tailnet SSH stays
+key-only and nothing new becomes reachable from the internet — the password only populates the
+console's VNC/serial login prompt. It is a **static secret sitting on the box** all the time,
+so choose a long random one (generated, not chosen) and never reuse it.
+
+### Recovering a box that fell off the tailnet
+
+First, name the flavor of lockout — they have different fixes:
+
+- **You** can't reach the tailnet (client-side hiccup): try any other device on the tailnet,
+  or Tailscale's admin-console SSH, before touching the box — no OS recovery needed.
+- **The box** lost the tailnet (broken node, deauthorized in the admin console, tailscaled
+  wedged): the console is the way in. On the instance page → **Console connection** →
+  **Create console connection** (either **VNC** or **SSH** flavor; Oracle generates a
+  connection key-pair for you and shows the private half once). The console's SSH command
+  box then prints the exact tunnel/login command for that connection:
+  - **VNC**: `ssh -i <connection-key> <connection-ocid>@<region>.compute.oraclecloud.com -L 5900:localhost:5900`
+    then open any VNC viewer against `localhost:5900`. A login prompt appears — sign in as
+    `ubuntu` with the console password above.
+  - **SSH (serial)**: `ssh -i <connection-key> <connection-ocid>@<region>.compute.oraclecloud.com`
+    — a serial terminal, same `ubuntu` login.
+- Fix the node from the console (e.g. `sudo tailscale up` prints the auth URL again; approve
+  it), verify `tailscale status`, then SSH over the tailnet as usual.
+
+If you never set the password (or it's lost), the fallback is the volume-attach rescue: stop
+the box, **detach the boot volume**, attach it to any second instance, mount it, and fix the
+node from there.
 
 Notes:
 
