@@ -26,12 +26,22 @@ def command_output(command: tuple[str, ...]) -> tuple[bool, str]:
     return result.returncode == 0, detail
 
 
-def check_command(label: str, command: tuple[str, ...], results: list[tuple[str, bool, str]]) -> None:
+def check_command(
+    label: str,
+    command: tuple[str, ...],
+    results: list[tuple[str, bool, str]],
+    *,
+    success_detail: str | None = "ok",
+) -> None:
     if not shutil.which(command[0]):
         results.append((label, False, f"{command[0]} is not installed"))
         return
     ok, detail = command_output(command)
-    results.append((label, ok, detail[-240:] if detail else ("ok" if ok else "command failed")))
+    if ok:
+        detail = detail.splitlines()[0] if success_detail is None and detail else success_detail or "ok"
+    else:
+        detail = detail[-240:] if detail else "command failed"
+    results.append((label, ok, detail))
 
 
 def compose_services(stack: str, results: list[tuple[str, bool, str]]) -> None:
@@ -71,15 +81,16 @@ def main() -> int:
     traefik = EnvFile(TRAEFIK_ENV)
     config_dir = Path(media.get("CONFIG_DIR", str(ROOT / "data"))).expanduser()
 
-    check_command("Docker", ("docker", "info"), results)
-    check_command("Tailscale", ("tailscale", "ip", "-4"), results)
-    check_command("UFW active", ("sudo", "ufw", "status"), results)
-    check_command("Docker firewall gate", ("sudo", "ufw-docker", "check"), results)
-    check_command("internal network", ("docker", "network", "inspect", "internal"), results)
+    check_command("Docker", ("docker", "info"), results, success_detail="available")
+    check_command("Tailscale", ("tailscale", "ip", "-4"), results, success_detail=None)
+    check_command("UFW active", ("sudo", "ufw", "status"), results, success_detail="active")
+    check_command("Docker firewall gate", ("sudo", "ufw-docker", "check"), results, success_detail="configured")
+    check_command("internal network", ("docker", "network", "inspect", "internal"), results, success_detail="available")
     if shutil.which("docker"):
         ok, bouncers = command_output(("docker", "exec", "crowdsec", "cscli", "bouncers", "list"))
         registered = "traefik" in bouncers.lower()
-        results.append(("CrowdSec bouncer", ok and registered, bouncers[-240:] if bouncers else "traefik bouncer unavailable"))
+        detail = "registered" if ok and registered else bouncers[-240:] if bouncers else "traefik bouncer unavailable"
+        results.append(("CrowdSec bouncer", ok and registered, detail))
     else:
         results.append(("CrowdSec bouncer", False, "docker is not installed"))
 
@@ -92,7 +103,7 @@ def main() -> int:
 
     corefile = config_dir / "coredns" / "Corefile"
     readable = corefile.is_file() and bool(corefile.stat().st_mode & 0o004)
-    results.append(("CoreDNS Corefile", readable, str(corefile) if readable else f"missing or not world-readable: {corefile}"))
+    results.append(("CoreDNS Corefile", readable, "readable" if readable else f"missing or not world-readable: {corefile}"))
 
     for stack in STACKS:
         compose_services(stack, results)
