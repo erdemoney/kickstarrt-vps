@@ -205,6 +205,10 @@ def set_field(resource: dict[str, Any], name: str, value: Any) -> None:
     resource["fields"].append({"name": name, "value": value})
 
 
+def remove_field(resource: dict[str, Any], name: str) -> None:
+    resource["fields"] = [field for field in resource.get("fields", []) if field.get("name") != name]
+
+
 def redacted(value: Any, name: str = "") -> str:
     if any(word in name.lower() for word in ("key", "token", "password", "secret")):
         return "<unchanged secret>" if value else "<empty>"
@@ -238,6 +242,24 @@ def arr_download_client(
         if existing.get("implementation") != implementation:
             changed.append(f"implementation: {existing.get('implementation')} -> {implementation}")
             payload["implementation"] = implementation
+        secret_change = field_value(existing, "password") != desired_fields.get("password")
+        if secret_change:
+            try:
+                http.request(
+                    app,
+                    "POST",
+                    f"http://{app}:{8989 if app == 'sonarr' else 7878}/api/v3/downloadclient/test?forceTest=true",
+                    key,
+                    payload,
+                )
+            except WireError:
+                pass
+            else:
+                # The Arr API masks or omits stored passwords. A successful
+                # candidate test proves the existing secret works, so do not
+                # prompt for or rewrite a secret-only difference.
+                remove_field(payload, "password")
+                changed = [item for item in changed if not item.startswith("password:")]
         if not changed:
             return None
         endpoint = f"http://{app}:{8989 if app == 'sonarr' else 7878}/api/v3/downloadclient/{existing['id']}"
@@ -327,11 +349,13 @@ def prowlarr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Chang
         if existing:
             payload = json.loads(json.dumps(existing))
             local_changes = []
+            if existing.get("syncLevel") != "fullSync":
+                local_changes.append(f"syncLevel: {existing.get('syncLevel')} -> fullSync")
+                payload["syncLevel"] = "fullSync"
             for field, value in (
                 ("baseUrl", base_url),
                 ("apiKey", key),
                 ("prowlarrUrl", "http://prowlarr:9696"),
-                ("syncLevel", "full"),
             ):
                 old = field_value(existing, field)
                 if old != value:
@@ -347,12 +371,11 @@ def prowlarr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Chang
             "implementationName": name,
             "configContract": f"{name}Settings",
             "enable": True,
-            "syncLevel": "full",
+            "syncLevel": "fullSync",
             "fields": [
                 {"name": "prowlarrUrl", "value": "http://prowlarr:9696"},
                 {"name": "baseUrl", "value": base_url},
                 {"name": "apiKey", "value": key},
-                {"name": "syncLevel", "value": "full"},
             ],
             "tags": [],
         }
