@@ -98,9 +98,12 @@ def main() -> int:
         compose_services(stack, results)
 
     print("kickstArrt health\n")
+    check_width = max(len("CHECK"), *(len(label) for label, _, _ in results))
+    print(f"{'STATUS':<6}  {'CHECK':<{check_width}}  DETAILS")
     for label, ok, detail in results:
-        marker = "OK  " if ok else "FAIL"
-        print(f"[{marker}] {label}: {detail}")
+        status = "OK" if ok else "FAIL"
+        detail = " ".join(detail.split()) or "-"
+        print(f"{status:<6}  {label:<{check_width}}  {detail}")
     failures = sum(not ok for _, ok, _ in results)
     print(f"\n{len(results) - failures}/{len(results)} checks passed.")
     return 1 if failures else 0
