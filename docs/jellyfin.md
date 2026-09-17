@@ -53,10 +53,3 @@ anything that *requires* video transcoding (codec the client can't play, or burn
 subtitles) fails with an error instead of transcode-spiking the server — by design. Keep
 clients direct-play friendly (bitrate caps live on the client, not the server) and the VPS
 stays idle.
-
-## 3. Seerr
-
-Seerr talks to Jellyfin over the internal network: **Dashboard → API Keys** → generate, then
-Seerr → Settings → **Jellyfin** → server `http://jellyfin:8096` + that key
-([The \*arrs](arrs#seerr--jellyfin--radarr--sonarr-requests)). Jellyfin's own dashboard
-credentials are only handled by Jellyfin's first-login wizard — nothing to store in `.env`.

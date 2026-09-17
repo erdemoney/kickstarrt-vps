@@ -1,6 +1,6 @@
 ---
 title: Indexers
-nav_order: 8
+nav_order: 9
 ---
 
 # Indexers: Prowlarr, custom Cardigann, and AltHub

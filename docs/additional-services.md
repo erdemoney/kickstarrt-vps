@@ -1,6 +1,6 @@
 ---
 title: Additional services
-nav_order: 8
+nav_order: 10
 ---
 
 # Adding services

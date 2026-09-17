@@ -274,7 +274,7 @@ it's configured.
 3. **Jellyfin** — create the admin account, add libraries under `/mnt/shows` and `/mnt/movies`,
    and set the transcode path → [Jellyfin](jellyfin).
 4. **Seerr** — connect Jellyfin at `http://jellyfin:8096`, then connect Radarr and Sonarr with
-   their internal URLs and API keys → [Seerr setup](jellyfin#seerr).
+   their internal URLs and API keys → [Seerr setup](seerr).
 5. **Indexers** — Prowlarr needs at least one before grabs work; Torrentio (debrid) and
    AltHub (Usenet) → [Indexers](indexers).
 

@@ -102,6 +102,7 @@ Read the pages in order for a first deploy; after that they're reference.
 | [Decypharr](decypharr)       | debrid gateway: wizard, mounts, its side of the arr wiring            |
 | [The \*arrs](arrs)           | app wiring: internal DNS names, API keys, download clients, mounts; the Recyclarr-synced quality profiles |
 | [Jellyfin](jellyfin)         | playback setup: libraries on the Decypharr mount, no-video-transcode policy |
+| [Seerr](seerr)               | user requests and Jellyfin/Radarr/Sonarr integration                 |
 | [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
 | [Additional services](additional-services) | how to extend the stack safely with more containers |
 | [Security](security)         | layered security model: Tailscale, UFW, Docker forwarding, Traefik, and CrowdSec |
