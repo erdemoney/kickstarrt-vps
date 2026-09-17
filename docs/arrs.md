@@ -12,6 +12,29 @@ workable order. Run `just wiring` on the box first — it prints each URL + API 
 from `$CONFIG_DIR` on disk), then walks through one service at a time: Enter advances to
 the next step, `q` quits (piping it prints everything at once).
 
+## Automated wiring
+
+After the first-run admin accounts and Decypharr wizard are complete, `just wire` can
+reconcile the repeatable cross-service links through the applications' REST APIs. It does
+not edit `config.xml` or `config.json`; those files are read only to bootstrap API
+credentials. Requests run from inside the containers, so the internal service names remain
+private.
+
+The default mode is interactive. It discovers the current configuration, displays each
+service-level change with secrets redacted, and asks for confirmation before applying it.
+It stops after a declined or failed checkpoint rather than cascading through a partial setup.
+
+```bash
+just wire --dry-run   # discover and display planned changes
+just wire             # review and confirm each checkpoint
+just wire --yes       # non-interactive use after reviewing the dry run
+```
+
+The first version handles Arr root folders and Decypharr download clients, Decypharr's Arr
+integrations, and Prowlarr's Sonarr/Radarr application links. Jellyfin, Seerr, subtitle
+providers, language profiles, indexer choices, and the Decypharr provider/mount wizard remain
+GUI steps because they require user-specific choices or first-run authentication.
+
 ## Docker networking
 
 One shared, `external: true` network — `internal` — carries all app-to-app traffic, Traefik
@@ -152,8 +175,8 @@ the easy-to-forget step.
 ## Quality profiles (Recyclarr — automatic)
 
 Quality profiles and custom formats are **not wired by hand** in this stack. [Recyclarr](https://recyclarr.dev)
-runs as a container and syncs the shipped **"Direct Play"** profile — TRaSH Guide definitions
-tuned for this CPU-only edition — into Radarr and Sonarr automatically:
+runs as a container and syncs the shipped profiles — TRaSH Guide definitions tuned for this
+CPU-only edition — into Radarr and Sonarr automatically:
 
 - **When**: right after first boot (it waits for the arrs to be up, then syncs once), and
   daily after that. Nothing to paste anywhere; watch it with `docker logs recyclarr`.
@@ -170,11 +193,28 @@ tuned for this CPU-only edition — into Radarr and Sonarr automatically:
   docker compose -f stacks/media-server/compose.yaml exec recyclarr recyclarr sync
   ```
 
-The profile is reset to match the config on every sync, so manual edits in the arr UI don't
+The profiles are reset to match the config on every sync, so manual edits in the arr UI don't
 stick — the YAML is the source of truth. Pick **Direct Play** wherever an app asks for a
 quality profile (Seerr's Radarr/Sonarr settings, Radarr/Sonarr defaults). The arrs' API keys
 are read by the recyclarr container at start (never committed); if you regenerate an arr's
 API key, restart it: `just up-svc media-server recyclarr`.
+
+### Direct Play (Anime) companion profile (Sonarr)
+
+Sonarr also ships a **Direct Play (Anime)** profile (TRaSH's `[Anime] Remux-1080p` recipe)
+for anime series inside the same instance. It differs from **Direct Play** in the ways that
+matter to anime: `Bluray-1080p Remux` and `Bluray-1080p` are merged into one tier (and are the
+upgrade ceiling), HDTV resolutions are folded into the WEB tiers (anime HDRips often tag
+themselves HDTV), and SeaDex-driven **Anime BD/Web tier** Custom Formats rank release groups
+instead of the general tiers. x265 is *not* penalized — anime BD encodes are nearly always
+x265 10-bit — but the same `-10000` codec/disk-image never-grab rules apply, and
+dubs-only/raw/LQ anime groups are rejected.
+
+Nothing else to set up: both profiles arrive with the same automatic sync. When you add an
+anime series in Sonarr (set its **Series Type** to *Anime*), pick the **Direct Play (Anime)**
+profile for it; regular shows keep **Direct Play**. Tuning knobs live in the header comments
+of `data/recyclarr/configs/sonarr.yml` (e.g. score `Anime Dual Audio` / `Uncensored`
+positively if the household prefers them).
 
 > Migrating from the old Profilarr setup? Nothing to migrate — its container and panel are
 > gone; the leftover `$CONFIG_DIR/profilarr` dir is inert and safe to delete.

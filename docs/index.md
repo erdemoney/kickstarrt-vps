@@ -84,7 +84,7 @@ stacks/                  compose files (one folder per stack) + .env per stack
                          recyclarr, bazarr, decypharr
 data/                    runtime config that lives in code
   traefik/               traefik.yml, dynamic.yml, crowdsec-acquis.yaml
-  recyclarr/             shipped Direct Play quality profiles + bootstrap (synced by recyclarr)
+  recyclarr/             shipped Direct Play (+ Sonarr Direct Play (Anime)) quality profiles + bootstrap (synced by recyclarr)
 .github/                 CI checks (workflow) + Renovate pipeline (workflow + global config)
 docs/                    this wiki (GitHub Pages)
 justfile                 ops recipes (just up, just update-all, ...)

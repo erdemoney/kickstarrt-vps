@@ -1,17 +1,29 @@
-# Sonarr + Recyclarr: the shipped "Direct Play" quality profile.
+# Sonarr + Recyclarr: the shipped "Direct Play" + companion "Direct Play (Anime)" quality profiles.
 #
 # Auto-loaded by recyclarr (files in configs/ load as if passed via --config).
 # Applied automatically on first boot and kept in sync daily - nothing to paste
 # in the Sonarr UI. Edit this file to tune, then force a sync:
 #   docker compose -f stacks/media-server/compose.yaml exec recyclarr recyclarr sync
 #
-# Based on the TRaSH Guides, tailored for this stack: a CPU-only VPS where
-# Jellyfin should never video-transcode. The ladder is Remux + WEB + Bluray
-# (H.264/HEVC direct-play everywhere); audio is left unpenalized because audio
-# transcodes are cheap. Anything that would force a video transcode or break
-# playback scores -10000 (below the profile's minimum score of 0 = never
-# grabbed): exotic codecs (AV1/VP9/VC-1/MPEG2), Dolby Vision without an HDR10
-# fallback, Blu-ray disk images, and low-quality/obfuscated release groups.
+# Two companion profiles from the TRaSH Guides, tailored for this stack: a CPU-only
+# VPS where Jellyfin should never video-transcode.
+#
+# "Direct Play" (regular TV) - ladder is Remux + WEB + Bluray (H.264/HEVC
+# direct-play everywhere); audio is left unpenalized because audio transcodes are
+# cheap. Anything that would force a video transcode or break playback scores
+# -10000 (below the profile's minimum score of 0 = never grabbed): exotic codecs
+# (AV1/VP9/VC-1/MPEG2), Dolby Vision without an HDR10 fallback, Blu-ray disk
+# images, and low-quality/obfuscated release groups.
+#
+# "Direct Play (Anime)" (companion, assign to anime series) - TRaSH's [Anime]
+# Remux-1080p recipe:
+# Bluray-1080p Remux and Bluray-1080p are merged into one tier, HDTV is folded into
+# the WEB tiers (anime WEB/HDRips often tag themselves HDTV), and the Anime BD/Web
+# tier Custom Formats (SeaDex release groups) outrank everything. x265 is NOT
+# penalized here - anime BD encodes are nearly always x265 10-bit - but the same
+# -10000 never-grab codec/disk-image rules apply so Jellyfin never video-transcodes.
+# Dubs-only, raw and LQ anime groups are rejected. Streaming-service tie-breakers
+# (CR/NF/DSNP/...) are left out to keep the profile lean like Direct Play.
 sonarr:
   tv:
     base_url: http://sonarr:8989
@@ -70,12 +82,57 @@ sonarr:
           - name: Unknown
             enabled: false
 
+      - name: Direct Play (Anime)
+        upgrade:
+          allowed: true
+          # merged group (Bluray-1080p Remux + Bluray-1080p below) = the profile's
+          # ceiling, so a good BD encode is never "downgraded" off a remux.
+          until_quality: Bluray-1080p Remux
+        min_format_score: 0 # v0, raws, LQ groups and codec rejects all score below 0
+        min_upgrade_format_score: 10000 # only the quality ceiling stops CF-based upgrades
+        reset_unmatched_scores:
+          enabled: true # this file owns the profile: unmanaged CF scores reset to 0
+        quality_sort: top
+        # best ... worst (TRaSH anime order). Only the first five are allowed; the
+        # rest stay listed (disabled) for a deterministic sort order. Qualities are
+        # merged per the TRaSH guide so scoring works: Bluray-1080p Remux with
+        # Bluray-1080p in one tier, and HDTV-1080p/HDTV-720p folded into the WEB
+        # tiers (anime WEB/HDRip releases often mislabel themselves HDTV).
+        qualities:
+          - name: Bluray-1080p Remux
+            qualities: [Bluray-1080p]
+          - name: Bluray-2160p
+          - name: WEBDL-1080p
+            qualities: [WEBRip-1080p, HDTV-1080p]
+          - name: Bluray-720p
+          - name: WEBDL-720p
+            qualities: [WEBRip-720p, HDTV-720p]
+          - name: Bluray-2160p Remux
+            enabled: false
+          - name: HDTV-2160p
+            enabled: false
+          - name: Raw-HD
+            enabled: false
+          - name: Bluray-576p
+            enabled: false
+          - name: Bluray-480p
+            enabled: false
+          - name: DVD
+            enabled: false
+          - name: WEB 480p
+            qualities: [WEBRip-480p, WEBDL-480p]
+            enabled: false
+          - name: SDTV
+            enabled: false
+          - name: Unknown
+            enabled: false
+
     custom_formats:
       # --- release-group quality tiers (TRaSH Guide scores) ---
       - trash_ids: [9965a052eb87b0d10313b1cea89eb451] # Remux Tier 01
-        assign_scores_to: [{ name: Direct Play, score: 1900 }]
+        assign_scores_to: [{ name: Direct Play, score: 1900 }, { name: Direct Play (Anime), score: 975 }]
       - trash_ids: [8a1d0c3d7497e741736761a1da866a2e] # Remux Tier 02
-        assign_scores_to: [{ name: Direct Play, score: 1850 }]
+        assign_scores_to: [{ name: Direct Play, score: 1850 }, { name: Direct Play (Anime), score: 950 }]
       - trash_ids: [d6819cba26b1a6508138d25fb5e32293] # HD Bluray Tier 01
         assign_scores_to: [{ name: Direct Play, score: 1800 }]
       - trash_ids: [c2216b7b8aa545dc1ce8388c618f8d57] # HD Bluray Tier 02
@@ -87,35 +144,86 @@ sonarr:
       - trash_ids: [d84935abd3f8556dcd51d4f27e22d0a6] # WEB Tier 03
         assign_scores_to: [{ name: Direct Play, score: 1600 }]
 
+      # --- anime release-group tiers (SeaDex groups, TRaSH anime guide scores) ---
+      - trash_ids: [949c16fe0a8147f50ba82cc2df9411c9] # Anime BD Tier 01
+        assign_scores_to: [{ name: Direct Play (Anime), score: 1400 }]
+      - trash_ids: [ed7f1e315e000aef424a58517fa48727] # Anime BD Tier 02
+        assign_scores_to: [{ name: Direct Play (Anime), score: 1300 }]
+      - trash_ids: [096e406c92baa713da4a72d88030b815] # Anime BD Tier 03
+        assign_scores_to: [{ name: Direct Play (Anime), score: 1200 }]
+      - trash_ids: [30feba9da3030c5ed1e0f7d610bcadc4] # Anime BD Tier 04
+        assign_scores_to: [{ name: Direct Play (Anime), score: 1100 }]
+      - trash_ids: [545a76b14ddc349b8b185a6344e28b04] # Anime BD Tier 05
+        assign_scores_to: [{ name: Direct Play (Anime), score: 1000 }]
+      - trash_ids: [25d2afecab632b1582eaf03b63055f72] # Anime BD Tier 06
+        assign_scores_to: [{ name: Direct Play (Anime), score: 900 }]
+      - trash_ids: [0329044e3d9137b08502a9f84a7e58db] # Anime BD Tier 07
+        assign_scores_to: [{ name: Direct Play (Anime), score: 800 }]
+      - trash_ids: [c81bbfb47fed3d5a3ad027d077f889de] # Anime BD Tier 08
+        assign_scores_to: [{ name: Direct Play (Anime), score: 700 }]
+      - trash_ids: [e0014372773c8f0e1bef8824f00c7dc4] # Anime Web Tier 01
+        assign_scores_to: [{ name: Direct Play (Anime), score: 600 }]
+      - trash_ids: [19180499de5ef2b84b6ec59aae444696] # Anime Web Tier 02
+        assign_scores_to: [{ name: Direct Play (Anime), score: 500 }]
+      - trash_ids: [c27f2ae6a4e82373b0f1da094e2489ad] # Anime Web Tier 03
+        assign_scores_to: [{ name: Direct Play (Anime), score: 400 }]
+      - trash_ids: [4fd5528a3a8024e6b49f9c67053ea5f3] # Anime Web Tier 04
+        assign_scores_to: [{ name: Direct Play (Anime), score: 300 }]
+      - trash_ids: [29c2a13d091144f63307e4a8ce963a39] # Anime Web Tier 05
+        assign_scores_to: [{ name: Direct Play (Anime), score: 200 }]
+      - trash_ids: [dc262f88d74c651b12e9d90b39f6c753] # Anime Web Tier 06
+        assign_scores_to: [{ name: Direct Play (Anime), score: 100 }]
+
+      # --- anime versions (subs-vs-batch quality; TRaSH anime guide scores) ---
+      - trash_ids: [d2d7b8a9d39413da5f44054080e028a3] # v0: bad batch, reject unless a tier outranks it
+        assign_scores_to: [{ name: Direct Play (Anime), score: -51 }]
+      - trash_ids: [273bd326df95955e1b6c26527d1df89b] # v1
+        assign_scores_to: [{ name: Direct Play (Anime), score: 1 }]
+      - trash_ids: [228b8ee9aa0a609463efca874524a6b8] # v2
+        assign_scores_to: [{ name: Direct Play (Anime), score: 2 }]
+      - trash_ids: [0e5833d3af2cc5fa96a0c29cd4477feb] # v3
+        assign_scores_to: [{ name: Direct Play (Anime), score: 3 }]
+      - trash_ids: [4fc15eeb8f2f9a749f918217d4234ad8] # v4
+        assign_scores_to: [{ name: Direct Play (Anime), score: 4 }]
+
+      # --- anime optional: score up if the household prefers these ---
+      - trash_ids: [026d5aadd1a6b4e550b134cb6c72b3ca] # Uncensored (0 = tie-break only)
+        assign_scores_to: [{ name: Direct Play (Anime), score: 0 }]
+      - trash_ids: [b2550eb333d27b75833e25b8c2557b38] # 10bit (0 = tie-break only)
+        assign_scores_to: [{ name: Direct Play (Anime), score: 0 }]
+      - trash_ids: [418f50b10f1907201b6cfdf881f467b7] # Anime Dual Audio (0 = tie-break only)
+        assign_scores_to: [{ name: Direct Play (Anime), score: 0 }]
+
       # --- HDR: direct-plays on HDR clients (SDR-only household? zero these) ---
       - trash_ids: [505d871304820ba7106b693be6fe4a9e] # HDR
-        assign_scores_to: [{ name: Direct Play, score: 500 }]
+        assign_scores_to: [{ name: Direct Play, score: 500 }, { name: Direct Play (Anime), score: 500 }]
       - trash_ids: [0c4b99df9206d2cfac3c05ab897dd62a] # HDR10+ Boost
-        assign_scores_to: [{ name: Direct Play, score: 100 }]
+        assign_scores_to: [{ name: Direct Play, score: 100 }, { name: Direct Play (Anime), score: 100 }]
 
       # --- prefer repacks over propers (TRaSH Guide scores) ---
       - trash_ids: [ec8fa7296b64e8cd390a1600981f3923] # Repack/Proper
-        assign_scores_to: [{ name: Direct Play, score: 5 }]
+        assign_scores_to: [{ name: Direct Play, score: 5 }, { name: Direct Play (Anime), score: 5 }]
       - trash_ids: [eb3d5cc0a2be0db205fb823640db6a3c] # Repack2
-        assign_scores_to: [{ name: Direct Play, score: 6 }]
+        assign_scores_to: [{ name: Direct Play, score: 6 }, { name: Direct Play (Anime), score: 6 }]
       - trash_ids: [44e7c4de10ae50265753082e5dc76047] # Repack3
-        assign_scores_to: [{ name: Direct Play, score: 7 }]
+        assign_scores_to: [{ name: Direct Play, score: 7 }, { name: Direct Play (Anime), score: 7 }]
 
       # --- never grab: forces a video transcode or broken playback ---
+      # (Anime deliberately does NOT penalize x265: BD encodes are x265 10-bit.)
       - trash_ids: [85c61753df5da1fb2aab6f2a47426b09] # BR-DISK (disk image)
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [6f808933a71bd9666531610cb8c059cc] # BR-DISK (BTN variant)
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [9b27ab6498ec0f31a3353992e19434ca] # DV (no HDR10 fallback): pink/green or transcode on non-DV clients
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [15a05bc7c1a36e2b57fd628f8977e2fc] # AV1: clients without AV1 decode make Jellyfin transcode (0 if every client decodes it)
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [90501962793d580d011511155c97e4e5] # VP9
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [7470a681e6205243983c4410ee4c920f] # VC-1 (pre-H.264 Blu-ray codec)
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [4aee45b0868229c4fbd8bad3e315f1d0] # MPEG2 (broadcast caps)
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [47435ece6b99a0b477caf360e79ba0bb] # x265 (720/1080p): mini-encode territory; x264 direct-plays everywhere
         assign_scores_to: [{ name: Direct Play, score: -10000 }]
       - trash_ids: [9b64dff695c2115facf1b6ea59c9bd07] # x265 (no HDR/DV): SDR HEVC encodes
@@ -123,8 +231,18 @@ sonarr:
 
       # --- never grab: junk groups (TRaSH Guide scores) ---
       - trash_ids: [9c11cd3f07101cdba90a2d81cf0e56b4] # LQ (Low Quality Releases)
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [e2315f990da2e2cbfc9fa5b7a6fcfe48] # LQ (Release Title)
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
       - trash_ids: [e1a997ddb54e3ecbfe06341ad323c458] # Obfuscated
-        assign_scores_to: [{ name: Direct Play, score: -10000 }]
+        assign_scores_to: [{ name: Direct Play, score: -10000 }, { name: Direct Play (Anime), score: -10000 }]
+
+      # --- never grab: anime-specific junk ---
+      - trash_ids: [b4a1b3d705159cdca36d71e57ca86871] # Anime Raws (no English subs)
+        assign_scores_to: [{ name: Direct Play (Anime), score: -10000 }]
+      - trash_ids: [e3515e519f3b1360cbfc17651944354c] # Anime LQ Groups
+        assign_scores_to: [{ name: Direct Play (Anime), score: -10000 }]
+      - trash_ids: [9c14d194486c4014d422adc64092d794] # Dubs Only (sub household)
+        assign_scores_to: [{ name: Direct Play (Anime), score: -10000 }]
+      - trash_ids: [07a32f77690263bb9fda1842db7e273f] # VOSTFR (French-only subs)
+        assign_scores_to: [{ name: Direct Play (Anime), score: -10000 }]

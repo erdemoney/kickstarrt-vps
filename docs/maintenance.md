@@ -28,6 +28,7 @@ nav_order: 13
 | `just prepare`                | create config dirs, `acme.json` (0600) + render `traefik.yml` (called by `just up`) |
 | `just add-indexers`             | install all custom Prowlarr indexer definitions (Torrentio, TorBox, comet, …; see [Indexers](indexers)) |
 | `just wiring`                   | print the \*arrs' URLs/API keys, stepping through each service interactively (Enter/q; piped = full dump; see [The \*arrs](arrs)) |
+| `just wire`                     | interactively reconcile stable Arr/Decypharr/Prowlarr links through REST APIs; use `--dry-run` to preview |
 | `just dns` / `dnscheck`         | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
 | `just lockdown`                 | re-apply the ufw lockdown + forward gate (installed by `just lockdown`; idempotent; refuses unless the box is on the tailnet) |
@@ -172,7 +173,7 @@ for the case local snapshots can't help — the box itself disappearing.
 | -------------------------------------------- | ------------------------------------------------------------------------------ |
 | Renovate opened no PRs                       | see [Updates](updates) troubleshooting                                         |
 | New indexer/app link fails                   | check the URL+port against the [internal DNS table](arrs); revisit the API key |
-| Direct Play profile missing in Radarr/Sonarr | `docker logs recyclarr`; if an arr's API key was regenerated, `just up-svc media-server recyclarr` |
+| Direct Play / Direct Play (Anime) profile missing in Radarr/Sonarr | `docker logs recyclarr`; if an arr's API key was regenerated, `just up-svc media-server recyclarr` |
 | Bouncer not blocking                         | recreate crowdsec + traefik after a key change; `cscli bouncers list`          |
 | Traefik won't start after this repo's change | first start downloads plugins — check outbound internet; `just validate` first |
 | Something in one container only              | `just update-svc <stack> <svc>` after a tag bump, don't `down` the stack       |

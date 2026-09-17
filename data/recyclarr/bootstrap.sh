@@ -4,8 +4,9 @@
 # Why this exists: the *arrs generate their API keys on FIRST boot, seconds after
 # their containers start - after `just up` begins. Recyclarr needs those keys, so
 # this script bridges the gap: wait for the keys, render /config/secrets.yml, run
-# one sync immediately (so the shipped "Direct Play" profiles land during setup,
-# not at the first cron tick), then hand off to the stock image entrypoint, which
+# one sync immediately (so the shipped "Direct Play" and "Direct Play (Anime)"
+# profiles land during setup, not at the first cron tick), then hand off to the stock
+# image entrypoint, which
 # runs `recyclarr sync` on CRON_SCHEDULE (default @daily) forever.
 #
 # The arrs' config dirs are mounted read-only at /radarr and /sonarr (compose).

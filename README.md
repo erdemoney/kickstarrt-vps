@@ -67,7 +67,7 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 | `radarr` / `sonarr` | Movies and TV automation — grabbing, renaming, library sync |
 | `prowlarr`  | Indexer manager, synced to the \*arrs |
 | `bazarr`    | Subtitle search & management |
-| `recyclarr` | TRaSH-Guide sync — ships **Direct Play** quality profiles, applied to Radarr/Sonarr automatically |
+| `recyclarr` | TRaSH-Guide sync — ships **Direct Play** (+ Sonarr **Direct Play (Anime)**) quality profiles, applied to Radarr/Sonarr automatically |
 | `decypharr` | Debrid gateway — resolves grabs to instant FUSE streams |
 
 ## Key features

@@ -1151,7 +1151,7 @@ wiring:
             "Jellyfin  http://jellyfin:8096  + API key from Jellyfin Dashboard -> API Keys" \
             "Radarr    http://radarr:7878  $RADARR_KEY" \
             "Sonarr    http://sonarr:8989  $SONARR_KEY"
-        muted "(when adding the arrs pick the Direct Play profile + the root folders above)"
+        muted "(when adding the arrs pick the Direct Play profile + the root folders above; anime series use Sonarr's Direct Play (Anime) profile)"
         echo
     }
     bazarr_subs() {   # step 10: bazarr
@@ -1183,6 +1183,16 @@ wiring:
     pause "bazarr subtitles"
     bazarr_subs
     muted "done - paste each URL + API key pair from the panels above and test the connection in the UI."
+
+# Reconcile the stable cross-service wiring through the applications' REST APIs.
+# Interactive by default: each service-level change is displayed and requires
+# confirmation. Use `just wire --dry-run` to preview or `just wire --yes` only
+# when the plan has already been reviewed. API calls run from the containers so
+# Docker's private service names remain usable without publishing new ports.
+wire *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    python3 scripts/wire.py {{ ARGS }}
 
 # Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
 # The matching Tailscale admin setting is one-time: DNS -> Nameservers -> add
