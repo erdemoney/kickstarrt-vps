@@ -20,9 +20,7 @@ and brought up with a single command.
 kickst**Arr**t wires together everything a media library needs — **instant, debrid-based
 streaming that keeps nothing on disk**, automatic TLS, and edge security — as code, on a VPS.
 This is the **VPS edition**: direct Traefik `:443` ingress (Cloudflare is DNS-only — no video
-crosses its network), Tailscale + ufw/fail2ban hardening, no GPU. Hosting at home instead
-(LAN stage, hardware transcoding)? Use the
-[self-hosted edition](https://github.com/erdemoney/kickstarrt).
+crosses its network), Tailscale + ufw/fail2ban hardening, no GPU.
 
 ## Architecture
 

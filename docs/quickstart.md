@@ -113,7 +113,6 @@ secret committed to a public fork leaks it to the world), then clone it on the b
 ```bash
 git clone git@github.com:<you>/kickstarrt-vps.git ~/docker/kickstarrt-vps
 cd ~/docker/kickstarrt-vps
-git remote add upstream git@github.com:erdemoney/kickstarrt-vps.git   # optional
 ```
 
 One housekeeping item first: the `docker` group the bootstrap script put you in only takes

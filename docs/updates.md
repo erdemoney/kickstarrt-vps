@@ -7,31 +7,7 @@ nav_order: 12
 
 This page covers the automation that runs against the repo on GitHub: a **CI gate** that rejects
 bad pushes/PRs, and a **Renovate pipeline** that opens version-bump PRs. The two are the server-
-side mirror of the local pre-commit workflow. It also covers how this repo stays in step with the
-[self-hosted edition](https://github.com/erdemoney/kickstarrt).
-
-## Keeping in sync with the self-hosted edition
-
-This repo is the **VPS edition** of [kickstarrt](https://github.com/erdemoney/kickstarrt)
-(the home-box edition). The two share most recipes and several documentation pages, but each owns
-its divergent files outright. When a shared improvement lands upstream, bring it over with:
-
-```bash
-just sync-upstream
-```
-
-What it does: establishes the `upstream` remote (this repo's seed source), fetches it, and stages
-the **shared files** that are unchanged in this edition — `data/traefik/*`, the host-agnostic
-docs pages (`services`, `indexers`, `decypharr`), and `.pre-commit-config.yaml`. Any file this
-edition has since edited is **never overwritten**: it's reported as *diverged* for you to
-reconcile by hand. Everything else — the compose files, `justfile`, `README.md`, and
-edition-specific docs like [Hardening](hardening) — is owned by this edition, and an upstream
-merge must never overwrite it.
-
-**Convention that keeps sync cheap:** shared pages/recipes stay host-agnostic — anything
-edition-specific lives in an edition's own page or recipe, never as an inlined "if you're on
-a VPS / home box" note. If a change really is VPS-only, it belongs in this repo and never
-reaches the parent.
+side mirror of the local pre-commit workflow.
 
 ## CI checks
 

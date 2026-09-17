@@ -65,13 +65,12 @@ opened once, reversible with a single ufw command.
 
 ## Why does Jellyfin transcode in software (no GPU)?
 
-VPS hosts are CPU-only — there's no `/dev/dri` to pass through (the
-[self-hosted edition](https://github.com/erdemoney/kickstarrt) exists for hardware transcoding
-on a home box). In practice, debrid streams arrive in client-friendly codecs and direct-play
-covers nearly everything (sizing guidance in the [overview](index)); transcoding is the
-exception, and a 2–4 vCPU box handles it when it happens. The stack leans into this: the
-shipped [Direct Play quality profiles](arrs#quality-profiles-recyclarr--automatic) score
-anything that would force a video transcode out of the grab candidates entirely.
+VPS hosts are CPU-only — there's no `/dev/dri` to pass through. In practice, debrid streams
+arrive in client-friendly codecs and direct-play covers nearly everything (sizing guidance in
+the [overview](index)); transcoding is the exception, and a 2–4 vCPU box handles it when it
+happens. The stack leans into this: the shipped
+[Direct Play quality profiles](arrs#quality-profiles-recyclarr--automatic) score anything that
+would force a video transcode out of the grab candidates entirely.
 
 ## Why Ubuntu on Oracle Cloud but Debian elsewhere?
 

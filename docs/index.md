@@ -7,9 +7,7 @@ nav_order: 1
 
 A public-IP media stack run through Docker on a VPS, with a single GitHub repo as the source
 of truth for compose files, configs that live in code, and all setup/ops documentation. This
-is the **VPS edition** — direct Traefik `:443` ingress (Cloudflare is DNS-only), no GPU. For
-a home box behind NAT with hardware transcoding, use the
-[self-hosted edition](https://github.com/erdemoney/kickstarrt) instead.
+is the **VPS edition** — direct Traefik `:443` ingress (Cloudflare is DNS-only), no GPU.
 
 ```text
                       Internet                           Tailscale
