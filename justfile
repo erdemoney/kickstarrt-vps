@@ -893,6 +893,29 @@ config stack:
 ps:
     docker ps
 
+# Open an interactive shell in a running service's container (searched across all
+# stacks), e.g. `just exec jellyfin`. Tries bash first, falls back to sh for
+# minimal images (alpine etc.) that lack it.
+exec service:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cid=""
+    for s in {{ stack_list }}; do
+        if docker compose -f "stacks/$s/compose.yaml" ps --services 2>/dev/null | grep -qx "{{ service }}"; then
+            cid=$(docker compose -f "stacks/$s/compose.yaml" ps -q "{{ service }}" 2>/dev/null || true)
+            [ -n "$cid" ] || { echo "service '{{ service }}' is not running" >&2; exit 1; }
+            break
+        fi
+    done
+    if [ -z "$cid" ]; then
+        echo "no service '{{ service }}' in any stack" >&2
+        exit 1
+    fi
+    if docker exec -it "$cid" sh -c 'command -v bash >/dev/null 2>&1'; then
+        exec docker exec -it "$cid" bash
+    fi
+    exec docker exec -it "$cid" sh
+
 # Install all custom Cardigann indexer definitions for Prowlarr from the
 # Prowlarr-Indexers repo (Torrentio, TorBox, comet, zilean, ...). Definitions are
 # inert until enabled in Prowlarr, so installing every one saves a pick-a-name
