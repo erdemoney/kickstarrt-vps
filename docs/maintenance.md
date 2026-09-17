@@ -13,23 +13,17 @@ nav_order: 13
 | `just up`                       | create networks, config dirs, `acme.json` + rendered `traefik.yml`, then bring up every stack |
 | `just down`                     | tear every stack down                                                             |
 | `just update-all`               | pull fresh images + recreate changed containers                                   |
-| `just update <stack>`           | pull + recreate one stack, e.g. `just update traefik`                             |
-| `just up-svc <stack> <svc>`     | recreate one service, e.g. `just up-svc media-server jellyfin`                    |
-| `just update-svc <stack> <svc>` | pull + recreate one service                                                       |
+| `just update <svc>`             | pull + recreate one service, searched across all stacks, e.g. `just update jellyfin` |
 | `just check-updates`            | compare pinned tags against registries; exits 1 if anything is newer              |
-| `just images` / `just df`       | local images / disk usage                                                         |
-| `just ps`                       | list running containers                                                           |
 | `just health`                   | read-only host, firewall, DNS, and container health panel                         |
 | `just logs <stack>`             | tail logs for a stack                                                             |
 | `just logs-svc <svc>`           | tail logs for one service, e.g. `just logs-svc jellyfin` (found across all stacks) |
 | `just restart <stack>`          | restart a stack                                                                   |
 | `just validate`                 | `docker compose config -q` on every stack (read-only — never writes a `.env`)     |
-| `just pull`                     | pull fresh images for every stack without recreating anything                     |
-| `just config <stack>`           | print the fully resolved compose config for one stack                             |
 | `just prepare`                  | create config dirs, `acme.json` (0600), and rendered Traefik/CoreDNS config (called by `just up`) |
 | `just add-indexers`             | install all custom Prowlarr indexer definitions (Torrentio, TorBox, comet, …; see [Indexers](indexers)) |
 | `just wire`                     | interactively reconcile Arr/Decypharr/Prowlarr/Bazarr links and Recyclarr secrets through REST APIs; use `--dry-run` to preview |
-| `just dns` / `just dnscheck`    | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
+| `just dns`                      | print the tailnet DNS resolver setup (see [Tailnet DNS](tailnet))                 |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
 | `just lockdown`                 | apply or re-apply the UFW lockdown and Docker forwarding gate; verifies both and refuses unless the box is on the tailnet |
 | `just go-public` / `just go-public close` | open / close the public serving ports `443`/`80` (see [Quickstart §12](quickstart#12-go-public-last)) |
@@ -177,4 +171,4 @@ for the case local snapshots can't help — the box itself disappearing.
 | Direct Play / Direct Play (Anime) profile missing in Radarr/Sonarr | `docker logs recyclarr`; if an arr's API key was regenerated, run `just wire` |
 | Bouncer not blocking                         | recreate crowdsec + traefik after a key change; `cscli bouncers list`          |
 | Traefik won't start after this repo's change | first start downloads plugins — check outbound internet; `just validate` first |
-| Something in one container only              | `just update-svc <stack> <svc>` after a tag bump, don't `down` the stack       |
+| Something in one container only              | `just update <svc>` after a tag bump, don't `down` the stack                   |

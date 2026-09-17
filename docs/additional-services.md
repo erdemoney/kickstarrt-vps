@@ -45,7 +45,7 @@ service name, for example `http://sonarr:8989`; they should not use public hostn
    `https-tailnet` entrypoint; public services need a deliberate security review, authentication,
    and an entry in the public-hostname procedure.
 8. Add its configuration and operational notes to the appropriate docs page.
-9. Run `just validate`, `just up-svc <stack> <service>`, and `just health` before using it.
+9. Run `just validate`, `just update <service>`, and `just health` before using it.
 
 ## Services worth considering
 
@@ -72,7 +72,7 @@ SABnzbd-compatible endpoint, configure the Arrs with the internal URL and the co
 
 ```bash
 just validate
-just up-svc media-server <service>
+just update <service>
 just health
 ```
 

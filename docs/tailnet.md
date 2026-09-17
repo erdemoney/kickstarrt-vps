@@ -58,7 +58,7 @@ Replace `radarr` with any panel name:
 | Linux | `getent hosts radarr.<DOMAIN>` | tailnet IP |
 | Windows | `Resolve-DnsName radarr.<DOMAIN>` | IPAddress = your tailnet IP (use `Resolve-DnsName`, **not** `nslookup` — it misses split-DNS/NRPT rules) |
 
-From the box itself: `just dnscheck`. A device **not** on the tailnet won't resolve these at
+From the box itself: `just health`. A device **not** on the tailnet won't resolve these at
 all — there's no public record for the panels, by design.
 
 ## Troubleshooting
@@ -70,7 +70,7 @@ all — there's no public record for the panels, by design.
   `sudo tailscale up`) on the new box, run `just init`, and accept the detected `TAILNET_IP`
   change. Then update the nameserver IP in the
   [Tailscale DNS admin console](https://login.tailscale.com/admin/dns).
-- **Nothing answers on the box itself** — `just dnscheck`; confirm CoreDNS is up
+- **Nothing answers on the box itself** — run `just health`; confirm CoreDNS is up
   (`docker compose -f stacks/traefik/compose.yaml ps coredns`), ufw has the `53` rules
   (`sudo ufw status`), and the forward gate is applied (`sudo ufw-docker check`; verify with
   `sudo iptables -nL DOCKER-USER`). From the **public internet**, nothing works until

@@ -253,7 +253,6 @@ configuration, and starts both stacks. Use the read-only health panel for the ro
 
 ```bash
 just health
-just dnscheck
 ```
 
 From a tailnet device, the expected result is that each configured hostname opens over HTTPS and
