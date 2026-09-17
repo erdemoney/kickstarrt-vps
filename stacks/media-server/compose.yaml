@@ -160,7 +160,7 @@ services:
 
   recyclarr:
     # Syncs the shipped TRaSH-tuned "Direct Play" quality profiles to
-    # radarr/sonarr (data/recyclarr/configs/*.yml, auto-applied on first boot).
+    # radarr/sonarr (data/recyclarr/configs/*.yml, applied by `just wire`).
     # No web UI, so no traefik labels. Rootless image: user replaces PUID/PGID.
     image: ghcr.io/recyclarr/recyclarr:8.7.2
     container_name: recyclarr
@@ -176,22 +176,23 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/recyclarr:/config
-      # arrs' config dirs, read-only: bootstrap.sh reads their generated API
-      # keys at start and renders /config/secrets.yml (never committed)
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/radarr:/radarr:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/sonarr:/sonarr:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/recyclarr/bootstrap.sh:/bootstrap.sh:ro
-    # bootstrap: wait for the arrs' keys -> secrets.yml -> one immediate sync,
-    # then hand off to the stock entrypoint (supercronic on CRON_SCHEDULE)
-    entrypoint: ["/sbin/tini", "--", "/bootstrap.sh"]
+    # just wire writes /config/secrets.yml after the Arrs are configured. Keep
+    # the stock Recyclarr entrypoint; this guard only prevents a noisy restart
+    # loop before the first `just wire` run.
+    entrypoint: ["/sbin/tini", "--", "/bin/sh", "-c"]
+    command:
+      - |
+        until [ -s /config/secrets.yml ]; do
+          sleep 5
+        done
+        exec /entrypoint.sh
     read_only: true
     tmpfs:
       - /tmp
     # Headless scheduler - no web UI, so no port to ping. The process that keeps
-    # the sync schedule alive is supercronic (spawned once bootstrap.sh hands off
-    # to the stock entrypoint), so healthy == that scheduler is running. The
-    # start_period covers bootstrap.sh's worst case: up to a 5 min wait for the
-    # arrs' API keys plus the immediate first sync before supercronic appears.
+    # the sync schedule alive is supercronic, so healthy == that scheduler is
+    # running. The start_period covers the initial `just wire` setup and the
+    # time before supercronic appears.
     healthcheck:
       test: ["CMD-SHELL", "pgrep -x supercronic || exit 1"]
       interval: 30s

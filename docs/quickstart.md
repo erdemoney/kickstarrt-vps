@@ -264,8 +264,8 @@ What to check right after boot:
 - A `Certificate` for `*.DOMAIN` appears in the Traefik dashboard's ACME panel (the first
   Traefik start also downloads the CrowdSec plugin — both need outbound internet).
 - CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` ([Security](security)).
-- Recyclarr applies the shipped **Direct Play** quality profile to Radarr/Sonarr within a
-  minute of the arrs being up (`docker logs recyclarr`) — see
+- Recyclarr waits for `just wire` to provision its secrets, then applies the shipped
+  **Direct Play** quality profiles to Radarr/Sonarr (`docker logs recyclarr`) — see
   [The \*arrs](arrs#quality-profiles-recyclarr--automatic).
 - Jellyfin's admin account is created on first login (its API key feeds Seerr in §8).
 
@@ -278,10 +278,12 @@ it's configured.
 
 1. **Decypharr** — run the wizard: admin account, debrid provider + API key, mount at
    `/mnt/decypharr` → [Decypharr](decypharr#first-run-setup-wizard).
-2. **\*arrs** — one pass through each app: download clients pointing at Decypharr, root
-   folders on the mount, Prowlarr app sync, Seerr → Jellyfin/Radarr/Sonarr, Bazarr language
-   profiles → [The \*arrs](arrs). Quality profiles need no step: Recyclarr applies the
-   shipped **Direct Play** profile automatically (§7) — just pick it where an app asks.
+2. **\*arrs** — run `just wire` on the box and confirm the deterministic cross-service changes:
+   download clients pointing at Decypharr, root folders, Decypharr Arr integrations, Prowlarr
+   app sync, and Recyclarr's API secrets. Finish Seerr → Jellyfin/Radarr/Sonarr and Bazarr's
+   language profiles in the GUI → [The \*arrs](arrs). Quality profiles need no manual setup:
+   Recyclarr applies the shipped **Direct Play** profiles during `just wire` — just pick one
+   where an app asks.
 3. **Indexers** — Prowlarr needs at least one before grabs work; Torrentio (debrid) and
    AltHub (Usenet) → [Indexers](indexers).
 4. **Jellyfin** — libraries pointing at subpaths of `/mnt/decypharr`, transcode path and the

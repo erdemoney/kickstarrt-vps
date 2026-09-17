@@ -30,10 +30,11 @@ just wire             # review and confirm each checkpoint
 just wire --yes       # non-interactive use after reviewing the dry run
 ```
 
-The first version handles Arr root folders and Decypharr download clients, Decypharr's Arr
-integrations, and Prowlarr's Sonarr/Radarr application links. Jellyfin, Seerr, subtitle
-providers, language profiles, indexer choices, and the Decypharr provider/mount wizard remain
-GUI steps because they require user-specific choices or first-run authentication.
+The command handles Arr root folders and Decypharr download clients, Decypharr's Arr
+integrations, Prowlarr's Sonarr/Radarr application links, and Recyclarr's native secret file
+plus initial sync. Jellyfin, Seerr, subtitle providers, language profiles, indexer choices,
+and the Decypharr provider/mount wizard remain GUI steps because they require user-specific
+choices or first-run authentication.
 
 ## Docker networking
 
@@ -178,8 +179,9 @@ Quality profiles and custom formats are **not wired by hand** in this stack. [Re
 runs as a container and syncs the shipped profiles — TRaSH Guide definitions tuned for this
 CPU-only edition — into Radarr and Sonarr automatically:
 
-- **When**: right after first boot (it waits for the arrs to be up, then syncs once), and
-  daily after that. Nothing to paste anywhere; watch it with `docker logs recyclarr`.
+- **When**: after `just wire` provisions its native `secrets.yml`, it syncs once immediately,
+  then daily after that. Before wiring, the container waits quietly for that file. Watch it
+  with `docker logs recyclarr`.
 - **What**: release-group tiers, repack preferences and TRaSH file sizes from the guide, plus
   `-10000` (never grab) scores for anything that would force a video transcode or break
   playback — AV1/VP9/VC-1/MPEG2 codecs, Dolby Vision without an HDR10 fallback, Blu-ray disk
@@ -196,8 +198,8 @@ CPU-only edition — into Radarr and Sonarr automatically:
 The profiles are reset to match the config on every sync, so manual edits in the arr UI don't
 stick — the YAML is the source of truth. Pick **Direct Play** wherever an app asks for a
 quality profile (Seerr's Radarr/Sonarr settings, Radarr/Sonarr defaults). The arrs' API keys
-are read by the recyclarr container at start (never committed); if you regenerate an arr's
-API key, restart it: `just up-svc media-server recyclarr`.
+are provisioned by `just wire` into `$CONFIG_DIR/recyclarr/secrets.yml` (never committed). If
+you regenerate an arr's API key, run `just wire` again.
 
 ### Direct Play (Anime) companion profile (Sonarr)
 

@@ -13,6 +13,8 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
@@ -129,6 +131,17 @@ class DockerHTTP:
             return json.loads(text)
         except json.JSONDecodeError as exc:
             raise WireError(f"{method} {url} returned non-JSON data") from exc
+
+
+def run_command(command: list[str], label: str) -> subprocess.CompletedProcess[str]:
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+    except OSError as exc:
+        raise WireError(f"could not run {label}: {exc}") from exc
+    if result.returncode:
+        detail = result.stderr.strip() or result.stdout.strip() or "command failed"
+        raise WireError(f"{label} failed: {detail[-500:]}")
+    return result
 
 
 @dataclass
@@ -313,6 +326,57 @@ def prowlarr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Chang
     return Change("prowlarr", "update Arr applications", changes, apply)
 
 
+def recyclarr_change(config_dir: Path, keys: dict[str, str]) -> Change | None:
+    path = config_dir / "recyclarr" / "secrets.yml"
+    desired = (
+        "# rendered by just wire - do not edit\n"
+        f"radarr_api_key: {keys['radarr']}\n"
+        f"sonarr_api_key: {keys['sonarr']}\n"
+    )
+    current = path.read_text(encoding="utf-8") if path.exists() else ""
+    secure = path.exists() and (path.stat().st_mode & 0o777) == 0o600
+    if current == desired and secure:
+        return None
+
+    changed = []
+    for app in ("radarr", "sonarr"):
+        changed.append(f"{app}_api_key: update (secret redacted)")
+
+    def apply() -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(prefix=".secrets.", dir=path.parent, text=True)
+        try:
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+                output.write(desired)
+            os.replace(temporary, path)
+        except OSError as exc:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+            raise WireError(f"could not write {path}: {exc}") from exc
+
+        compose = ROOT / "stacks" / "media-server" / "compose.yaml"
+        run_command(
+            ["docker", "compose", "-f", str(compose), "up", "-d", "--force-recreate", "recyclarr"],
+            "recreate recyclarr",
+        )
+        for attempt in range(1, 4):
+            try:
+                run_command(
+                    ["docker", "compose", "-f", str(compose), "exec", "-T", "recyclarr", "recyclarr", "sync"],
+                    "initial recyclarr sync",
+                )
+                return
+            except WireError:
+                if attempt == 3:
+                    raise
+                time.sleep(10)
+
+    return Change("recyclarr", "update API secrets and run initial sync", changed, apply)
+
+
 def confirm(change: Change) -> bool:
     print(f"\n{change.service}: {change.description}")
     for detail in change.details:
@@ -358,7 +422,11 @@ def main() -> int:
                 change = arr_download_client(http, app, keys[app], implementation, contract, name, fields)
                 if change:
                     changes.append(change)
-        for change in (decypharr_change(http, token, keys), prowlarr_change(http, keys["prowlarr"], keys)):
+        for change in (
+            decypharr_change(http, token, keys),
+            prowlarr_change(http, keys["prowlarr"], keys),
+            recyclarr_change(config_dir, keys),
+        ):
             if change:
                 changes.append(change)
     except WireError as exc:
