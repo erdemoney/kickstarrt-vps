@@ -76,7 +76,7 @@ def backup_init() -> None:
 
 def backup() -> None:
     require_config()
-    restic("backup", "/repo", "--exclude", "/repo/.git", repo_mount=str(ROOT), read_only=True)
+    restic("backup", "/repo", repo_mount=str(ROOT), read_only=True)
 
 
 def backup_list() -> None:
@@ -135,7 +135,7 @@ def write_unit(path: str, content: str) -> None:
 def backup_schedule(calendar: str) -> None:
     if shutil.which("systemctl") is None:
         print("no systemd (systemctl not found) - run the backup via cron instead, e.g.:")
-        print(f"  0 4 * * * cd '{ROOT}' && $(command -v just || echo 'just') backup")
+        print(f"  0 4 * * * cd '{ROOT}' && $(command -v just || echo 'just') backup && $(command -v just || echo 'just') backup-prune")
         print("(or your NAS scheduler; see docs/maintenance.md)")
         raise ScriptError("systemd is unavailable")
     if shutil.which("sudo") is None:
@@ -146,8 +146,9 @@ def backup_schedule(calendar: str) -> None:
 
     just_bin = shutil.which("just")
     print(
-        f"This installs a systemd timer that runs '{just_bin} backup' in '{ROOT}'",
-        f"on calendar '{calendar}'. Two files are written under /etc/systemd/system",
+        f"This installs a systemd timer that runs '{just_bin} backup' followed by",
+        f"'{just_bin} backup-prune' in '{ROOT}' on calendar '{calendar}' (prune runs",
+        "only after a successful backup). Two files are written under /etc/systemd/system",
         "with sudo and the timer is enabled + started:",
         sep="\n",
     )
@@ -170,6 +171,7 @@ def backup_schedule(calendar: str) -> None:
             "Type=oneshot",
             f"WorkingDirectory={ROOT}",
             f"ExecStart={just_bin} backup",
+            f"ExecStart={just_bin} backup-prune",
             "",
         ]
     )
@@ -192,7 +194,7 @@ def backup_schedule(calendar: str) -> None:
     write_unit(TIMER_UNIT, timer)
     run(["sudo", "systemctl", "daemon-reload"], "reload systemd")
     run(["sudo", "systemctl", "enable", "--now", "kickstarrt-restic-backup.timer"], "enable backup timer")
-    print("\ninstalled kickstarrt-restic-backup.{service,timer} - timer enabled and active.")
+    print("\ninstalled kickstarrt-restic-backup.{service,timer} - timer enabled and active; each run backs up then prunes.")
     run(["systemctl", "list-timers", "kickstarrt-restic-backup.timer", "--no-pager"], "list backup timer")
     print("remove it later with 'just backup-unschedule'.")
 

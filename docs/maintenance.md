@@ -112,7 +112,7 @@ container, which the recipes don't do.)
 
 Credential vars live in `.env.restic` too (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
 `B2_ACCOUNT_ID`, `B2_ACCOUNT_KEY`, `RCLONE_CONFIG`, ...) and are forwarded the same way.
-Snapshots take the whole working tree minus `.git`, `.env.restic` included. Keep
+Snapshots take the whole working tree — including `.git`, `.env.restic`, and every ignored file. Keep
 `RESTIC_PASSWORD` somewhere safe separately: without it the repository is unrecoverable.
 
 Other recipes:
@@ -123,12 +123,13 @@ Other recipes:
 | `just backup-check`         | verify repository integrity (for a full audit run `restic check --read-data` manually) |
 | `just backup-prune`         | `forget --prune` honoring `RESTIC_KEEP_*` in `.env.restic` |
 | `just backup-restore [<id>]`| dry-run preview, then restore into the repo working tree (default: latest) |
-| `just backup-schedule [<cal>]`| install a systemd timer running `just backup` (default `daily`; sudo) |
+| `just backup-schedule [<cal>]`| install a systemd timer running `just backup` then `just backup-prune` (default `daily`; sudo) |
 | `just backup-unschedule`    | stop and remove the installed systemd timer (sudo)         |
 
 Schedule the routine snapshots with a **systemd timer** — better than cron here: journald
 captures the output, and `Persistent=true` catches up on a backup that was skipped while the
-host was off:
+host was off. (`just backup` alone still snapshots without pruning; use `just backup-prune`
+by hand, or let the timer do both.)
 
 ```bash
 just backup-schedule                     # runs daily
@@ -137,11 +138,13 @@ just backup-schedule "*-*-* 04:30:00"    # custom calendar, re-run to change
 
 This writes `kickstarrt-restic-backup.{service,timer}` under `/etc/systemd/system` via sudo
 (with a confirmation prompt), resolves your actual `just` path into `ExecStart`, and enables
-the timer. On a host **without** systemd (Alpine, OpenWrt, a NAS scheduler), it prints the
-equivalent cron line and exits non-zero — or use cron directly:
+the timer. Each run **backs up, then prunes**: `backup-prune` runs only after a successful
+backup, so snapshots are retained per `RESTIC_KEEP_*` and pruned automatically — no need to
+SSH in to keep storage bounded. On a host **without** systemd (Alpine, OpenWrt, a NAS
+scheduler), it prints the equivalent cron line and exits non-zero — or use cron directly:
 
 ```
-0 4 * * * cd /srv/kickstarrt && /usr/local/bin/just backup
+0 4 * * * cd /srv/kickstarrt && /usr/local/bin/just backup && /usr/local/bin/just backup-prune
 ```
 
 `systemctl list-timers kickstarrt-restic-backup.timer` shows the next run;

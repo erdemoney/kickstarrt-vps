@@ -299,7 +299,7 @@ Set up encrypted offsite backups before exposing the service publicly:
 just init              # answer yes to the Cloudflare R2 backup step
 just backup-init
 just backup
-just backup-schedule   # optional daily systemd timer
+just backup-schedule   # optional daily systemd timer (backup + prune)
 ```
 
 See [Maintenance](maintenance) for R2 credentials, alternate backends, restores, and retention.
