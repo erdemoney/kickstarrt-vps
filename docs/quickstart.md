@@ -289,9 +289,9 @@ it's configured.
 4. **Jellyfin** — libraries pointing at subpaths of `/mnt/decypharr`, transcode path and the
    per-user no-video-transcode policy → [Jellyfin](jellyfin).
 
-`just wiring` (run on the box) prints every URL + API key you
-need to paste, including the full Decypharr client spec. Minimum before going public: every
-app has its admin account and auth on — [the security gate](ingress#the-security-gate).
+`just wire --dry-run` previews the changes, and `just wire` applies each confirmed checkpoint.
+Minimum before going public: every app has its admin account and auth on — [the security
+gate](ingress#the-security-gate).
 
 ## 9. Verify the WAF (CrowdSec)
 

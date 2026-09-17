@@ -7,10 +7,9 @@ nav_order: 6
 
 First-run setup happens over the tailnet while nothing is public
 ([Quickstart §8](quickstart#8-set-up-the-apps)) — open `https://radarr.<DOMAIN>` and friends
-from any tailnet device. This page is the wiring walkthrough: what to paste where, in a
-workable order. Run `just wiring` on the box first — it prints each URL + API key (read
-from `$CONFIG_DIR` on disk), then walks through one service at a time: Enter advances to
-the next step, `q` quits (piping it prints everything at once).
+from any tailnet device. Run `just wire --dry-run` first to preview the repeatable changes,
+then run `just wire` to review and confirm each checkpoint. The remaining GUI steps are
+documented below.
 
 ## Automated wiring
 
