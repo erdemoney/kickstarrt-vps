@@ -222,10 +222,14 @@ def arr_download_client(
 ) -> Change | None:
     current = http.request(app, "GET", f"http://{app}:{8989 if app == 'sonarr' else 7878}/api/v3/downloadclient", key)
     existing = next((x for x in current if x.get("name") == name), None)
-    desired_fields = {"enable": True, **fields}
+    desired_fields = dict(fields)
+    desired_fields["tvCategory" if app == "sonarr" else "movieCategory"] = app
     if existing:
         payload = json.loads(json.dumps(existing))
         changed = []
+        if existing.get("enable") is not True:
+            changed.append(f"enable: {existing.get('enable')} -> True")
+            payload["enable"] = True
         for field, value in desired_fields.items():
             old = field_value(existing, field)
             if old != value:
@@ -503,13 +507,13 @@ def main() -> int:
                     "QBittorrent",
                     "QBittorrentSettings",
                     "Decypharr (debrid)",
-                    {"host": "decypharr", "port": 8282, "username": f"http://{app}:{port}", "password": keys[app], "category": app},
+                    {"host": "decypharr", "port": 8282, "username": f"http://{app}:{port}", "password": keys[app]},
                 ),
                 (
                     "Sabnzbd",
                     "SabnzbdSettings",
                     "Decypharr (usenet)",
-                    {"host": "decypharr", "port": 8282, "urlBase": "/sabnzbd", "username": f"http://{app}:{port}", "password": keys[app], "category": app},
+                    {"host": "decypharr", "port": 8282, "urlBase": "/sabnzbd", "username": f"http://{app}:{port}", "password": keys[app]},
                 ),
             ):
                 change = arr_download_client(http, app, keys[app], implementation, contract, name, fields)
