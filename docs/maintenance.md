@@ -9,7 +9,7 @@ nav_order: 13
 
 | Command                         | What it does                                                                      |
 | ------------------------------- | --------------------------------------------------------------------------------- |
-| `just init`                     | create `.env` files and fill the interactive secrets (idempotent)                 |
+| `just init`                     | create/reconcile `.env` files and fill interactive secrets (idempotent)           |
 | `just up`                       | create networks, config dirs, `acme.json` + rendered `traefik.yml`, then bring up every stack |
 | `just down`                     | tear every stack down                                                             |
 | `just update-all`               | pull fresh images + recreate changed containers                                   |
@@ -25,13 +25,13 @@ nav_order: 13
 | `just validate`                 | `docker compose config -q` on every stack (read-only — never writes a `.env`)     |
 | `just pull`                     | pull fresh images for every stack without recreating anything                     |
 | `just config <stack>`           | print the fully resolved compose config for one stack                             |
-| `just prepare`                | create config dirs, `acme.json` (0600) + render `traefik.yml` (called by `just up`) |
+| `just prepare`                  | create config dirs, `acme.json` (0600), and rendered Traefik/CoreDNS config (called by `just up`) |
 | `just add-indexers`             | install all custom Prowlarr indexer definitions (Torrentio, TorBox, comet, …; see [Indexers](indexers)) |
 | `just wire`                     | interactively reconcile Arr/Decypharr/Prowlarr/Bazarr links and Recyclarr secrets through REST APIs; use `--dry-run` to preview |
-| `just dns` / `dnscheck`         | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
+| `just dns` / `just dnscheck`    | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
 | `just lockdown`                 | re-apply the ufw lockdown + forward gate (installed by `just lockdown`; idempotent; refuses unless the box is on the tailnet) |
-| `just go-public` / `just go-public close` | open / close the public serving ports `443`/`80` (see [Quickstart §10](quickstart#10-go-public-last)) |
+| `just go-public` / `just go-public close` | open / close the public serving ports `443`/`80` (see [Quickstart §11](quickstart#11-go-public-last)) |
 | `sudo ufw-docker check`         | verify the Docker forward gate (installed by `just lockdown`; see [Hardening](hardening)) |
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)       |
 | `just backup` / `backup-list` / `backup-check` / `backup-prune` / `backup-restore` | restic snapshots, integrity, retention, restore — see below |
@@ -76,15 +76,16 @@ on your own if you deviate — see below.)
 
 #### Cloudflare R2 (the documented path)
 
-1. `dash.cloudflare.com` → **R2** → **Create bucket** (e.g. `media-server-restic`; location
+1. Open [Cloudflare R2](https://dash.cloudflare.com/?to=/:account/r2/overview) → **Create bucket** (e.g. `media-server-restic`; location
    Automatic).
 2. **R2** → [**Manage R2 API Tokens**](https://dash.cloudflare.com/?to=/:account/r2/api-tokens)
    → **Create API token** → type **User API Token**, permission **Object → Read & Write**
    (Admin is more than restic needs; read-only breaks `just backup-prune`). Save the
    **Access Key ID** and **Secret Access Key**, and note your **Account ID** (R2 page, scroll
    down: **Usage → Account Details**).
-3. Run `just init` and answer **yes** to "Configure R2 restic backups now?" — it prompts for
-   the Account ID, bucket, and token, then writes `.env.restic`:
+3. Run `just init` and answer **yes** to "Configure Cloudflare R2 restic backups now?" — it
+   prompts for the Account ID, bucket, access key, secret key, and encryption password, then
+   writes `.env.restic`:
 
    ```
    RESTIC_REPOSITORY=s3:https://<ACCOUNT_ID>.r2.cloudflarestorage.com/<BUCKET>

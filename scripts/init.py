@@ -155,6 +155,16 @@ def valid_id(value: str, label: str) -> str:
     return value
 
 
+def detected_ids() -> tuple[str, str]:
+    uid = os.getuid() or 1000
+    gid = os.getgid() or 1000
+    if uid == 0:
+        uid = 1000
+    if gid == 0:
+        gid = 1000
+    return str(uid), str(gid)
+
+
 def detect_tailscale() -> str:
     return detect_tailscale_ipv4()
 
@@ -223,8 +233,9 @@ def configure_env(force: bool) -> list[str]:
             changes.append("DOMAIN")
 
     tailnet = traefik.get("TAILNET_IP")
+    detected_tailnet = detect_tailscale()
     if not tailnet:
-        tailnet = detect_tailscale()
+        tailnet = detected_tailnet
     if not tailnet:
         tailnet = prompt(TAILNET_PROMPT, validator=lambda value: valid_ip(value, "TAILNET_IP"))
     else:
@@ -233,12 +244,18 @@ def configure_env(force: bool) -> list[str]:
         except ScriptError as exc:
             print(f"Invalid existing value: {exc}")
             tailnet = prompt(TAILNET_PROMPT, tailnet, validator=lambda value: valid_ip(value, "TAILNET_IP"))
+        if detected_tailnet and tailnet != detected_tailnet:
+            print(f"Detected Tailscale address {detected_tailnet}, but TAILNET_IP is {tailnet}.")
+            if confirm("Update TAILNET_IP to the detected address?", True):
+                tailnet = detected_tailnet
+                print("Afterward, update the Tailscale split-DNS nameserver if the address changed.")
     if traefik.set("TAILNET_IP", tailnet):
         changes.append("TAILNET_IP")
 
     public_bind = traefik.get("PUBLIC_BIND")
+    detected_public_bind = detect_public_bind()
     if not public_bind:
-        public_bind = detect_public_bind()
+        public_bind = detected_public_bind
     if not public_bind:
         public_bind = prompt(PUBLIC_BIND_PROMPT, validator=lambda value: valid_ip(value, "PUBLIC_BIND"))
     else:
@@ -247,6 +264,10 @@ def configure_env(force: bool) -> list[str]:
         except ScriptError as exc:
             print(f"Invalid existing value: {exc}")
             public_bind = prompt(PUBLIC_BIND_PROMPT, public_bind, validator=lambda value: valid_ip(value, "PUBLIC_BIND"))
+        if detected_public_bind and public_bind != detected_public_bind:
+            print(f"Detected public bind address {detected_public_bind}, but PUBLIC_BIND is {public_bind}.")
+            if confirm("Update PUBLIC_BIND to the detected address?", False):
+                public_bind = detected_public_bind
     if traefik.set("PUBLIC_BIND", public_bind):
         changes.append("PUBLIC_BIND")
 
@@ -264,15 +285,26 @@ def configure_env(force: bool) -> list[str]:
         if media.set(key, value):
             changes.append(key)
 
-    uid = media.get("ENV_PUID") or str(os.getuid() if os.getuid() else 1000)
-    gid = media.get("ENV_PGID") or str(os.getgid() if os.getgid() else 1000)
-    if os.getuid() == 0 and not media.get("ENV_PUID"):
-        uid = "1000"
-    if os.getgid() == 0 and not media.get("ENV_PGID"):
-        gid = "1000"
-    if media.set("ENV_PUID", valid_id(uid, "ENV_PUID")):
+    detected_uid, detected_gid = detected_ids()
+    configured_uid = media.get("ENV_PUID")
+    configured_gid = media.get("ENV_PGID")
+    uid = valid_id(configured_uid, "ENV_PUID") if configured_uid and configured_uid != "auto" else detected_uid
+    gid = valid_id(configured_gid, "ENV_PGID") if configured_gid and configured_gid != "auto" else detected_gid
+    if configured_uid and configured_gid and configured_uid != "auto" and configured_gid != "auto" and (uid, gid) != (detected_uid, detected_gid):
+        print(
+            f"Configured container identity: {uid}:{gid}\n"
+            f"Current user identity:        {detected_uid}:{detected_gid}\n"
+            "Keeping the configured identity is usually correct for an existing install.\n"
+            "See docs/decypharr.md for ownership details."
+        )
+        if force and confirm("Replace the configured container identity with the current user?", False):
+            uid, gid = detected_uid, detected_gid
+            print("warning: run just prepare after changing container ownership settings")
+    desired_uid = configured_uid if configured_uid == "auto" else uid
+    desired_gid = configured_gid if configured_gid == "auto" else gid
+    if media.set("ENV_PUID", desired_uid):
         changes.append("ENV_PUID")
-    if media.set("ENV_PGID", valid_id(gid, "ENV_PGID")):
+    if media.set("ENV_PGID", desired_gid):
         changes.append("ENV_PGID")
 
     acme = traefik.get("ACME_EMAIL") or f"admin@{domain}"

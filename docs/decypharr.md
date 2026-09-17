@@ -13,7 +13,7 @@ add.
 
 ## First-run setup wizard
 
-Visit `https://decypharr.<DOMAIN>` once, over the tailnet ([Quickstart §8](quickstart#8-set-up-the-apps)).
+Visit `https://decypharr.<DOMAIN>` once, over the tailnet ([Quickstart §9](quickstart#9-set-up-the-apps)).
 Wizard order:
 
 1. **Authentication** — create the admin username/password. The **API token shown once** after

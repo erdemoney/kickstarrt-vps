@@ -8,7 +8,7 @@ nav_order: 9
 CrowdSec runs in the **traefik stack** at the edge — the layer that sees all public traffic.
 Traefik's access log feeds the detection engine; a Traefik middleware plugin enforces the
 decisions per request. The verify commands are in the walkthrough
-([Quickstart §9](quickstart#9-verify-the-waf-crowdsec)); this page is what's running and how
+([Quickstart §10](quickstart#10-verify-the-waf-crowdsec)); this page is what's running and how
 it behaves.
 
 ## Components

@@ -60,7 +60,7 @@ also keeps its own auth layered on top.
 A fresh VPS is scanned within minutes of booting, and an app that's live on the internet
 before its first-run setup is an app with no login — claimable by anyone. So the whole setup
 runs privately over the tailnet, and `:443` opens only after every app has auth on, as the
-deliberate last step ([Quickstart §10](quickstart#10-go-public-last)). One serving port,
+deliberate last step ([Quickstart §11](quickstart#11-go-public-last)). One serving port,
 opened once, reversible with a single ufw command.
 
 ## Why does Jellyfin transcode in software (no GPU)?

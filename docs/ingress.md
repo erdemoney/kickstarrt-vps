@@ -15,12 +15,12 @@ The VPS serves the internet from exactly one port: **TCP `443` (Traefik)**. `80`
 to bounce `http://` to `https://` — the entrypoint-level redirect in
 `traefik.template.yml`, with nothing served on it — and the HSTS header (`secHeaders@file`,
 sent on every https response) makes repeat browsers skip `:80` after their first visit. sshd
-answers only from the tailnet ([Quickstart §5](quickstart#5-lock-the-box-down-ufw)).
+answers only from the tailnet ([Quickstart §6](quickstart#6-lock-the-box-down-ufw)).
 Everything on `:443` is fronted by CrowdSec ([Security](security)).
 
 ## The security gate
 
-The going-public actions live in the walkthrough ([Quickstart §10](quickstart#10-go-public-last));
+The going-public actions live in the walkthrough ([Quickstart §11](quickstart#11-go-public-last));
 the rule they enforce:
 
 1. **Set up every app first over the tailnet** — the panels resolve by name there from first
@@ -42,7 +42,7 @@ different hostnames. Traefik's two https entrypoints are published on separate I
 entrypoint, and `TAILNET_IP` (the box's tailnet address) reaches the `https-tailnet`
 entrypoint (`traefik.template.yml`). `jellyfin` and `seerr` have routers on **both**
 entrypoints — they're public anyway, so being able to reach them by name on the tailnet costs
-nothing and keeps first-run setup possible before [going public](quickstart#10-go-public-last) —
+nothing and keeps first-run setup possible before [going public](quickstart#11-go-public-last) —
 while every panel and the dashboard use only `https-tailnet`. Nothing listens on
 `0.0.0.0:80/443`, so off-tailnet peers cannot even reach a panel socket: a panel `Host:`
 header sent at the public IP lands on an entrypoint with **no router for it** (404), and any
@@ -71,7 +71,7 @@ tailnet by name ([Tailnet DNS](tailnet)).
 
 One-time setup, then automatic. Traefik's ACME provider creates the `_acme-challenge` TXT
 record via the Cloudflare API (`CLOUDFLARE_DNS_TOKEN`, created in the
-[Quickstart](quickstart#4-fork-clone-and-fill-the-secrets)) and issues a **Let's Encrypt
+[Quickstart](quickstart#5-configure-the-stack)) and issues a **Let's Encrypt
 wildcard cert for `*.DOMAIN`** — one cert covering every hostname that terminates at Traefik,
 public or tailnet. Because it's the **DNS-01** challenge, certs issue before any DNS record
 or app exists, and no inbound ports are required. Renewals and per-app HTTPS are automatic

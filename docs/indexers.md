@@ -7,7 +7,7 @@ nav_order: 8
 
 Prowlarr is the single place indexers are configured; everything syncs to Sonarr/Radarr via
 "Apps" (wired in [The \*arrs](arrs)). Any time after the stack is up
-([Quickstart §8](quickstart#8-set-up-the-apps)) — but you need at least one before grabs
+([Quickstart §9](quickstart#9-set-up-the-apps)) — but you need at least one before grabs
 work.
 
 ## Recommended indexers

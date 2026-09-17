@@ -21,11 +21,11 @@ Before you start, have:
   TLS cert, so pick something you can keep. It should be **served by Cloudflare** (DNS records,
   the DNS-01 cert challenge, and R2 backups all live there): move the domain's nameservers to
   Cloudflare first if it isn't already.
-- **Cloudflare account** with the domain (and an API token made during section 5; **Cloudflare
+- **Cloudflare account** with the domain (and an API token made during configuration; **Cloudflare
   R2** for the optional restic backups).
 - **Tailscale account** — you'll approve the box into your tailnet in the next section and
-  register the DNS resolver in [§6](quickstart#6-register-the-tailnet-dns-resolver).
-- **GitHub account** — the repo is meant to be forked ([§4](quickstart#4-fork-clone-and-fill-the-secrets)).
+  register the DNS resolver in [§7](quickstart#7-register-the-tailnet-dns-resolver).
+- **GitHub account** — the repo is meant to be forked ([§4](quickstart#4-fork-and-clone-the-repository)).
 - **A workstation** on the tailnet with a browser — this is where the admin panels are set up.
 
 ## 1. Create the VPS
@@ -62,7 +62,7 @@ printing the box's **tailnet address** — a `100.x.y.z` from Tailscale's CGNAT 
 address is your SSH address from now on.
 
 The script deliberately does **not** touch the firewall — closing the public door is a
-conscious step, done in [§5](#5-lock-the-box-down-ufw) with `just lockdown` (which also
+conscious step, done in [§6](#6-lock-the-box-down-ufw) with `just lockdown` (which also
 installs ufw if the bootstrap hasn't, shows what it's about to do, and asks before
 dropping the public IP route). So the box is still fully open until then — fine for now,
 since you're the only one who can reach it.
@@ -76,7 +76,7 @@ ssh <user>@100.64.0.3     # the address the script printed
 ```
 
 Once this works, the public SSH door has done its job — the provider-side `22` rule gets
-closed during [§5](#5-lock-the-box-down-ufw). If you use **MagicDNS**, the box also answers at
+closed during [§6](#6-lock-the-box-down-ufw). If you use **MagicDNS**, the box also answers at
 `<node>.<tailnet>.ts.net`; fine for SSH, but the stack itself routes on `.DOMAIN` names, so
 the `100.x.y.z` address is the one that matters later.
 
@@ -86,7 +86,7 @@ the `100.x.y.z` address is the one that matters later.
 > (`sudo passwd ubuntu`) so the console can actually log you in when nothing else can; the
 > full recovery walkthrough is in the [OCI appendix](oci#3-recovery-the-console-break-glass).
 
-## 4. Fork, clone, and fill the secrets
+## 4. Fork and clone the repository
 
 First give git an identity and an authentication path on the box. The GitHub CLI (`gh`) is the
 easiest way — it generates the SSH key and uploads it to GitHub for you, no keypairs to manage:
@@ -119,37 +119,45 @@ One housekeeping item first: the `docker` group the bootstrap script put you in 
 effect in a **new SSH session** — reconnect, then `docker run --rm hello-world` should work
 without sudo.
 
+## 5. Configure the stack
+
 Now run `just init` — it creates each stack's private `.env`, detects safe defaults, validates
-the values it writes, and prompts only for the settings that need a decision:
+the values it writes, and prompts only for the settings that need a decision. At any value prompt,
+type `?` for a short explanation, an example, and the relevant documentation reference.
 
 - `CONFIG_DIR` isn't asked: always the repo's own `data/` dir — app configs, `acme.json`, and
   Traefik's rendered config live there, and it's exactly what the backups cover.
-- `TAILNET_IP` is auto-filled from `tailscale ip -4` — you're only prompted when the CLI
-  can't answer (e.g. Tailscale isn't up yet).
+- `TAILNET_IP` is auto-filled from `tailscale ip -4`; if the configured address later differs,
+  init detects the drift and asks before updating it. Update the Tailscale DNS nameserver too.
+- `PUBLIC_BIND` is detected from the default route; if it later differs, init asks before
+  changing it. On Oracle Cloud this can be the private VCN/VNIC address, not the public address.
 - `CROWDSEC_BOUNCER_API_KEY` is generated for you (random 32-byte key).
 - `DOMAIN` is prompted once and synced to every stack; each `SUB_DOMAIN_*` is filled with
   the app name as its default and can be edited in the `.env` files later.
 - `ENV_PUID`/`ENV_PGID` use the running user's uid/gid, so container files match your user
-  (fallback `1000` if you run as root).
+  (fallback `1000` if you run as root). If an existing installation uses different IDs, init
+  reports the mismatch and keeps them; `just init force` can explicitly replace them.
 - `ACME_EMAIL` defaults to `admin@<DOMAIN>` — any address on a domain you control; it
   needn't receive mail ([why](faq#why-is-there-no-lets-encrypt-account-to-create)).
-- A username/password prompt writes `TRAEFIK_DASHBOARD_CREDENTIALS`.
+- An optional username/password prompt writes `TRAEFIK_DASHBOARD_CREDENTIALS` for the
+  [Traefik dashboard](ingress#traefik-dashboard).
 - `CLOUDFLARE_DNS_TOKEN` — enter it when ready; `just init` verifies it against Cloudflare.
   Leave it empty to do it later.
 - Optionally sets up **restic backups to Cloudflare R2** — answer `y` to be prompted, or skip
   and fill `.env.restic` later ([Maintenance](maintenance)).
 
 It's safe to re-run: values that are already set are kept, so a re-run only asks for what's
-missing (e.g. a restic step you deferred). To re-prompt optional credentials, run
-`just init force`. The full variable list, with comments, is in `stacks/*/.env.example`. The
-three secrets worth understanding:
+missing (e.g. a restic step you deferred) or detects machine values that changed. To re-prompt
+optional credentials, run `just init force`. The full variable list, with comments, is in
+`stacks/traefik/.env.example` and `stacks/media-server/.env.example`. The main secrets worth
+understanding are:
 
 ### `CLOUDFLARE_DNS_TOKEN` — Cloudflare (wildcard TLS)
 
 This token is the entire Let's Encrypt prerequisite: DNS-01 is how Traefik proves ownership of
 `*.DOMAIN` ([Ingress → Certificates](ingress#certificates)).
 
-1. dash.cloudflare.com → **My Profile** → **API Tokens** → **Create Token** →
+1. Open [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) → **Create Token** →
    **Create custom token**, with two permissions on `DOMAIN`:
    - **Zone → Read** — resolves the domain to a zone ID before any record can be edited.
    - **Zone → DNS → Edit** — creates and deletes the `_acme-challenge` TXT records.
@@ -185,7 +193,7 @@ for — CrowdSec and Traefik use it to authenticate with each other. It must be 
 `just up`; after changing it, recreate the `crowdsec` and `traefik` containers
 (`just update-all`). Details in [Security](security).
 
-## 5. Lock the box down (ufw)
+## 6. Lock the box down (ufw)
 
 The tailnet is now your door — this is the conscious step that makes it your **only** door.
 `just lockdown` installs ufw if the bootstrap ([§2](#2-get-in-join-the-tailnet)) didn't,
@@ -206,7 +214,7 @@ installed, including its `ufw-docker.service` that keeps the gate in place acros
 Docker restart/reboot. It **refuses to run unless** the box is on the tailnet
 (`tailscale ip -4`) — and if your SSH session is still riding the public IP, it warns that
 ufw will drop it. There is deliberately **no public `22`/`80`/`443` rule**: the public
-surface opens only at [§10](#10-go-public-last) with `just go-public`.
+surface opens only at [§11](#11-go-public-last) with `just go-public`.
 
 Verify the result:
 
@@ -222,7 +230,7 @@ now has exactly one way in: your tailnet.
 Optional extras — SSH key-only auth (if your provider's image allows passwords) and fail2ban —
 are in [Hardening](hardening).
 
-## 6. Register the tailnet DNS resolver
+## 7. Register the tailnet DNS resolver
 
 One-time step in the Tailscale admin console, done **before** first boot so every app answers
 by name the moment the stack is up. The resolver is the CoreDNS container in the traefik
@@ -245,11 +253,11 @@ just dns     # prints the nameserver value to paste (your TAILNET_IP)
 Until the stack boots (next step), `*.DOMAIN` lookups won't answer: split DNS intercepts the
 domain with no fallback, and nothing is listening yet. Expected — it heals at first boot.
 
-## 7. First boot
+## 8. First boot
 
 ```bash
 just up              # creates networks, config dirs, acme.json + rendered traefik.yml, then brings up every stack
-sudo ufw-docker check   # confirm the Docker forward gate from §5 is live (DOCKER-USER filled)
+  sudo ufw-docker check   # confirm the Docker forward gate from §6 is live (DOCKER-USER filled)
 just ps              # confirm everything is running
 just dnscheck        # confirm the resolver answers: radarr.<DOMAIN> -> your tailnet IP
 ```
@@ -265,9 +273,9 @@ What to check right after boot:
 - Recyclarr waits for `just wire` to provision its secrets, then applies the shipped
   **Direct Play** quality profiles to Radarr/Sonarr (`docker logs recyclarr`) — see
   [The \*arrs](arrs#quality-profiles-recyclarr--automatic).
-- Jellyfin's admin account is created on first login (its API key feeds Seerr in §8).
+- Jellyfin's admin account is created on first login (its API key feeds Seerr in §9).
 
-## 8. Set up the apps
+## 9. Set up the apps
 
 Everything is reachable by name over the tailnet and **nothing is public yet** — that's the
 window to do first-run setup, while no app can be reached by strangers. The order matters:
@@ -291,7 +299,7 @@ it's configured.
 Minimum before going public: every app has its admin account and auth on — [the security
 gate](ingress#the-security-gate).
 
-## 9. Verify the WAF (CrowdSec)
+## 10. Verify the WAF (CrowdSec)
 
 CrowdSec is already running in the traefik stack, guarding every https router
 ([Security](security)). Confirm the bouncer authenticated and that blocking actually works:
@@ -302,7 +310,7 @@ docker exec crowdsec cscli decisions add --ip <your-public-ip> -d 10m   # then e
 docker exec crowdsec cscli decisions delete --ip <your-public-ip>       # unban
 ```
 
-## 10. Go public (last)
+## 11. Go public (last)
 
 When every app is set up and has auth on: add the two hostnames users actually need, then open
 the serving ports — in that order.
@@ -323,7 +331,7 @@ other half of the door. Fully reversible with `just go-public close`.
 
 Because the ufw-docker gate routes container traffic through UFW, these two rules are exactly
 what lets Docker-forwarded `:443`/`:80` through — the same syntax that opened the tailnet
-doors in §5.
+doors in §6.
 
 That's it — the stack is public on those two hostnames: Cloudflare DNS → VPS `:443` →
 Traefik → CrowdSec → the apps. Admin panels stay off the public DNS and are reached over the

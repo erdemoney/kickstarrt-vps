@@ -45,7 +45,7 @@ into the library → Jellyfin streams to any client; Seerr handles user requests
 The one fact to hold onto throughout setup, stated once here: the box answers the public
 internet from **exactly one serving port — `443` (Traefik)**, plus `80` as a pure
 `http → https` redirect, and both are opened deliberately as the
-[last setup step](quickstart#10-go-public-last). **Everything else is tailnet-only**: sshd,
+[last setup step](quickstart#11-go-public-last). **Everything else is tailnet-only**: sshd,
 the DNS resolver, and all the admin panels, reached by name via [Tailnet DNS](tailnet). The
 whole setup runs inside that private window — the reasoning behind these choices is
 collected in the [FAQ](faq).

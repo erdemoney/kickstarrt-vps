@@ -6,7 +6,7 @@ nav_order: 6
 # The \*arrs: networking and app wiring
 
 First-run setup happens over the tailnet while nothing is public
-([Quickstart §8](quickstart#8-set-up-the-apps)) — open `https://radarr.<DOMAIN>` and friends
+([Quickstart §9](quickstart#9-set-up-the-apps)) — open `https://radarr.<DOMAIN>` and friends
 from any tailnet device. Run `just wire --dry-run` first to preview the repeatable changes,
 then run `just wire` to review and confirm each checkpoint. The remaining GUI steps are
 documented below.
