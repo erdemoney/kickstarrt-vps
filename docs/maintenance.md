@@ -26,7 +26,7 @@ nav_order: 13
 | `just pull`                     | pull fresh images for every stack without recreating anything                     |
 | `just config <stack>`           | print the fully resolved compose config for one stack                             |
 | `just prepare`                | create config dirs, `acme.json` (0600) + render `traefik.yml` (called by `just up`) |
-| `just bootstrap-torrentio`      | install the Torrentio indexer definition into prowlarr (see [Indexers](indexers)) |
+| `just add-indexers`             | install all custom Prowlarr indexer definitions (Torrentio, TorBox, comet, …; see [Indexers](indexers)) |
 | `just wiring`                   | print the \*arrs' URLs/API keys, stepping through each service interactively (Enter/q; piped = full dump; see [The \*arrs](arrs)) |
 | `just dns` / `dnscheck`         | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |

@@ -893,23 +893,36 @@ config stack:
 ps:
     docker ps
 
-# Bootstrap the Torrentio indexer definition into prowlarr's config dir from the
-# Prowlarr-Indexers repo (see docs/indexers.md).
-# Idempotent; re-run to re-install. Requires git + network; run on the server.
+# Install all custom Cardigann indexer definitions for Prowlarr from the
+# Prowlarr-Indexers repo (Torrentio, TorBox, comet, zilean, ...). Definitions are
+# inert until enabled in Prowlarr, so installing every one saves a pick-a-name
+# step; add + key just the ones you want in the UI. Fetches the repo archive
+# (curl + tar only, no git/API), copies its Custom/ dir into prowlarr's config
+# dir, and restarts prowlarr. Idempotent; re-run to re-install. Run on the server.
 # CONFIG_DIR is read from stacks/media-server/.env (fallback the repo's data/ dir).
-bootstrap-torrentio:
+add-indexers:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env | tail -n1)
+    CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env 2>/dev/null | tail -n1) || true
     CONFIG_DIR="${CONFIG_DIR:-{{ justfile_directory() }}/data}"
 
+    DEST="$CONFIG_DIR/prowlarr/Definitions/Custom"
     TMP="$(mktemp -d)"
     trap 'rm -rf "$TMP"' EXIT
-    git clone --depth 1 --filter=blob:none https://github.com/dreulavelle/Prowlarr-Indexers "$TMP" >/dev/null 2>&1
-    mkdir -p "$CONFIG_DIR/prowlarr/Definitions/Custom"
-    cp "$TMP/Custom/torrentio.yml" "$CONFIG_DIR/prowlarr/Definitions/Custom/torrentio.yml"
-    echo "installed $CONFIG_DIR/prowlarr/Definitions/Custom/torrentio.yml"
+
+    curl -fsSL --connect-timeout 10 --max-time 120 \
+        https://github.com/dreulavelle/Prowlarr-Indexers/archive/refs/heads/main.tar.gz \
+        -o "$TMP/indexers.tar.gz"
+    tar -xzf "$TMP/indexers.tar.gz" -C "$TMP"
+
+    SRC="$TMP/Prowlarr-Indexers-main/Custom"
+    [ -d "$SRC" ] || { echo "error: Custom/ not found in the downloaded archive" >&2; exit 1; }
+
+    mkdir -p "$DEST"
+    cp "$SRC"/*.yml "$DEST"/
+    echo "installed $(printf '%s\n' "$SRC"/*.yml | wc -l) indexer definitions into $DEST"
+
     docker compose -f stacks/media-server/compose.yaml restart prowlarr 2>/dev/null \
         || echo "note: prowlarr is not running, the definition will load on next just up"
 
