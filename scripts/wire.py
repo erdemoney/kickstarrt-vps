@@ -53,17 +53,29 @@ def api_key(app: str, config_dir: Path) -> str:
 
 
 def decypharr_token(config_dir: Path) -> str:
-    path = config_dir / "decypharr" / "configs" / "config.json"
-    try:
-        config = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise WireError(f"{path} does not exist; complete Decypharr setup first") from exc
-    except json.JSONDecodeError as exc:
-        raise WireError(f"cannot parse {path}: {exc}") from exc
-    token = config.get("auth", {}).get("api_token") or config.get("api_token", "")
-    if not token:
-        raise WireError(f"{path} does not contain a Decypharr API token")
-    return token
+    config_path = config_dir / "decypharr" / "configs" / "config.json"
+    auth_path = config_dir / "decypharr" / "configs" / "auth.json"
+    documents: list[tuple[Path, dict[str, Any]]] = []
+    for path in (auth_path, config_path):
+        try:
+            documents.append((path, json.loads(path.read_text(encoding="utf-8"))))
+        except FileNotFoundError:
+            continue
+        except json.JSONDecodeError as exc:
+            raise WireError(f"cannot parse {path}: {exc}") from exc
+
+    # Current Decypharr stores authentication separately in auth.json. The
+    # config.json fallback supports older releases that embedded the token.
+    for path, document in documents:
+        token = document.get("api_token", "")
+        if not token and isinstance(document.get("auth"), dict):
+            token = document["auth"].get("api_token", "")
+        if token:
+            return token
+
+    if not documents:
+        raise WireError(f"{auth_path} and {config_path} do not exist; complete Decypharr setup first")
+    raise WireError(f"{auth_path} and {config_path} do not contain a Decypharr API token")
 
 
 class DockerHTTP:

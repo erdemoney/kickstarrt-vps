@@ -16,9 +16,9 @@ the next step, `q` quits (piping it prints everything at once).
 
 After the first-run admin accounts and Decypharr wizard are complete, `just wire` can
 reconcile the repeatable cross-service links through the applications' REST APIs. It does
-not edit `config.xml` or `config.json`; those files are read only to bootstrap API
-credentials. Requests run from inside the containers, so the internal service names remain
-private.
+not edit `config.xml`, `config.json`, or Decypharr's `auth.json`; those files are read only
+to bootstrap API credentials. Requests run from inside the containers, so the internal
+service names remain private.
 
 The default mode is interactive. It discovers the current configuration, displays each
 service-level change with secrets redacted, and asks for confirmation before applying it.
