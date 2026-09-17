@@ -119,31 +119,29 @@ One housekeeping item first: the `docker` group the bootstrap script put you in 
 effect in a **new SSH session** — reconnect, then `docker run --rm hello-world` should work
 without sudo.
 
-Now run `just init` — it creates each stack's `.env`, prints the values it generates itself
-up front, then walks you through the rest:
+Now run `just init` — it creates each stack's private `.env`, detects safe defaults, validates
+the values it writes, and prompts only for the settings that need a decision:
 
 - `CONFIG_DIR` isn't asked: always the repo's own `data/` dir — app configs, `acme.json`, and
   Traefik's rendered config live there, and it's exactly what the backups cover.
 - `TAILNET_IP` is auto-filled from `tailscale ip -4` — you're only prompted when the CLI
   can't answer (e.g. Tailscale isn't up yet).
 - `CROWDSEC_BOUNCER_API_KEY` is generated for you (random 32-byte key).
-- `DOMAIN` is prompted once and synced to every stack; each `SUB_DOMAIN_*` is offered with
-  the app name as its default (Enter accepts, type to change).
-- `ENV_PUID`/`ENV_PGID` propose the running user's uid/gid, so container files match your
-  user (fallback `1000` if you run as root).
+- `DOMAIN` is prompted once and synced to every stack; each `SUB_DOMAIN_*` is filled with
+  the app name as its default and can be edited in the `.env` files later.
+- `ENV_PUID`/`ENV_PGID` use the running user's uid/gid, so container files match your user
+  (fallback `1000` if you run as root).
 - `ACME_EMAIL` defaults to `admin@<DOMAIN>` — any address on a domain you control; it
   needn't receive mail ([why](faq#why-is-there-no-lets-encrypt-account-to-create)).
 - A username/password prompt writes `TRAEFIK_DASHBOARD_CREDENTIALS`.
-- `CLOUDFLARE_DNS_TOKEN` — `just init` explains each permission, then **confirms before
-  opening the Cloudflare page in your browser** (on a headless box it just prints the URL).
+- `CLOUDFLARE_DNS_TOKEN` — enter it when ready; `just init` verifies it against Cloudflare.
   Leave it empty to do it later.
 - Optionally sets up **restic backups to Cloudflare R2** — answer `y` to be prompted, or skip
   and fill `.env.restic` later ([Maintenance](maintenance)).
 
-Empty answers accept the offered default, and it's safe to re-run: values that are already
-set are skipped, so a re-run only asks for what's missing (e.g. a restic step you deferred).
-To change a set value, run `just init force` — everything is re-prompted, and Enter keeps
-the current value. The full variable list, with comments, is in `stacks/*/.env.example`. The
+It's safe to re-run: values that are already set are kept, so a re-run only asks for what's
+missing (e.g. a restic step you deferred). To re-prompt optional credentials, run
+`just init force`. The full variable list, with comments, is in `stacks/*/.env.example`. The
 three secrets worth understanding:
 
 ### `CLOUDFLARE_DNS_TOKEN` — Cloudflare (wildcard TLS)

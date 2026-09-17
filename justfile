@@ -8,7 +8,25 @@ restic_image := "restic/restic:0.19.1"
 default:
     just --list
 
-# Full first-time setup: create each .env, print the auto-generated values
+# Full first-time setup. The implementation lives in scripts/init.py so it can
+# validate input and update env files atomically.
+init FORCE="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{ FORCE }}" in
+        ""|n|N|no|No|NO|0|false|False|FALSE) exec python3 -m scripts.init ;;
+        f|F|force|Force|FORCE|-f|--force|y|Y|yes|Yes|YES|1|true|True|TRUE) exec python3 -m scripts.init --force ;;
+        *) echo "unknown init mode '{{ FORCE }}' (use 'force')" >&2; exit 2 ;;
+    esac
+
+# Legacy inline implementation retained temporarily for reference; all callers
+# use the Python implementation above.
+[private]
+init-legacy FORCE="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Full first-time setup: create each .env, print the auto-generated values
 # (CONFIG_DIR, TAILNET_IP, PUBLIC_BIND, CROWDSEC_BOUNCER_API_KEY) up front, then prompt for
 # the rest, offering defaults from this recipe (Enter accepts / keeps current).
 # Already-set values are skipped on re-run; `just init force` re-prompts them
@@ -16,7 +34,8 @@ default:
 # CONFIG_DIR) are synced across stacks. Browser pages are only opened after
 # confirmation, and only in a GUI session. Safe to re-run — nothing is
 # overwritten without consent.
-init FORCE="":
+[private]
+init-inline-legacy FORCE="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -725,8 +744,15 @@ update-svc stack service:
     docker compose -f "stacks/{{ stack }}/compose.yaml" pull "{{ service }}"
     docker compose -f "stacks/{{ stack }}/compose.yaml" up -d "{{ service }}"
 
-# Compare pinned image tags against what the registries publish (read-only)
+# Compare pinned image tags against what the registries publish (read-only).
 check-updates:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec python3 -m scripts.check_updates
+
+# Legacy inline implementation retained temporarily for reference.
+[private]
+check-updates-legacy:
     #!/usr/bin/env python3
     import json
     import re
@@ -1194,7 +1220,13 @@ backup-unschedule:
     sudo systemctl daemon-reload
     echo "removed kickstarrt-restic-backup.{timer,service} and stopped the timer."
 
-# Prepare everything on disk that compose bind-mounts (idempotent; called by `just up`):
+# Prepare everything on disk that compose bind-mounts (idempotent; called by `just up`).
+# The implementation lives in scripts/prepare.py.
+prepare:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec python3 -m scripts.prepare
+
 # the per-service config dirs, traefik's logs dir and acme.json (0600, must be a FILE -
 # docker would otherwise create a directory and ACME storage breaks), and the rendered
 # traefik.yml. CONFIG_DIR comes from stacks/media-server/.env (the repo's data/ dir).
@@ -1203,7 +1235,8 @@ backup-unschedule:
 # Also prepares the Decypharr host bind tree (/mnt/debrid): its DFS mountpoint and the
 # *arr library dirs (shows/movies), owned to PUID/PGID (sudo when actually needed) -
 # see docs/decypharr.md.
-prepare:
+[private]
+prepare-inline-legacy:
     #!/usr/bin/env bash
     set -euo pipefail
 
