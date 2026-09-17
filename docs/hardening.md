@@ -13,7 +13,7 @@ of that baseline.
 The baseline you already have by the end of quickstart §6:
 
 - **Public surface = Traefik on `443`, plus `80` as a pure `http → https` redirect** — both
-  opened deliberately as the [last setup step](quickstart#11-go-public-last) — **plus the
+  opened deliberately as the [last setup step](quickstart#12-go-public-last) — **plus the
   tailnet**. sshd is reachable only from `100.64.0.0/10`.
 - **The firewall actually reaches the containers** — the [ufw-docker](https://github.com/chaifeng/ufw-docker)
   gate (installed by [`just lockdown`](quickstart#6-lock-the-box-down-ufw)) routes
@@ -51,9 +51,9 @@ and DOCKER chains". Nothing else needs touching: Docker's own chains keep workin
 ```
 
 UFW mirrors every `ufw allow` rule into `ufw-user-forward`, so the §6 tailnet rules
-(`allow from 100.64.0.0/10 to any port 53/443/22`) and the §11 public rules (`allow 80`,
+(`allow from 100.64.0.0/10 to any port 53/443/22`) and the §12 public rules (`allow 80`,
 `allow 443`) are exactly what opens the forward path — same commands, same reversibility.
-Before §11, an internet peer's NEW connection to a container drops; traffic from
+Before §12, an internet peer's NEW connection to a container drops; traffic from
 RFC1918/LAN sources (or established sessions) passes. That RFC1918 trust is ufw-docker's
 default stance — a LAN device is trusted by default — and it's the one deliberate trade-off
 this setup inherits from upstream. (The tailnet's `100.64.0.0/10` is *not* RFC1918, so
@@ -63,9 +63,8 @@ tailnet peers still need the explicit `allow from 100.64.0.0/10` rule — which 
 recipe runs `ufw-docker install --system` — which writes the block above, installs the man
 page, and installs `ufw-docker.service` (`WantedBy=multi-user.target`, tied to
 `docker.service`) so the rules re-apply after every Docker start and reboot, then restarts
-UFW to load them. The bootstrap script ([Quickstart §2](quickstart#2-get-in-join-the-tailnet))
-doesn't touch the firewall at all — `just lockdown` installs ufw (if missing) *and* enables it
-in the same command, so the boxes stay open until then. Verify any time:
+UFW to load them. The recipe verifies the active firewall and gate before it reports success.
+Verify the detailed rules any time:
 
 ```bash
 sudo ufw-docker check        # diffs after.rules/after6.rules against the intended block

@@ -66,26 +66,13 @@ Rule of thumb: when any UI asks for another app's **URL + API key**, use the
 link from inside the network:
 `docker exec <service> curl -fsS http://sonarr:8989/ping`.
 
-## Download clients: Sonarr/Radarr ← Decypharr
+## Download clients
 
-In each arr: Settings → **Download Clients** → add. With both protocols configured in
-Decypharr, add **two** clients pointing at it — Decypharr exposes both APIs
-([Decypharr](decypharr#integration-with-sonarrradarr) covers its side of the wiring):
-
-- **qBittorrent** — name `Decypharr (debrid)`
-  - Host `decypharr`, port `8282`
-  - Username: the **arr's own URL** — `http://sonarr:8989` (or radarr's); Decypharr identifies
-    the caller by this.
-  - Password: that **arr's own API key** (Settings → General) — *not* the Decypharr token.
-  - Category `sonarr` / `radarr`; priority `0`.
-- **SABnzbd** — name `Decypharr (usenet)`, only if you configured Usenet in Decypharr
-  - Host `decypharr`, port `8282`, **URL base `/sabnzbd`** — the **URL Base** field is hidden
-    by default in Sonarr/Radarr; click the **gear icon** on the SABnzbd form to reveal it.
-  - Same username/password as above.
-  - Category `sonarr` / `radarr`; priority `0`.
-
-Give them different priorities to prefer one protocol over the other — the arr sends a
-release to the highest-priority client that can handle it. Test each client.
+`just wire` provisions the Decypharr qBittorrent-compatible and SABnzbd-compatible clients for
+Sonarr and Radarr. It uses the internal service name `decypharr`, the Arr API keys, and the
+correct categories and URL base. Run `just wire --dry-run` before the first apply; only adjust
+priorities or protocol choices manually if your setup differs from the documented Decypharr
+configuration. See [Decypharr](decypharr#integration-with-sonarrradarr) for the provider side.
 
 ## Root folders
 
@@ -133,15 +120,12 @@ anyway: `link()` isn't implemented). Two constraints follow:
   all bind `/mnt/decypharr` at the identical path. Change it in one place and that app sees a
   library full of dangling links.
 
-## Prowlarr → Sonarr/Radarr (indexer sync)
+## Prowlarr application sync
 
-1. Prowlarr → Settings → **Apps** → **Add Application** → **Sonarr** — URL
-   `http://sonarr:8989`, API key from Sonarr → Settings → General. Leave the sync profile
-   defaults; check "Enable" and the correct categories.
-2. Same for **Radarr** → `http://radarr:7878` + its API key. Test both.
-
-Every indexer added in Prowlarr (including Torrentio, [Indexers](indexers)) is then pushed to
-both apps automatically (tagged `(Prowlarr)`).
+`just wire` provisions Prowlarr's Sonarr and Radarr application links and enables full sync.
+Every indexer added in Prowlarr, including [Torrentio](indexers), is then pushed to both apps.
+Choose and test indexers in Prowlarr; there is no reason to recreate the application links by
+hand unless you intentionally changed them.
 
 ## Seerr → Jellyfin + Radarr + Sonarr (requests)
 
@@ -159,11 +143,9 @@ key, submits only the two connection blocks through `/api/system/settings`, and 
 other Bazarr settings. Bazarr only fetches subtitles for titles added **after** a language
 profile is assigned — the easy-to-forget step.
 
-1. Settings → **Sonarr** → enable, URL `http://sonarr:8989`, API key. Same for
-   **Radarr** → `http://radarr:7878`.
-2. Create a language profile (Languages → manage), then assign it in the Sonarr/Radarr
+1. Create a language profile (Languages → manage), then assign it in the Sonarr/Radarr
    library views via **Mass Edit**.
-3. **Subtitle providers** (the fiddly part):
+2. **Subtitle providers** (the fiddly part):
    - **OpenSubtitles.com** — primary; the old `.org` API is shut down. Create an account,
      generate an **API key** on your profile page, enter username + API key. Free tier is
      rate-limited (~20 downloads/day); VIP removes the cap.
@@ -174,33 +156,21 @@ profile is assigned — the easy-to-forget step.
 4. Rank providers by preference and raise each language's **minimum score** if subs arrive
    out of sync or machine-translated. Subtitle folder: **Alongside media file**.
 
-## Quality profiles (Recyclarr — automatic)
+## Quality profiles (Recyclarr - automatic)
 
-Quality profiles and custom formats are **not wired by hand** in this stack. [Recyclarr](https://recyclarr.dev)
-runs as a container and syncs the shipped profiles — TRaSH Guide definitions tuned for this
-CPU-only edition — into Radarr and Sonarr automatically:
+[Recyclarr](https://recyclarr.dev) syncs the tracked TRaSH-Guide profiles into Radarr and Sonarr.
+`just wire` creates its private API-key file and runs the first sync; the container then syncs
+daily. Before wiring, it waits quietly for the file to exist.
 
-- **When**: after `just wire` provisions its native `secrets.yml`, it syncs once immediately,
-  then daily after that. Before wiring, the container waits quietly for that file. Watch it
-  with `docker logs recyclarr`.
-- **What**: release-group tiers, repack preferences and TRaSH file sizes from the guide, plus
-  `-10000` (never grab) scores for anything that would force a video transcode or break
-  playback — AV1/VP9/VC-1/MPEG2 codecs, Dolby Vision without an HDR10 fallback, Blu-ray disk
-  images, and low-quality/obfuscated groups. Audio is left unpenalized (audio transcodes are
-  cheap on the server). The ladder is WEB-DL → Bluray encode → Remux at 1080p and 2160p.
-- **Where**: `data/recyclarr/configs/radarr.yml` and `sonarr.yml`, tracked in the repo — edit
-  to tune (e.g. score AV1 at `0` if every client decodes it, or drop the 2160p qualities to
-  cap at 1080p), then apply immediately:
+The YAML under `data/recyclarr/configs/` is the source of truth. Edit it when you want to tune
+quality scores, then run the sync manually if you do not want to wait for the next scheduled run:
 
-  ```bash
-  docker compose -f stacks/media-server/compose.yaml exec recyclarr recyclarr sync
-  ```
+```bash
+docker compose -f stacks/media-server/compose.yaml exec recyclarr recyclarr sync
+```
 
-The profiles are reset to match the config on every sync, so manual edits in the arr UI don't
-stick — the YAML is the source of truth. Pick **Direct Play** wherever an app asks for a
-quality profile (Seerr's Radarr/Sonarr settings, Radarr/Sonarr defaults). The arrs' API keys
-are provisioned by `just wire` into `$CONFIG_DIR/recyclarr/secrets.yml` (never committed). If
-you regenerate an arr's API key, run `just wire` again.
+Choose **Direct Play** wherever an app asks for a quality profile. If you regenerate an Arr API
+key, run `just wire` again.
 
 ### Direct Play (Anime) companion profile (Sonarr)
 

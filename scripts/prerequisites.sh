@@ -15,7 +15,7 @@
 # passes, it falls back to printing the manual `sudo tailscale up` step.
 #
 # It deliberately does NOT install ufw or touch any firewall rules. The
-# lockdown is a conscious step you run with `just lockdown` (Quickstart §5):
+# lockdown is a conscious step you run with `just lockdown` (Quickstart §6):
 # that recipe installs ufw (if missing) and enables it, after refusing unless
 # the box is on the tailnet and printing+confirming what it's about to do.
 # Nothing here can lock a fresh box out, and nothing here can silently

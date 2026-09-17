@@ -19,6 +19,7 @@ nav_order: 13
 | `just check-updates`            | compare pinned tags against registries; exits 1 if anything is newer              |
 | `just images` / `just df`       | local images / disk usage                                                         |
 | `just ps`                       | list running containers                                                           |
+| `just health`                   | read-only host, firewall, DNS, and container health panel                         |
 | `just logs <stack>`             | tail logs for a stack                                                             |
 | `just logs-svc <svc>`           | tail logs for one service, e.g. `just logs-svc jellyfin` (found across all stacks) |
 | `just restart <stack>`          | restart a stack                                                                   |
@@ -30,8 +31,8 @@ nav_order: 13
 | `just wire`                     | interactively reconcile Arr/Decypharr/Prowlarr/Bazarr links and Recyclarr secrets through REST APIs; use `--dry-run` to preview |
 | `just dns` / `just dnscheck`    | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
-| `just lockdown`                 | re-apply the ufw lockdown + forward gate (installed by `just lockdown`; idempotent; refuses unless the box is on the tailnet) |
-| `just go-public` / `just go-public close` | open / close the public serving ports `443`/`80` (see [Quickstart §11](quickstart#11-go-public-last)) |
+| `just lockdown`                 | apply or re-apply the UFW lockdown and Docker forwarding gate; verifies both and refuses unless the box is on the tailnet |
+| `just go-public` / `just go-public close` | open / close the public serving ports `443`/`80` (see [Quickstart §12](quickstart#12-go-public-last)) |
 | `sudo ufw-docker check`         | verify the Docker forward gate (installed by `just lockdown`; see [Hardening](hardening)) |
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)       |
 | `just backup` / `backup-list` / `backup-check` / `backup-prune` / `backup-restore` | restic snapshots, integrity, retention, restore — see below |

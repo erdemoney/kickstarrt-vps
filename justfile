@@ -561,7 +561,7 @@ init-inline-legacy FORCE="":
     muted "Review stacks/*/.env, then run 'just up'."
     muted "Re-runs skip what's already set; 'just init force' re-prompts those values."
     muted "Keep the box locked down (SSH tailnet-only) - go public with 'just go-public'"
-    muted "(Cloudflare A records + open :443/:80; docs/ingress.md, Quickstart §10)."
+    muted "(Cloudflare A records + open :443/:80; docs/ingress.md, Quickstart §12)."
     hr
 
 # Create the shared Docker network (idempotent). The subnet is pinned inside
@@ -595,7 +595,7 @@ lockdown:
         exit 1
     fi
     echo "About to lock the box down:"
-    echo "  - install ufw if the bootstrap hasn't (also swaps out a distro-shipped iptables-persistent)"
+    echo "  - install ufw if needed (also swaps out a distro-shipped iptables-persistent)"
     echo "  - ufw default-deny incoming (tailnet 22/53/443 allowed, no public ports)"
     echo "  - ufw --force enable"
     echo "  - re-apply the ufw-docker DOCKER-USER forward gate (and ufw-docker.service)"
@@ -661,18 +661,23 @@ lockdown:
     cleanup_mandb
     trap - EXIT
     sudo systemctl restart ufw
+    if ! sudo ufw status 2>/dev/null | grep -Fq "Status: active"; then
+        echo "lockdown verification failed: ufw is not active" >&2
+        exit 1
+    fi
+    sudo ufw-docker check
+    sudo ufw status verbose
     echo
-    echo "lockdown applied: tailnet only, containers gated by ufw."
-    echo "Verify any time with: sudo ufw-docker check"
+    echo "lockdown applied and verified: tailnet only, containers gated by ufw."
     echo "Open the public serving ports when you're ready with: just go-public"
 
-# Open (or close) the public serving ports for going public (Quickstart §10).
+# Open (or close) the public serving ports for going public (Quickstart §12).
 # Default action `open`; `just go-public close` removes them again. The other
 # half - Cloudflare A records for the public hostnames - stays a manual step.
 # Pair with `just lockdown` (which never touches public rules) for a quick
 # public/private toggle.
 
-# Open (or close) the public serving ports (Quickstart §10).
+# Open (or close) the public serving ports (Quickstart §12).
 go-public action="open":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -698,7 +703,7 @@ go-public action="open":
     echo "  - allow 80/tcp (http -> https redirect only; nothing is served on it)"
     echo "Do the manual half first: Cloudflare A records for seerr.<DOMAIN> and jellyfin.<DOMAIN>"
     echo "pointing at the public IP (DNS only - never proxied), or no DNS name reaches these."
-    echo "See docs/ingress.md and Quickstart §10."
+    echo "See docs/ingress.md and Quickstart §12."
     if ! command -v ufw >/dev/null 2>&1 || ! sudo ufw status 2>/dev/null | grep -Fq "Status: active"; then
         echo "WARNING: ufw is not active - these rules only take effect once you run 'just lockdown'." >&2
     fi
@@ -930,6 +935,12 @@ config stack:
 # List running containers
 ps:
     docker ps
+
+# Read-only host, firewall, DNS, and container health checks.
+health:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec python3 -m scripts.health
 
 # Open an interactive shell in a running service's container (searched across all
 # stacks), e.g. `just shell jellyfin`. Tries bash first, falls back to sh for

@@ -60,7 +60,7 @@ also keeps its own auth layered on top.
 A fresh VPS is scanned within minutes of booting, and an app that's live on the internet
 before its first-run setup is an app with no login — claimable by anyone. So the whole setup
 runs privately over the tailnet, and `:443` opens only after every app has auth on, as the
-deliberate last step ([Quickstart §11](quickstart#11-go-public-last)). One serving port,
+deliberate last step ([Quickstart §12](quickstart#12-go-public-last)). One serving port,
 opened once, reversible with a single ufw command.
 
 ## Why does Jellyfin transcode in software (no GPU)?
@@ -75,9 +75,8 @@ anything that would force a video transcode out of the grab candidates entirely.
 ## Why Ubuntu on Oracle Cloud but Debian elsewhere?
 
 Debian stable is the safe default — minimal, long support cycles, and most providers ship a
-Debian image. Oracle's catalog doesn't offer one, so the [OCI guide](oci) uses **Canonical
-Ubuntu 26.04 Minimal aarch64**; every `apt`/`ufw`/`fail2ban` command in this wiki is
-identical on both.
+Debian image. Oracle's catalog doesn't offer one, so the [OCI guide](oci) uses **Ubuntu 26.04
+Minimal**.
 
 ## Why does CrowdSec fail open?
 

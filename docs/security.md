@@ -3,46 +3,74 @@ title: Security
 nav_order: 9
 ---
 
-# Security: CrowdSec IP blocking
+# Security model
 
-CrowdSec runs in the **traefik stack** at the edge — the layer that sees all public traffic.
-Traefik's access log feeds the detection engine; a Traefik middleware plugin enforces the
-decisions per request. The verify commands are in the walkthrough
-([Quickstart §10](quickstart#10-verify-the-waf-crowdsec)); this page is what's running and how
-it behaves.
+Security is layered rather than delegated to one container. The deployment keeps administration
+private on the tailnet, limits which host addresses accept traffic, filters forwarded Docker
+traffic, terminates TLS at Traefik, and then lets CrowdSec and each application enforce the next
+layer of access control.
 
-## Components
+## Traffic paths
 
-- `crowdsec` container — analysis engine + LAPI on the `internal` network at `crowdsec:8080`.
-  It reads Traefik's JSON access log via `$CONFIG_DIR/traefik/crowdsec-acquis.yaml` (tracked
-  at `data/traefik/`).
-- Traefik plugin `bouncer` — the **`crowdsec@file`** middleware in
-  `$CONFIG_DIR/traefik/dynamic.yml`, in stream mode. It is attached to the **https and
-  https-tailnet entrypoints** (`data/traefik/traefik.template.yml`), so it guards every
-  router that terminates TLS — current and future — with no per-router labels (the dashboard
-  router additionally keeps basic-auth in front, and panels are reachable only on the
-  tailnet-bound entrypoint — [Ingress](ingress#the-security-gate)). The LAPI key is
-  `CROWDSEC_BOUNCER_API_KEY`, injected via Traefik's Go templating (`env` in `dynamic.yml`) —
-  Traefik renders dynamic config files as Go templates and does **not** substitute
-  shell-style `${VAR}`.
+### Administration and private panels
 
-## Behavior defaults
+Tailscale is the administration plane. SSH, CoreDNS, Traefik's dashboard, and the management
+panels use the tailnet address and the `https-tailnet` entrypoint. CoreDNS answers the stack's
+domain only for tailnet clients through split DNS; it does not create public records.
 
-- **Bypasses**: client IPs in RFC1918/CGNAT ranges (`clientTrustedIPs`) are never checked —
-  tailnet and LAN clients are exempt. With direct ingress there is no proxy, so the real
-  client IP is the socket peer, read directly; `forwardedHeadersTrustedIPs` stays
-  private-ranged, so a client can't spoof `X-Forwarded-For` (and the tailnet port-forward
-  path still resolves correctly).
-- **Fail-open**: `updateMaxFailure: -1` — if LAPI is unreachable, the edge lets traffic
-  through rather than blocking everything. Startup is fail-open too
-  (`streamStartupBlock: false`): with the middleware edge-wide, the "wait for CrowdSec before
-  serving" default would stall all external traffic whenever Traefik restarts while CrowdSec
-  is down. The trade-off is a small window at Traefik boot — until the first stream sync
-  completes, typically seconds — during which banned IPs are not yet rejected
-  ([why fail open](faq#why-does-crowdsec-fail-open)).
-- **Mode**: `stream`; the banned-IP cache refreshes every 60s from CrowdSec.
+The tailnet is not a substitute for application authentication. Keep admin accounts enabled in
+every application, and treat a tailnet device as trusted only as far as its owner and local
+security justify.
 
-The engine registers with the community blocklist and derives decisions from Traefik logs via
-the `crowdsecurity/traefik` and `crowdsecurity/http-cve` collections. CrowdSec decides **which
-IPs** get through the edge; the firewall decides who reaches `:443` at all; each app's own
-login guards the rest ([Ingress](ingress)).
+### Public services
+
+Only Jellyfin and Seerr are intended to be public. They use Traefik's public entrypoint after
+the final Quickstart step. Public DNS records are Cloudflare DNS-only A records; Cloudflare does
+not proxy media traffic. The public ports are closed until `just go-public` opens `80` and `443`.
+
+## Security layers
+
+1. **Provider firewall and recovery access** provide the initial SSH path and the break-glass
+   console. Verify the provider console before running `just lockdown`.
+2. **Tailscale** supplies the private route for SSH, DNS, dashboards, and management panels.
+3. **UFW** denies incoming traffic by default and permits only tailnet SSH, DNS, and HTTPS until
+   the public step.
+4. **ufw-docker** connects UFW to Docker's `FORWARD` path through `DOCKER-USER`; without it,
+   published container ports could bypass UFW's `INPUT` rules. See [Hardening](hardening) for
+   the packet-flow details.
+5. **Traefik** binds public and tailnet entrypoints to separate host addresses, issues the
+   wildcard certificate through Cloudflare DNS-01, and exposes only routers configured by labels.
+6. **CrowdSec** reads Traefik access logs and blocks known or detected hostile IPs at the edge.
+7. **Application authentication** protects the services that are reachable after the network
+   layers allow them. Configure every first-run admin account before going public.
+8. **Secrets and backups** stay in private ignored files, are never committed, and are covered
+   by encrypted Restic backups. CI scans the full Git history for leaked secrets.
+
+## CrowdSec
+
+CrowdSec runs in the `traefik` stack. Traefik's JSON access log feeds the detection engine via
+`$CONFIG_DIR/traefik/crowdsec-acquis.yaml`; the `crowdsecurity/traefik` and
+`crowdsecurity/http-cve` collections provide the detection scenarios. The Traefik bouncer plugin
+enforces decisions on both HTTPS entrypoints using `CROWDSEC_BOUNCER_API_KEY`.
+
+CrowdSec is configured fail-open: if its LAPI is unavailable, Traefik continues serving rather
+than taking down the entire edge. The firewall, private entrypoint, and application login layers
+remain in force. The block cache refreshes every 60 seconds.
+
+Tailnet and private-network clients are trusted by the configured `clientTrustedIPs` ranges.
+Direct ingress means Traefik sees the actual socket peer, and forwarded headers from untrusted
+sources are not accepted.
+
+## Verification
+
+Run the read-only health panel after setup and whenever the host or stack changes:
+
+```bash
+just health
+```
+
+It checks Tailscale, UFW, the ufw-docker gate, the internal Docker network, CoreDNS's generated
+Corefile, container states, and the CrowdSec bouncer command. It does not deliberately ban an IP;
+that would be unsafe as a routine health check.
+
+For deeper firewall inspection, see [Hardening](hardening). For DNS behavior, see [Tailnet DNS](tailnet).

@@ -60,7 +60,7 @@ the `http → https` redirect"). Leave the rest alone: the wizard's default `22`
 stays **for now** — that's the door you `ssh` in through during setup, and it's deleted in
 [Quickstart §6](quickstart#6-lock-the-box-down-ufw). The OS firewall (ufw) is the real
 per-port enforcement point either way: nothing answers from the internet until the
-[going-public](quickstart#11-go-public-last) step.
+[going-public](quickstart#12-go-public-last) step.
 
 ## 2. Create the compute instance
 
@@ -71,9 +71,9 @@ per-port enforcement point either way: nothing answers from the internet until t
 | **Name** | `kickstarrt` |
 | **Creation In Compartment** | same compartment |
 | **Placement → Availability domain** | leave the default — regions differ (some have a single AD, others several); it doesn't matter for this stack |
-| **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 26.04 Minimal aarch64** — the Minimal **aarch64** build, for this Arm shape (don't pick the x86 variant). Ubuntu matches this repo's `apt`/`ufw`/`fail2ban` commands verbatim |
+| **Image** | **Change image** → Operating system **Ubuntu** → Version **Canonical Ubuntu 26.04 Minimal aarch64** — choose the Minimal **aarch64** build for this Arm shape (don't pick the x86 variant) |
 | **Shape** | **Change shape** → **VM.Standard.A1.Flex** (Ampere, Arm): **2 OCPU / 12 GB / 2 Gbps** — the console spells it "2 core OCPU, 12 GB memory, 2 Gbps network bandwidth", the Always-Free ARM allotment. The only valid shape for this stack: every image in `stacks/` publishes `arm64` builds, and the x86 shapes (e.g. `VM.Standard.E2.1.Micro` at 1 GB) are not a valid choice. The shape must show **Always Free-eligible** |
-| **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and its **public subnet** (the one the wizard created); private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets its public IP here; nothing is reachable until the [going-public](quickstart#11-go-public-last) step |
+| **Networking → Primary VNIC** | select existing VCN `kickstarrt-vcn` and its **public subnet** (the one the wizard created); private IPv4 **automatically assigned**; **Public IPv4 address: Automatically assign** — the box gets its public IP here; nothing is reachable until the [going-public](quickstart#12-go-public-last) step |
 | **Add SSH keys** | paste your **workstation's public key** (`~/.ssh/id_ed25519.pub`) — it's how you get in: during setup over the public IP, and over the tailnet afterwards. Canonical Ubuntu images configure **no console password**, so this key is the only way onto the box. Never leave it empty |
 | **Storage → Boot volume** | default (≈ 46.6 GB, Oracle-managed encryption, in-transit encryption on) — no extra block volumes |
 

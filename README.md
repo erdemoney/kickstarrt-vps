@@ -19,8 +19,8 @@ and brought up with a single command.
 
 kickst**Arr**t wires together everything a media library needs — **instant, debrid-based
 streaming that keeps nothing on disk**, automatic TLS, and edge security — as code, on a VPS.
-This is the **VPS edition**: direct Traefik `:443` ingress (Cloudflare is DNS-only — no video
-crosses its network), Tailscale + ufw/fail2ban hardening, no GPU.
+Direct Traefik `:443` ingress (Cloudflare is DNS-only — no video crosses its network), Tailscale
++ ufw/fail2ban hardening, and no GPU.
 
 ## Architecture
 
@@ -76,9 +76,9 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
   near-zero disk usage
 - **Automatic TLS** — Traefik issues a `*.DOMAIN` Let's Encrypt wildcard via Cloudflare
   DNS-01; every app UI ships on HTTPS from the public internet
-- **Edge security** — CrowdSec WAF inside Traefik, a deny-incoming ufw that opens exactly one
-  *serving* port (`443`, the last step of setup), and DNS-only public hostnames — media never
-  rides a third-party edge
+- **Layered security** — Tailscale private administration, deny-incoming UFW plus the Docker
+  forwarding gate, Traefik TLS and entrypoint isolation, CrowdSec WAF, and application logins;
+  `just health` checks the deployment without changing it
 - **Private admin panels** — the \*arrs, Decypharr and the Traefik dashboard resolve by name
   *only on your tailnet* (CoreDNS + Tailscale split DNS): `https://radarr.<DOMAIN>` from any
   tailnet device, no public records, no extra login — the tailnet is the gate
@@ -97,10 +97,10 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 > [Quickstart](https://erdemoney.github.io/kickstarrt-vps/quickstart).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash   # git, just, docker + tailscale join (idempotent); doesn't touch the firewall - you lock down with `just lockdown`; prints your tailnet SSH address
+curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash   # git, just, docker + tailscale join; prints your tailnet SSH address
 git clone git@github.com:<you>/kickstarrt-vps.git && cd kickstarrt-vps
-just init             # prompts for every secret; Enter accepts the default (re-runs skip what's set; 'just init force' re-prompts)
-just dns              # paste the printed nameserver into Tailscale (one-time; see Quickstart §6)
+just init             # configures detected values and prompts for required/optional secrets (re-runs reconcile drift; 'just init force' re-prompts)
+just dns              # paste the printed nameserver into Tailscale (one-time; see Quickstart §7)
 just up               # networks -> config dirs -> the whole stack; panels resolve on your tailnet immediately
 ```
 
@@ -118,9 +118,9 @@ bootstrap script above.
 In reading order for a first deploy:
 
 - [**Quickstart**](https://erdemoney.github.io/kickstarrt-vps/quickstart) — the ordered walkthrough: get in via Tailscale, harden, secrets, first boot, app setup, go public
-- [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) · [**Tailnet DNS**](https://erdemoney.github.io/kickstarrt-vps/tailnet) — optional depth
+- [**Security**](https://erdemoney.github.io/kickstarrt-vps/security) · [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) · [**Tailnet DNS**](https://erdemoney.github.io/kickstarrt-vps/tailnet) — the layered security model and its details
 - [**Decypharr**](https://erdemoney.github.io/kickstarrt-vps/decypharr) · [**The \*arrs**](https://erdemoney.github.io/kickstarrt-vps/arrs) · [**Indexers**](https://erdemoney.github.io/kickstarrt-vps/indexers) · [**Services**](https://erdemoney.github.io/kickstarrt-vps/services) — the apps
-- [**Security**](https://erdemoney.github.io/kickstarrt-vps/security) · [**Ingress**](https://erdemoney.github.io/kickstarrt-vps/ingress) — CrowdSec and the public edge
+- [**Additional services**](https://erdemoney.github.io/kickstarrt-vps/additional-services) · [**Ingress**](https://erdemoney.github.io/kickstarrt-vps/ingress) — extending the stack and the public edge
 - [**Maintenance**](https://erdemoney.github.io/kickstarrt-vps/maintenance) · [**Updates & CI**](https://erdemoney.github.io/kickstarrt-vps/updates) — ongoing ops
 - [**FAQ**](https://erdemoney.github.io/kickstarrt-vps/faq) — the design decisions, answered
 - [**Oracle Cloud (free tier)**](https://erdemoney.github.io/kickstarrt-vps/oci) — appendix: free VPS from zero

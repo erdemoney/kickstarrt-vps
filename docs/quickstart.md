@@ -32,7 +32,7 @@ Before you start, have:
 
 Any provider, any box with ≥ 2 vCPU / 4 GB RAM (sizing notes in the [overview](index)). Use a
 **Debian 12** or **Ubuntu LTS** image — every command in this wiki is written for them. On
-Oracle Cloud, use **Canonical Ubuntu 26.04 Minimal aarch64** instead (no Debian image there);
+Oracle Cloud, use **Ubuntu 26.04 Minimal** instead (no Debian image there);
 the [OCI appendix](oci) walks the whole creation, including the `443`/`80` ingress rules
 you'll need much later.
 
@@ -61,11 +61,7 @@ approve the node. (Missed the window? `sudo tailscale up` prints it again.) It e
 printing the box's **tailnet address** — a `100.x.y.z` from Tailscale's CGNAT range. That
 address is your SSH address from now on.
 
-The script deliberately does **not** touch the firewall — closing the public door is a
-conscious step, done in [§6](#6-lock-the-box-down-ufw) with `just lockdown` (which also
-installs ufw if the bootstrap hasn't, shows what it's about to do, and asks before
-dropping the public IP route). So the box is still fully open until then — fine for now,
-since you're the only one who can reach it.
+The firewall remains open until the deliberate lockdown step in [§6](#6-lock-the-box-down-ufw).
 
 ## 3. Verify SSH over the tailnet
 
@@ -88,22 +84,22 @@ the `100.x.y.z` address is the one that matters later.
 
 ## 4. Fork and clone the repository
 
-First give git an identity and an authentication path on the box. The GitHub CLI (`gh`) is the
-easiest way — it generates the SSH key and uploads it to GitHub for you, no keypairs to manage:
+Install and authenticate the GitHub CLI. It can create or upload the SSH key used to clone the
+private fork:
 
 ```bash
-sudo apt install gh        # not in your distro's repos? follow https://cli.github.com
-git config --global user.name  "<you>"
-git config --global user.email "you@example.com"
-gh auth login              # GitHub.com > SSH > "Generate a new key", upload it
+sudo apt install gh        # other installers: https://cli.github.com
+gh auth login              # choose GitHub.com → SSH; generate or upload a key when offered
 ```
 
-This repo is meant to be **forked**, and `gh` can fork + clone in one command:
+This repo is meant to be **forked**. Create the fork, then clone it into the standard checkout
+directory:
 
 ```bash
-cd ~/docker
-gh repo fork erdemoney/kickstarrt-vps --clone --remote
-gh repo edit --visibility private     # public forks leak any secret you commit
+mkdir -p ~/docker
+gh repo fork erdemoney/kickstarrt-vps
+gh repo clone <you>/kickstarrt-vps ~/docker/kickstarrt-vps
+gh repo edit <you>/kickstarrt-vps --visibility private     # public forks leak any secret you commit
 # --- or fork it in the browser ---
 ```
 
@@ -159,7 +155,7 @@ This token is the entire Let's Encrypt prerequisite: DNS-01 is how Traefik prove
 
 1. Open [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) → **Create Token** →
    **Create custom token**, with two permissions on `DOMAIN`:
-   - **Zone → Read** — resolves the domain to a zone ID before any record can be edited.
+    - **Zone → Zone → Read** — resolves the domain to a zone ID before any record can be edited.
    - **Zone → DNS → Edit** — creates and deletes the `_acme-challenge` TXT records.
 2. **Zone Resources** → **Include** → **Specific zone** → your `DOMAIN` (least privilege —
    not "All zones").
@@ -196,32 +192,23 @@ for — CrowdSec and Traefik use it to authenticate with each other. It must be 
 ## 6. Lock the box down (ufw)
 
 The tailnet is now your door — this is the conscious step that makes it your **only** door.
-`just lockdown` installs ufw if the bootstrap ([§2](#2-get-in-join-the-tailnet)) didn't,
-then enables it — both in the same command, so there's never an unprotected reboot between
-dismantling whatever your provider image shipped (Oracle's Ubuntu images preconfigure the
-host firewall with `iptables-persistent`, which apt swaps out for ufw here) and ufw taking
-charge. Run the lockdown deliberately:
+`just lockdown` installs and enables ufw, applies the tailnet-only rules, and installs the
+ufw-docker forwarding gate in one confirmed operation.
+
+> **Before running this command:** verify that you can access the provider's web, VNC, or
+> serial console and that its break-glass credentials work. If the tailnet or SSH session fails,
+> that console is the recovery path.
+
+Run the lockdown deliberately:
 
 ```bash
 just lockdown
 ```
 
-`just lockdown` prints exactly what it's about to do, then asks before executing: ufw
-default-deny incoming with the tailnet allowed (`100.64.0.0/10` — the CGNAT range Tailscale
-uses, so nothing but your tailnet can reach `22`/`53`/`443`), ufw enabled, and the
-**ufw-docker** forward gate ([Hardening](hardening#docker-and-ufw-the-forward-gate))
-installed, including its `ufw-docker.service` that keeps the gate in place across every
-Docker restart/reboot. It **refuses to run unless** the box is on the tailnet
-(`tailscale ip -4`) — and if your SSH session is still riding the public IP, it warns that
-ufw will drop it. There is deliberately **no public `22`/`80`/`443` rule**: the public
-surface opens only at [§11](#11-go-public-last) with `just go-public`.
-
-Verify the result:
-
-```bash
-sudo ufw status          # deny-incoming; tailnet 22/53/443 allowed
-sudo ufw-docker check    # the Docker forward gate is populated (DOCKER-USER filled)
-```
+The command refuses to run unless the box is on the tailnet, asks before changing the firewall,
+and verifies UFW plus the **ufw-docker** gate before it reports success. There is deliberately
+**no public `22`/`80`/`443` rule**: the public surface opens only at [§12](#12-go-public-last)
+with `just go-public`.
 
 Then close the delivery door at the provider: on **Oracle Cloud**, delete the wizard's default
 `22` ingress rule (VCN → Default Security List → the `TCP 22 / 0.0.0.0/0` rule → Delete). SSH
@@ -256,24 +243,22 @@ domain with no fallback, and nothing is listening yet. Expected — it heals at 
 ## 8. First boot
 
 ```bash
-just up              # creates networks, config dirs, acme.json + rendered traefik.yml, then brings up every stack
-  sudo ufw-docker check   # confirm the Docker forward gate from §6 is live (DOCKER-USER filled)
-just ps              # confirm everything is running
-just dnscheck        # confirm the resolver answers: radarr.<DOMAIN> -> your tailnet IP
+just up
 ```
 
-What to check right after boot:
+### Verify the first boot
 
-- Every app answers at `https://<subdomain>.<DOMAIN>` **from any tailnet device** —
-  `jellyfin`, `seerr`, `radarr`, `sonarr`, `prowlarr`, `bazarr`, `decypharr`, `traefik` —
-  with the real wildcard cert, issued by DNS-01 before any DNS record exists.
-- A `Certificate` for `*.DOMAIN` appears in the Traefik dashboard's ACME panel (the first
-  Traefik start also downloads the CrowdSec plugin — both need outbound internet).
-- CrowdSec seeded its config under `$CONFIG_DIR/crowdsec/config` ([Security](security)).
-- Recyclarr waits for `just wire` to provision its secrets, then applies the shipped
-  **Direct Play** quality profiles to Radarr/Sonarr (`docker logs recyclarr`) — see
-  [The \*arrs](arrs#quality-profiles-recyclarr--automatic).
-- Jellyfin's admin account is created on first login (its API key feeds Seerr in §9).
+`just up` runs preparation, creates the networks and config directories, renders the static
+configuration, and starts both stacks. Use the read-only health panel for the routine checks:
+
+```bash
+just health
+just dnscheck
+```
+
+From a tailnet device, the expected result is that each configured hostname opens over HTTPS and
+the wildcard certificate is valid. Continue with app setup even if Recyclarr is waiting for
+`just wire`; that is expected before its secrets exist.
 
 ## 9. Set up the apps
 
@@ -284,33 +269,52 @@ it's configured.
 
 1. **Decypharr** — run the wizard: admin account, debrid provider + API key, mount at
    `/mnt/decypharr` → [Decypharr](decypharr#first-run-setup-wizard).
-2. **\*arrs** — run `just wire` on the box and confirm the deterministic cross-service changes:
-   download clients pointing at Decypharr, root folders, Decypharr Arr integrations, Prowlarr
-   app sync, and Recyclarr's API secrets. Finish Seerr → Jellyfin/Radarr/Sonarr and Bazarr's
-   language profiles in the GUI → [The \*arrs](arrs). Quality profiles need no manual setup:
-   Recyclarr applies the shipped **Direct Play** profiles during `just wire` — just pick one
-   where an app asks.
-3. **Indexers** — Prowlarr needs at least one before grabs work; Torrentio (debrid) and
+2. **\*arrs** — run `just wire` on the box. It provisions download clients, root folders,
+   Arr integrations, Prowlarr sync, Bazarr connections, and Recyclarr's API secrets. Finish
+   language profiles and indexer choices in the GUI → [The \*arrs](arrs).
+3. **Jellyfin** — create the admin account, add libraries under `/mnt/shows` and `/mnt/movies`,
+   and set the transcode path → [Jellyfin](jellyfin).
+4. **Seerr** — connect Jellyfin at `http://jellyfin:8096`, then connect Radarr and Sonarr with
+   their internal URLs and API keys → [Seerr setup](jellyfin#seerr).
+5. **Indexers** — Prowlarr needs at least one before grabs work; Torrentio (debrid) and
    AltHub (Usenet) → [Indexers](indexers).
-4. **Jellyfin** — libraries pointing at subpaths of `/mnt/decypharr`, transcode path and the
-   per-user no-video-transcode policy → [Jellyfin](jellyfin).
 
 `just wire --dry-run` previews the changes, and `just wire` applies each confirmed checkpoint.
 Minimum before going public: every app has its admin account and auth on — [the security
 gate](ingress#the-security-gate).
 
-## 10. Verify the WAF (CrowdSec)
+## 10. Verify the security services
 
-CrowdSec is already running in the traefik stack, guarding every https router
-([Security](security)). Confirm the bouncer authenticated and that blocking actually works:
+CrowdSec, Traefik, Tailscale, UFW, and the Docker forwarding gate are checked by the same
+read-only panel:
 
 ```bash
-docker exec crowdsec cscli bouncers list                     # expect the traefik bouncer
-docker exec crowdsec cscli decisions add --ip <your-public-ip> -d 10m   # then expect 403
-docker exec crowdsec cscli decisions delete --ip <your-public-ip>       # unban
+just health
 ```
 
-## 11. Go public (last)
+## 11. Backups and updates
+
+Set up encrypted offsite backups before exposing the service publicly:
+
+```bash
+just init              # answer yes to the Cloudflare R2 backup step
+just backup-init
+just backup
+just backup-schedule   # optional daily systemd timer
+```
+
+See [Maintenance](maintenance) for R2 credentials, alternate backends, restores, and retention.
+
+Enable the Renovate workflow once on GitHub:
+
+```bash
+gh secret set RENOVATE_TOKEN
+```
+
+Then run the **Renovate** workflow once from GitHub Actions. Review its pull requests normally;
+after merging one, update the server with `git pull && just update-all`. See [Updates & CI](updates).
+
+## 12. Go public (last)
 
 When every app is set up and has auth on: add the two hostnames users actually need, then open
 the serving ports — in that order.

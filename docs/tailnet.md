@@ -74,5 +74,5 @@ all — there's no public record for the panels, by design.
   (`docker compose -f stacks/traefik/compose.yaml ps coredns`), ufw has the `53` rules
   (`sudo ufw status`), and the forward gate is applied (`sudo ufw-docker check`; verify with
   `sudo iptables -nL DOCKER-USER`). From the **public internet**, nothing works until
-  [going public](quickstart#11-go-public-last) — that's by design.
+  [going public](quickstart#12-go-public-last) — that's by design.
 - **You skipped the console step** — `just dns` prints exactly what to paste in.
