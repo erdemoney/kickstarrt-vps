@@ -82,7 +82,7 @@ def decypharr_token(config_dir: Path) -> str:
 
 
 def bazarr_api_key(config_dir: Path) -> tuple[Path, str]:
-    path = config_dir / "bazarr" / "config" / "config.yaml"
+    path = config_dir / "bazarr" / "config" / "config" / "config.yaml"
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError as exc:
