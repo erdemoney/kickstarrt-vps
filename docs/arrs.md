@@ -31,10 +31,10 @@ just wire --yes       # non-interactive use after reviewing the dry run
 ```
 
 The command handles Arr root folders and Decypharr download clients, Decypharr's Arr
-integrations, Prowlarr's Sonarr/Radarr application links, and Recyclarr's native secret file
-plus initial sync. Jellyfin, Seerr, subtitle providers, language profiles, indexer choices,
-and the Decypharr provider/mount wizard remain GUI steps because they require user-specific
-choices or first-run authentication.
+integrations, Prowlarr's Sonarr/Radarr application links, Bazarr's Sonarr/Radarr connections,
+and Recyclarr's native secret file plus initial sync. Jellyfin, Seerr, subtitle providers,
+language profiles, indexer choices, and the Decypharr provider/mount wizard remain GUI steps
+because they require user-specific choices or first-run authentication.
 
 ## Docker networking
 
@@ -155,8 +155,10 @@ both apps automatically (tagged `(Prowlarr)`).
 
 ## Bazarr → Sonarr/Radarr (subtitles)
 
-Bazarr only fetches subtitles for titles added **after** a language profile is assigned —
-the easy-to-forget step.
+Bazarr's Sonarr/Radarr connections are configured by `just wire`. It reads Bazarr's own API
+key, submits only the two connection blocks through `/api/system/settings`, and preserves all
+other Bazarr settings. Bazarr only fetches subtitles for titles added **after** a language
+profile is assigned — the easy-to-forget step.
 
 1. Settings → **Sonarr** → enable, URL `http://sonarr:8989`, API key. Same for
    **Radarr** → `http://radarr:7878`.

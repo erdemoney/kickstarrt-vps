@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -80,6 +81,39 @@ def decypharr_token(config_dir: Path) -> str:
     raise WireError(f"{auth_path} and {config_path} do not contain a Decypharr API token")
 
 
+def bazarr_api_key(config_dir: Path) -> tuple[Path, str]:
+    path = config_dir / "bazarr" / "config" / "config.yaml"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError as exc:
+        raise WireError(f"{path} does not exist; start Bazarr once first") from exc
+
+    section = ""
+    for line in lines:
+        top_level = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*$", line)
+        if top_level:
+            section = top_level.group(1)
+            continue
+        value = re.match(r"^\s+apikey:\s*(\S.*)\s*$", line)
+        if section == "auth" and value:
+            return path, value.group(1).strip("'\"")
+    raise WireError(f"{path} does not contain Bazarr's API key")
+
+
+def yaml_section_value(path: Path, section_name: str, key_name: str) -> str:
+    """Read one scalar from Bazarr's simple top-level config sections."""
+    section = ""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        top_level = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*$", line)
+        if top_level:
+            section = top_level.group(1)
+            continue
+        value = re.match(rf"^\s+{re.escape(key_name)}:\s*(\S.*)\s*$", line)
+        if section == section_name and value:
+            return value.group(1).strip("'\"")
+    return ""
+
+
 class DockerHTTP:
     """Run curl in a running container and return decoded JSON responses."""
 
@@ -91,11 +125,12 @@ class DockerHTTP:
         key: str | None = None,
         body: Any = None,
         auth_header: str = "X-Api-Key",
+        form: dict[str, Any] | None = None,
     ) -> Any:
         # Decypharr's image is intentionally small and does not include curl.
         # Sonarr is on the same Docker network and is already used as the
         # stack's internal HTTP diagnostic container.
-        transport = "sonarr" if source == "decypharr" else source
+        transport = "sonarr" if source in {"decypharr", "bazarr"} else source
         command = [
             "docker",
             "exec",
@@ -112,6 +147,9 @@ class DockerHTTP:
             command.extend(["-H", f"{auth_header}: {key}"])
         if body is not None:
             command.extend(["-H", "Content-Type: application/json", "--data", json.dumps(body)])
+        if form is not None:
+            for name, value in form.items():
+                command.extend(["--data-urlencode", f"{name}={value}"])
         try:
             result = subprocess.run(command, capture_output=True, text=True, check=False)
         except OSError as exc:
@@ -326,6 +364,61 @@ def prowlarr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Chang
     return Change("prowlarr", "update Arr applications", changes, apply)
 
 
+def bazarr_change(config_dir: Path, http: DockerHTTP, keys: dict[str, str]) -> Change | None:
+    config_path, bazarr_key = bazarr_api_key(config_dir)
+    endpoint = "http://bazarr:6767/api/system/settings"
+    current = http.request("bazarr", "GET", endpoint, bazarr_key)
+    general = current.get("general", {})
+    desired = {
+        "settings-general-use_sonarr": (general.get("use_sonarr"), True),
+        "settings-sonarr-ip": (current.get("sonarr", {}).get("ip"), "sonarr"),
+        "settings-sonarr-port": (current.get("sonarr", {}).get("port"), 8989),
+        "settings-sonarr-base_url": (current.get("sonarr", {}).get("base_url"), "/"),
+        "settings-sonarr-ssl": (current.get("sonarr", {}).get("ssl"), False),
+        "settings-general-use_radarr": (general.get("use_radarr"), True),
+        "settings-radarr-ip": (current.get("radarr", {}).get("ip"), "radarr"),
+        "settings-radarr-port": (current.get("radarr", {}).get("port"), 7878),
+        "settings-radarr-base_url": (current.get("radarr", {}).get("base_url"), "/"),
+        "settings-radarr-ssl": (current.get("radarr", {}).get("ssl"), False),
+    }
+    # Bazarr intentionally masks connected-app API keys in its API response.
+    # Read only those two scalar values from its own config to make reruns
+    # idempotent; no Bazarr settings are edited directly.
+    stored_keys = {
+        "settings-sonarr-apikey": yaml_section_value(config_path, "sonarr", "apikey"),
+        "settings-radarr-apikey": yaml_section_value(config_path, "radarr", "apikey"),
+    }
+    desired.update(
+        {
+            "settings-sonarr-apikey": (stored_keys["settings-sonarr-apikey"], keys["sonarr"]),
+            "settings-radarr-apikey": (stored_keys["settings-radarr-apikey"], keys["radarr"]),
+        }
+    )
+
+    form: dict[str, Any] = {}
+    changes = []
+    for field, (old, value) in desired.items():
+        normalized_old = str(old).lower() if isinstance(old, bool) else str(old)
+        normalized_value = str(value).lower() if isinstance(value, bool) else str(value)
+        if normalized_old == normalized_value:
+            continue
+        form[field] = normalized_value
+        if "apikey" in field:
+            display = "secret redacted"
+        else:
+            display = f"{old} -> {value}"
+        changes.append(f"{field}: {display}")
+    if not changes:
+        return None
+
+    return Change(
+        "bazarr",
+        "update Sonarr/Radarr connections",
+        changes,
+        lambda: http.request("bazarr", "POST", endpoint, bazarr_key, form=form),
+    )
+
+
 def recyclarr_change(config_dir: Path, keys: dict[str, str]) -> Change | None:
     path = config_dir / "recyclarr" / "secrets.yml"
     desired = (
@@ -425,6 +518,7 @@ def main() -> int:
         for change in (
             decypharr_change(http, token, keys),
             prowlarr_change(http, keys["prowlarr"], keys),
+            bazarr_change(config_dir, http, keys),
             recyclarr_change(config_dir, keys),
         ):
             if change:

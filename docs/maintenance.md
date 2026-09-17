@@ -28,7 +28,7 @@ nav_order: 13
 | `just prepare`                | create config dirs, `acme.json` (0600) + render `traefik.yml` (called by `just up`) |
 | `just add-indexers`             | install all custom Prowlarr indexer definitions (Torrentio, TorBox, comet, …; see [Indexers](indexers)) |
 | `just wiring`                   | print the \*arrs' URLs/API keys, stepping through each service interactively (Enter/q; piped = full dump; see [The \*arrs](arrs)) |
-| `just wire`                     | interactively reconcile Arr/Decypharr/Prowlarr links and Recyclarr secrets through REST APIs; use `--dry-run` to preview |
+| `just wire`                     | interactively reconcile Arr/Decypharr/Prowlarr/Bazarr links and Recyclarr secrets through REST APIs; use `--dry-run` to preview |
 | `just dns` / `dnscheck`         | print the tailnet DNS resolver setup / query it directly (see [Tailnet DNS](tailnet)) |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
 | `just lockdown`                 | re-apply the ufw lockdown + forward gate (installed by `just lockdown`; idempotent; refuses unless the box is on the tailnet) |
