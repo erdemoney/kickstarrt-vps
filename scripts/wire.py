@@ -90,10 +90,14 @@ class DockerHTTP:
         body: Any = None,
         auth_header: str = "X-Api-Key",
     ) -> Any:
+        # Decypharr's image is intentionally small and does not include curl.
+        # Sonarr is on the same Docker network and is already used as the
+        # stack's internal HTTP diagnostic container.
+        transport = "sonarr" if source == "decypharr" else source
         command = [
             "docker",
             "exec",
-            source,
+            transport,
             "curl",
             "-sS",
             "-X",
@@ -112,7 +116,7 @@ class DockerHTTP:
             raise WireError(f"could not run Docker: {exc}") from exc
         if result.returncode:
             detail = result.stderr.strip() or "curl failed"
-            raise WireError(f"{source} request failed: {detail}")
+            raise WireError(f"{source} request via {transport} failed: {detail}")
         marker = "\n__WIRE_HTTP_STATUS__"
         if marker not in result.stdout:
             raise WireError(f"{source} returned an invalid HTTP response")
