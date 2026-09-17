@@ -894,9 +894,9 @@ ps:
     docker ps
 
 # Open an interactive shell in a running service's container (searched across all
-# stacks), e.g. `just exec jellyfin`. Tries bash first, falls back to sh for
+# stacks), e.g. `just shell jellyfin`. Tries bash first, falls back to sh for
 # minimal images (alpine etc.) that lack it.
-exec service:
+shell service:
     #!/usr/bin/env bash
     set -euo pipefail
     cid=""
