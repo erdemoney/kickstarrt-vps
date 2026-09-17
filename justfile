@@ -10,6 +10,8 @@ default:
 
 # Full first-time setup. The implementation lives in scripts/init.py so it can
 # validate input and update env files atomically.
+
+# Full first-time setup (idempotent; `just init force` re-prompts).
 init FORCE="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -566,6 +568,8 @@ init-inline-legacy FORCE="":
 # 172.16.0.0/12 so the ufw-docker forward gate (installed by `just lockdown`)
 # already covers this network's egress with its default RFC1918 subnets.
 # Only change it if you re-provision the gate with `sudo ufw-docker install --docker-subnets`.
+
+# Create the shared Docker network (idempotent).
 networks:
     docker network inspect internal >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/16 internal
 
@@ -580,6 +584,8 @@ networks:
 # transition happens HERE, in the same command that immediately enables a
 # replacement firewall - so there is never a reboot between "old firewall
 # removed" and "ufw in charge" (the hole you'd otherwise get on the next boot).
+
+# Apply the tailnet-only firewall lockdown (idempotent; asks before executing).
 lockdown:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -665,10 +671,12 @@ lockdown:
 # half - Cloudflare A records for the public hostnames - stays a manual step.
 # Pair with `just lockdown` (which never touches public rules) for a quick
 # public/private toggle.
+
+# Open (or close) the public serving ports (Quickstart §10).
 go-public action="open":
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ "{{action}}" = "close" ]; then
+    if [ "{{ action }}" = "close" ]; then
         echo "About to close the public serving ports:"
         echo "  - remove ufw allow 443/tcp"
         echo "  - remove ufw allow 80/tcp (the http -> https redirect)"
@@ -708,6 +716,8 @@ go-public action="open":
 # Validate every compose file against the docker compose schema.
 # Read-only: never creates or edits a .env (compose treats .env as optional and the
 # shell environment outranks it, so CONFIG_DIR is supplied here just for the check).
+
+# Validate every compose file against the docker compose schema.
 validate:
     @for s in {{ stack_list }}; do \
         echo "-- stacks/$s/compose.yaml" \
@@ -878,6 +888,8 @@ df:
 
 # Bring the whole stack up (ensures networks + config dirs exist first)
 # `just prepare` reads CONFIG_DIR from stacks/media-server/.env
+
+# Bring the whole stack up (ensures networks + config dirs exist first).
 up: networks prepare
     @for s in {{ stack_list }}; do \
         echo "-- $s" \
@@ -922,6 +934,8 @@ ps:
 # Open an interactive shell in a running service's container (searched across all
 # stacks), e.g. `just shell jellyfin`. Tries bash first, falls back to sh for
 # minimal images (alpine etc.) that lack it.
+
+# Open an interactive shell in a running service's container.
 shell service:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -949,6 +963,8 @@ shell service:
 # (curl + tar only, no git/API), copies its Custom/ dir into prowlarr's config
 # dir, and restarts prowlarr. Idempotent; re-run to re-install. Run on the server.
 # CONFIG_DIR is read from stacks/media-server/.env (fallback the repo's data/ dir).
+
+# Install all custom Cardigann indexer definitions for Prowlarr (idempotent).
 add-indexers:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -980,6 +996,8 @@ add-indexers:
 # confirmation. Use `just wire --dry-run` to preview or `just wire --yes` only
 # when the plan has already been reviewed. API calls run from the containers so
 # Docker's private service names remain usable without publishing new ports.
+
+# Reconcile the stable cross-service wiring through the applications' REST APIs.
 wire *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -988,6 +1006,8 @@ wire *ARGS:
 # Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
 # The matching Tailscale admin setting is one-time: DNS -> Nameservers -> add
 # TAILNET_IP:53, restricted to DNS -> the domain only (see docs/tailnet.md).
+
+# Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
 dns:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -1000,6 +1020,8 @@ dns:
 # Query the tailnet DNS resolver directly (run on the server; needs the ufw 53
 # rule from docs/quickstart.md §4). Args: optional hostname (default one panel, e.g.
 # radarr.<DOMAIN>). Returns the tailnet IP for any *.DOMAIN name.
+
+# Query the tailnet DNS resolver directly (run on the server).
 dnscheck domain="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -1022,6 +1044,8 @@ dnscheck domain="":
 # config state too). If you point CONFIG_DIR at external storage, cover it with native
 # snapshots / a second restic profile. Configure .env.restic with `just init`, or copy
 # .env.restic.example by hand.
+
+# Initialize the restic repository (idempotent).
 [group('Backups')]
 backup-init:
     #!/usr/bin/env bash
@@ -1104,6 +1128,8 @@ backup-prune:
 # dry-runs first and shows exactly what would change, then asks before writing.
 # Files not in the snapshot are kept (no --delete); restored files replace current
 # ones in place (restic --overwrite=always).
+
+# Restore a snapshot into the repo working tree (default: latest).
 [group('Backups')]
 backup-restore SNAPSHOT="latest":
     #!/usr/bin/env bash
@@ -1141,6 +1167,8 @@ backup-restore SNAPSHOT="latest":
 # enables the timer. Rerun to change the schedule. systemd is assumed on Linux
 # servers; on a host without it (Alpine, a NAS scheduler, cron) this prints a
 # fallback instead of erroring, and .env.restic is required before it will run.
+
+# Install a systemd timer that runs 'just backup' on ON_CALENDAR (default daily).
 [group('Backups')]
 backup-schedule ON_CALENDAR="daily":
     #!/usr/bin/env bash
@@ -1205,7 +1233,9 @@ backup-schedule ON_CALENDAR="daily":
     echo "remove it later with 'just backup-unschedule'."
 
 # Stop and remove the restic backup systemd timer + service installed by
-# backup-schedule (idempotent; sudo)
+# backup-schedule (idempotent; uses sudo when needed).
+
+# Stop and remove the restic backup systemd timer + service.
 [group('Backups')]
 backup-unschedule:
     #!/usr/bin/env bash
@@ -1222,6 +1252,8 @@ backup-unschedule:
 
 # Prepare everything on disk that compose bind-mounts (idempotent; called by `just up`).
 # The implementation lives in scripts/prepare.py.
+
+# Prepare everything on disk that compose bind-mounts (idempotent; called by `just up`).
 prepare:
     #!/usr/bin/env bash
     set -euo pipefail
