@@ -90,7 +90,8 @@ def render_configs(config_dir: Path, traefik: EnvFile) -> None:
     tailnet = value(traefik, "TAILNET_IP")
     if corefile.exists() and domain and tailnet:
         rendered = corefile.read_text(encoding="utf-8").replace("@DOMAIN@", domain).replace("@TAILNET_IP@", tailnet)
-        atomic_write(config_dir / "coredns" / "Corefile", rendered, 0o600)
+        # CoreDNS runs unprivileged; unlike acme.json this file contains no secrets.
+        atomic_write(config_dir / "coredns" / "Corefile", rendered, 0o644)
         print(f"tailnet DNS: rendered {config_dir / 'coredns' / 'Corefile'} (*.{domain} -> {tailnet})")
     elif corefile.exists():
         print("warning: DOMAIN/TAILNET_IP missing; tailnet DNS is disabled", file=sys.stderr)
