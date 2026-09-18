@@ -103,6 +103,7 @@ Read the pages in order for a first deploy; after that they're reference.
 | [The \*arrs](arrs)           | app wiring: internal DNS names, API keys, streaming integrations, mounts; the Recyclarr-synced quality profiles |
 | [Jellyfin](jellyfin)         | playback setup: libraries on the Decypharr mount, no-video-transcode policy |
 | [Seerr](seerr)               | user requests and Jellyfin/Radarr/Sonarr integration                 |
+| [User guide](user-guide)     | simple Jellyfin and Seerr instructions for end users                 |
 | [Indexers](indexers)         | Prowlarr, debrid indexers, and AltHub for TorBox Usenet streaming    |
 | [Additional services](additional-services) | how to extend the stack safely with more containers |
 | [Security](security)         | layered security model: Tailscale, UFW, Docker forwarding, Traefik, and CrowdSec |

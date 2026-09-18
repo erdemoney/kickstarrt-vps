@@ -1,6 +1,6 @@
 ---
 title: Ingress
-nav_order: 12
+nav_order: 13
 ---
 
 # Ingress: Traefik on :443
