@@ -36,6 +36,10 @@ nav_order: 15
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)       |
 | `just backup` / `backup-list` / `backup-check` / `backup-prune` / `backup-restore` | restic snapshots, integrity, retention, restore — see below |
 
+The deployable stack inventory lives in `stacks/manifest.txt`. Add a stack there only after its
+Compose file and configuration are ready; `just up`, `just down`, updates, health checks, and CI
+will then include it automatically.
+
 Formatting and linting are handled by **pre-commit** directly (`pre-commit install` once, then
 hooks run automatically on every commit). The hooks cover YAML/JSON syntax and formatting,
 large files, merge markers, case conflicts, private keys and staged-secret scanning; CI runs

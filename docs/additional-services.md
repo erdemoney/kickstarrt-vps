@@ -16,7 +16,8 @@ For a service that belongs with the media apps, add it to
 included by `just up`, `just validate`, and the CI Compose check.
 
 For a separate concern, create another stack under `stacks/<name>/compose.yaml`, then add the
-stack name to `stack_list` in the `justfile` and to the stack loop in `.github/workflows/ci.yml`.
+stack name to `stacks/manifest.txt`. The lifecycle commands, health checks, and CI Compose check
+read that manifest automatically.
 Use the same external network declaration:
 
 ```yaml

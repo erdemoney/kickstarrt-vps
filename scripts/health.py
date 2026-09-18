@@ -9,9 +9,9 @@ import subprocess
 import sys
 
 from .common import EnvFile, ROOT, ScriptError, capture
+from .stacks import stack_names
 
 
-STACKS = ("traefik", "media-server")
 TRAEFIK_ENV = ROOT / "stacks" / "traefik" / ".env"
 
 
@@ -153,8 +153,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
 
-    for stack in STACKS:
-        compose_services(stack, results)
+    try:
+        stacks = stack_names()
+    except ScriptError as exc:
+        results.append(("stack manifest", False, str(exc)))
+    else:
+        for stack in stacks:
+            compose_services(stack, results)
 
     print("kickstArrt health\n")
     check_width = max(len("CHECK"), *(len(label) for label, _, _ in results))

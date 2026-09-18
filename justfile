@@ -1,7 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := false
 
-stack_list := "traefik media-server"
+stack_list := shell("python3 -m scripts.stacks")
 restic_image := "restic/restic:0.19.1"
 
 # Show available recipes

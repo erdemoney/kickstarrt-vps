@@ -1,0 +1,3 @@
+# Deployable Compose stacks, in startup and shutdown order.
+traefik
+media-server
