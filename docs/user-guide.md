@@ -14,6 +14,10 @@ Your administrator will provide the links and login details for both services:
 
 You can use either service in a web browser, or install a compatible app on your device.
 
+Your administrator may provide an initial password. Keep it unless they ask you to change it. If you
+do change it, use a strong, unique password of at least 14 characters. A passphrase made from four
+or more unrelated words is a good option. Do not reuse a password from another service.
+
 ## Is it safe to use?
 
 Jellyfin and Seerr use HTTPS encryption. This protects your sign-in details and video stream while
