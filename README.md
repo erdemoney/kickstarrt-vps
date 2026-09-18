@@ -20,7 +20,7 @@ and brought up with a single command.
 kickst**Arr**t wires together everything a media library needs — **instant, debrid-based
 streaming that keeps nothing on disk**, automatic TLS, and edge security — as code, on a VPS.
 Direct Traefik `:443` ingress (Cloudflare is DNS-only — no video crosses its network), Tailscale
-+ ufw/fail2ban hardening, and no GPU.
++ provider or UFW firewall controls, and no GPU.
 
 ## Architecture
 
@@ -77,9 +77,9 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
   near-zero disk usage
 - **Automatic TLS** — Traefik issues a `*.DOMAIN` Let's Encrypt wildcard via Cloudflare
   DNS-01; services can be opted into public HTTPS with `just public enable <service>`
-- **Layered security** — Tailscale private administration, deny-incoming UFW plus the Docker
-  forwarding gate, Traefik TLS and entrypoint isolation, CrowdSec WAF, and application logins;
-  `just health` checks the deployment without changing it
+- **Layered security** — Tailscale private administration, provider or host-firewall controls,
+  Traefik TLS and entrypoint isolation, CrowdSec WAF, and application logins; `just health`
+  checks the deployment without changing it
 - **Private admin panels** — the \*arrs, Decypharr and the Traefik dashboard resolve by name
   *only on your tailnet* (CoreDNS + Tailscale split DNS): `https://radarr.<DOMAIN>` from any
   tailnet device, no public records, no extra login — the tailnet is the gate
@@ -106,20 +106,19 @@ just up               # networks -> config dirs -> the whole stack; panels resol
 ```
 
 After setup: point Jellyfin/Seerr at your debrid and \*arrs ([the docs](https://erdemoney.github.io/kickstarrt-vps/)),
-then optionally enable public routers, add DNS records, and open the UFW ports.
+then optionally enable public routers, add DNS records, and open the serving ports in your chosen firewall.
 
-Requires [Docker](https://docs.docker.com/engine/install/) (check the
-[post-install steps](https://docs.docker.com/engine/install/linux-postinstall/) to run it
-non-root) and [just](https://just.systems/man/en/chapter_4.html) — your distro's package manager
-or a [release binary](https://github.com/casey/just/releases). Both are installed by the
-bootstrap script above.
+Requires [Docker](https://docs.docker.com/engine/install/) and
+[just](https://just.systems/man/en/chapter_4.html) — your distro's package manager or a
+[release binary](https://github.com/casey/just/releases). Both are installed by the bootstrap
+script above, which also adds the invoking user to Docker's group.
 
 ## Docs
 
 In reading order for a first deploy:
 
-- [**Quickstart**](https://erdemoney.github.io/kickstarrt-vps/quickstart) — the ordered walkthrough: get in via Tailscale, harden, secrets, first boot, app setup, go public
-- [**Security**](https://erdemoney.github.io/kickstarrt-vps/security) · [**Hardening**](https://erdemoney.github.io/kickstarrt-vps/hardening) · [**Tailnet DNS**](https://erdemoney.github.io/kickstarrt-vps/tailnet) — the layered security model and its details
+- [**Quickstart**](https://erdemoney.github.io/kickstarrt-vps/quickstart) — the ordered walkthrough: get in via Tailscale, choose the firewall, secrets, first boot, app setup, go public
+- [**Security**](https://erdemoney.github.io/kickstarrt-vps/security) · [**Tailnet DNS**](https://erdemoney.github.io/kickstarrt-vps/tailnet) — the layered security model and its details
 - [**Decypharr**](https://erdemoney.github.io/kickstarrt-vps/decypharr) · [**The \*arrs**](https://erdemoney.github.io/kickstarrt-vps/arrs) · [**Indexers**](https://erdemoney.github.io/kickstarrt-vps/indexers) · [**Services**](https://erdemoney.github.io/kickstarrt-vps/services) — the apps
 - [**Additional services**](https://erdemoney.github.io/kickstarrt-vps/additional-services) · [**Ingress**](https://erdemoney.github.io/kickstarrt-vps/ingress) — extending the stack and the public edge
 - [**Maintenance**](https://erdemoney.github.io/kickstarrt-vps/maintenance) · [**Updates & CI**](https://erdemoney.github.io/kickstarrt-vps/updates) — ongoing ops

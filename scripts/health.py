@@ -87,6 +87,41 @@ def compose_services(stack: str, results: list[tuple[str, bool, str]]) -> None:
         results.append((f"{stack} services", False, str(exc)))
 
 
+def check_host_firewall(results: list[tuple[str, bool, str]]) -> None:
+    """Check UFW when selected, without pretending to inspect a provider firewall."""
+    if not shutil.which("ufw"):
+        results.append(
+            (
+                "Host firewall",
+                True,
+                "provider firewall mode; UFW is not installed (not verifiable here)",
+            )
+        )
+        return
+
+    ok, detail = command_output(("sudo", "ufw", "status"))
+    if not ok:
+        results.append(("Host firewall", False, detail or "cannot read UFW status"))
+        return
+    if "Status: active" not in detail:
+        results.append(
+            (
+                "Host firewall",
+                True,
+                "provider firewall mode; UFW is inactive (not verifiable here)",
+            )
+        )
+        return
+
+    results.append(("UFW active", True, "active"))
+    check_command(
+        "Docker firewall gate",
+        ("sudo", "ufw-docker", "check"),
+        results,
+        success_detail="configured",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     deployment_only = argv is not None and "--deployment" in argv
     results: list[tuple[str, bool, str]] = []
@@ -97,15 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         check_command(
             "Tailscale", ("tailscale", "ip", "-4"), results, success_detail=None
         )
-        check_command(
-            "UFW active", ("sudo", "ufw", "status"), results, success_detail="active"
-        )
-        check_command(
-            "Docker firewall gate",
-            ("sudo", "ufw-docker", "check"),
-            results,
-            success_detail="configured",
-        )
+        check_host_firewall(results)
         check_command(
             "internal network",
             ("docker", "network", "inspect", "internal"),

@@ -99,7 +99,7 @@ services:
     # tailnet IP only (systemd-resolved holds 127.0.0.53). Published ports ride
     # Docker's FORWARD chain, which UFW's INPUT rules never inspect - the ufw
     # "allow 53 from 100.64.0.0/10" rule only bites once the ufw-docker gate
-    # routes forwarded traffic through ufw-user-forward (see docs/hardening.md).
+    # routes forwarded traffic through ufw-user-forward (see docs/quickstart.md).
     ports:
       - ${TAILNET_IP:?set TAILNET_IP in the stack .env}:53:53/udp
       - ${TAILNET_IP:?set TAILNET_IP in the stack .env}:53:53/tcp

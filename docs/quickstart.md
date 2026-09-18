@@ -9,9 +9,9 @@ The whole setup, in the order it has to happen. Every command you need is on thi
 step links to a deeper page for the how-it-works and troubleshooting.
 
 The flow: bring up a fresh VPS, walk in over public SSH **once**, join the box to your
-Tailscale tailnet, close every other door, then build the stack and set it up privately over
-the tailnet. The box is reachable from exactly one place — your tailnet — until the last step
-deliberately opens `:443`.
+Tailscale tailnet, choose the firewall model, then build the stack and set it up privately over
+the tailnet. With either model, keep the application routers tailnet-only until you deliberately
+publish a service.
 
 Before you start, have:
 
@@ -49,7 +49,7 @@ ssh <user>@<PUBLIC-IP>
 
 Then bootstrap the box with this repo's setup script. It is **idempotent** (safe to re-run)
 and cross-distro, and installs everything the rest of this guide needs — `git`, `just`, Docker
-with the compose plugin, and your user in the `docker` group — **and joins the box to
+with the compose plugin, `ufw-docker`, and your user in the `docker` group — **and joins the box
 your tailnet**:
 
 ```bash
@@ -61,7 +61,8 @@ approve the node. (Missed the window? `sudo tailscale up` prints it again.) It e
 printing the box's **tailnet address** — a `100.x.y.z` from Tailscale's CGNAT range. That
 address is your SSH address from now on.
 
-The firewall remains open until the deliberate lockdown step in [§6](#6-lock-the-box-down-ufw).
+The script installs the `ufw-docker` executable but does not install UFW or change firewall
+rules. Choose the firewall model in [§6](#6-choose-the-firewall-model).
 
 ## 3. Verify SSH over the tailnet
 
@@ -71,16 +72,20 @@ From your workstation:
 ssh <user>@100.64.0.3     # the address the script printed
 ```
 
-Once this works, the public SSH door has done its job — the provider-side `22` rule gets
-closed during [§6](#6-lock-the-box-down-ufw). If you use **MagicDNS**, the box also answers at
+Once this works, the public SSH door has done its job — close the provider-side `22` rule in
+UFW mode, or keep it deliberately open under your provider-firewall policy. If you use **MagicDNS**,
+the box also answers at
 `<node>.<tailnet>.ts.net`; fine for SSH, but the stack itself routes on `.DOMAIN` names, so
 the `100.x.y.z` address is the one that matters later.
 
-> The provider's web console stays available as the **break-glass** door for the box's whole
-> life — it rides the provider's network, not yours, so a tailnet hiccup can never lock you
-> out. On Oracle Cloud, Ubuntu images configure no console password by default — set one
-> (`sudo passwd ubuntu`) so the console can actually log you in when nothing else can; the
-> full recovery walkthrough is in the [OCI appendix](oci#3-recovery-the-console-break-glass).
+> **Set up your break-glass path now:** confirm that the provider offers a working web console,
+> serial console, VNC console, or equivalent out-of-band access, and that its required
+> credentials or console key are available. If the box loses Tailscale, this is how you get in
+> and run `sudo tailscale up` again; do not rely on public SSH remaining available after
+> host-firewall setup. If the provider's console uses a local OS password, set a long random one while
+> tailnet SSH still works, without enabling SSH password authentication. On Oracle Cloud,
+> Ubuntu images configure no console password by default; the [OCI appendix](oci#3-recovery-the-console-break-glass)
+> shows the one-time setup and recovery procedure.
 
 ## 4. Fork and clone the repository
 
@@ -187,33 +192,67 @@ for — CrowdSec and Traefik use it to authenticate with each other. It must be 
 `just up`; after changing it, recreate the `crowdsec` and `traefik` containers
 (`just update-all`). Details in [Security](security).
 
-## 6. Lock the box down (ufw)
+## 6. Choose the firewall model
 
-The tailnet is now your door — this is the conscious step that makes it your **only** door.
-`just lockdown` installs and enables ufw, applies the tailnet-only rules, and installs the
-ufw-docker forwarding gate in one confirmed operation.
+The provider firewall and the host firewall are separate layers. Choose one before the first
+boot; the stack's application routers remain tailnet-only by default either way.
 
-> **Before running this command:** verify that you can access the provider's web, VNC, or
-> serial console and that its break-glass credentials work. If the tailnet or SSH session fails,
-> that console is the recovery path.
+### Provider firewall mode
 
-Run the lockdown deliberately:
+Use this mode if you will keep the stack private and manage inbound rules at the provider. Deny
+public inbound `22`, `53`, `80`, and `443` in the provider firewall, except for any deliberate
+temporary SSH access during setup. Keep a working provider console as the break-glass path.
+
+This mode does not install UFW or change host firewall rules. `just health` reports that the host
+firewall is not configured; it cannot inspect or verify the provider firewall.
+
+### UFW mode
+
+Use this mode for host-level defense in depth or before exposing services publicly. **Before
+changing the firewall:** verify that you can access the provider's web, VNC, or serial console
+and that its break-glass credentials work. If the tailnet or SSH session fails, that console is
+the recovery path.
+
+On Debian or Ubuntu, install UFW and its man-page dependency:
 
 ```bash
-just lockdown
+sudo apt update
+sudo apt install -y ufw man-db
 ```
 
-The command refuses to run unless the box is on the tailnet, asks before changing the firewall,
-and verifies UFW plus the **ufw-docker** gate before it reports success. There is deliberately
-**no public `22`/`80`/`443` rule**: the public surface opens only at [§12](#12-go-public-last)
-with `just go-public`.
+Apply the tailnet-only baseline. These are ordinary UFW commands and are intentionally shown
+before they are run:
 
-Then close the delivery door at the provider: on **Oracle Cloud**, delete the wizard's default
-`22` ingress rule (VCN → Default Security List → the `TCP 22 / 0.0.0.0/0` rule → Delete). SSH
-now has exactly one way in: your tailnet.
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from 100.64.0.0/10 to any port 22 proto tcp
+sudo ufw allow from 100.64.0.0/10 to any port 53 proto tcp
+sudo ufw allow from 100.64.0.0/10 to any port 53 proto udp
+sudo ufw allow from 100.64.0.0/10 to any port 443 proto tcp
+sudo ufw --force enable
+```
 
-Optional extras — SSH key-only auth (if your provider's image allows passwords) and fail2ban —
-are in [Hardening](hardening).
+Docker-published ports use the `FORWARD` path, which UFW's normal incoming rules do not inspect.
+Install the already-provided [ufw-docker](https://github.com/chaifeng/ufw-docker) integration,
+then verify it:
+
+```bash
+sudo ufw-docker install --system
+sudo systemctl restart ufw
+sudo ufw-docker check
+```
+
+On a provider with a different package manager, install the equivalent UFW package first.
+The bootstrap script in [§2](#2-get-in-join-the-tailnet) already installs the `ufw-docker`
+executable, so this is only needed when you set UFW up by hand. In that case, follow the
+[official ufw-docker install](https://github.com/chaifeng/ufw-docker/tree/master#install)
+before running the commands above.
+
+On **Oracle Cloud**, delete the wizard's default `22` ingress rule after tailnet SSH is confirmed
+(VCN → Default Security List → the `TCP 22 / 0.0.0.0/0` rule → Delete). SSH then has exactly one
+way in: your tailnet. In provider firewall mode, make the equivalent provider rule change
+yourself and keep any deliberate public SSH access.
 
 ## 7. Register the tailnet DNS resolver
 
@@ -330,25 +369,26 @@ just public enable jellyfin seerr
    at the VPS's **public IP**, **Proxy status: DNS only** (grey cloud — never proxied,
    [why](faq#why-cant-i-proxy-media-through-cloudflare)). Detailed steps in
    [Ingress → Adding a public hostname](ingress#adding-a-public-hostname-dns-record).
-2. Open the public ports separately:
+ 2. In **UFW mode**, open the public ports separately:
 
 ```bash
-just go-public
+sudo ufw allow 443/tcp
+sudo ufw allow 80/tcp
 ```
 
-This runs `ufw allow 443/tcp` (the real way in) and `ufw allow 80/tcp` (an http → https
-redirect only — nothing is served on it), after reminding you the A records above are the
-other half of the door. Fully reversible with `just go-public close`.
+These are the real network rules: `443` serves the enabled apps and `80` serves only the
+http → https redirect. The A records above are the other half of the door. In provider firewall
+mode, open the equivalent ports in the provider firewall instead.
 
-Because the ufw-docker gate routes container traffic through UFW, these two rules are exactly
+Because the [ufw-docker](https://github.com/chaifeng/ufw-docker) gate routes container traffic through UFW, these two rules are exactly
 what lets Docker-forwarded `:443`/`:80` through — the same syntax that opened the tailnet
 doors in §6.
 
 That's it — the enabled services are public on their configured hostnames: Cloudflare DNS → VPS `:443` →
 Traefik → CrowdSec → the apps. Admin panels stay off the public DNS and are reached over the
-tailnet by name ([Tailnet DNS](tailnet)). Fully reversible: delete the records, or
-`just go-public close` — the tailnet doors stay intact either way. To remove a public router, run
-`just public disable <service>`; this does not change UFW.
+tailnet by name ([Tailnet DNS](tailnet)). Fully reversible: delete the records and remove the
+corresponding provider/UFW port rules. To remove a public router, run `just public disable
+<service>`; this does not change the firewall.
 
 From here: [Indexers](indexers) and [Services](services) can be set up any time after the
 stack is up; [Updates & CI](updates) and [Maintenance](maintenance) are the ongoing-ops pages.

@@ -41,12 +41,12 @@ Two consequences of the split-DNS registration, both worth knowing up front:
 The server side is handled by the standard flow: `just init` fills `TAILNET_IP`, and CoreDNS
 reads the tracked Corefile directly, substituting `DOMAIN` and `TAILNET_IP` from its container
 environment at startup. It starts bound to `TAILNET_IP:53` only (it deliberately doesn't bind
-`0.0.0.0:53` — systemd-resolved already holds the loopback). Reachability is enforced in two places: the ufw rules from
-[Quickstart §6](quickstart#6-lock-the-box-down-ufw) allow `53` and `443` from the tailnet,
-and the ufw-docker gate installed by [`just lockdown`](quickstart#6-lock-the-box-down-ufw)
-is what makes those rules apply to this container at all — published ports ride Docker's
-`FORWARD` chain, which UFW's `INPUT` rules never inspect
-(mechanics in [Hardening](hardening#docker-and-ufw-the-forward-gate)).
+`0.0.0.0:53` — systemd-resolved already holds the loopback). In UFW mode, the rules from
+[Quickstart §6](quickstart#6-choose-the-firewall-model) allow `53` and `443` from the tailnet,
+and, in UFW mode, the [ufw-docker](https://github.com/chaifeng/ufw-docker) gate configured in
+[Quickstart §6](quickstart#6-choose-the-firewall-model) is what makes those rules apply to this
+container at all — published ports ride Docker's `FORWARD` chain, which UFW's `INPUT` rules
+never inspect. Provider-firewall mode relies on the provider's inbound policy instead.
 
 ## Verify from a tailnet device
 
@@ -71,8 +71,8 @@ all — there's no public record for the panels, by design.
   change. Then update the nameserver IP in the
   [Tailscale DNS admin console](https://login.tailscale.com/admin/dns).
 - **Nothing answers on the box itself** — run `just health`; confirm CoreDNS is up
-  (`docker compose -f stacks/traefik/compose.yaml ps coredns`), ufw has the `53` rules
-  (`sudo ufw status`), and the forward gate is applied (`sudo ufw-docker check`; verify with
-  `sudo iptables -nL DOCKER-USER`). From the **public internet**, nothing works until
+  (`docker compose -f stacks/traefik/compose.yaml ps coredns`). In UFW mode, confirm UFW has
+  the `53` rules (`sudo ufw status`) and the forward gate is applied (`sudo ufw-docker check`;
+  verify with `sudo iptables -nL DOCKER-USER`). From the **public internet**, nothing works until
   [going public](quickstart#12-go-public-last) — that's by design.
 - **You skipped the console step** — `just dns` prints exactly what to paste in.

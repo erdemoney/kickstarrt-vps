@@ -26,19 +26,19 @@ security justify.
 
 Jellyfin and Seerr are the intended public services, but their routers are tailnet-only by default.
 Run `just public enable <service>` to opt a service into Traefik's public entrypoint. Public DNS
-records are Cloudflare DNS-only A records; Cloudflare does not proxy media traffic. The public
-ports are closed until `just go-public` opens `80` and `443`.
+records are Cloudflare DNS-only A records; Cloudflare does not proxy media traffic. In UFW mode,
+the public ports remain closed until the documented `ufw allow` commands open `80` and `443`.
 
 ## Security layers
 
 1. **Provider firewall and recovery access** provide the initial SSH path and the break-glass
-   console. Verify the provider console before running `just lockdown`.
+   console. Verify the provider firewall or host firewall choice before first boot.
 2. **Tailscale** supplies the private route for SSH, DNS, dashboards, and management panels.
-3. **UFW** denies incoming traffic by default and permits only tailnet SSH, DNS, and HTTPS until
-   the public step.
-4. **ufw-docker** connects UFW to Docker's `FORWARD` path through `DOCKER-USER`; without it,
-   published container ports could bypass UFW's `INPUT` rules. See [Hardening](hardening) for
-   the packet-flow details.
+3. **The chosen firewall** denies public traffic by default and permits only the access the
+   operator has deliberately configured. In UFW mode, this is the documented UFW ruleset.
+4. **In UFW mode, ufw-docker** connects UFW to Docker's `FORWARD` path through `DOCKER-USER`;
+   without it, published container ports could bypass UFW's `INPUT` rules. See the
+   [ufw-docker documentation](https://github.com/chaifeng/ufw-docker) for implementation details.
 5. **Traefik** binds public and tailnet entrypoints to separate host addresses, issues the
    wildcard certificate through Cloudflare DNS-01, and exposes only routers configured by labels.
 6. **CrowdSec** reads Traefik access logs and blocks known or detected hostile IPs at the edge.
@@ -70,8 +70,9 @@ Run the read-only health panel after setup and whenever the host or stack change
 just health
 ```
 
-It checks Tailscale, UFW, the ufw-docker gate, the internal Docker network, CoreDNS's generated
-Corefile, container states, and the CrowdSec bouncer command. It does not deliberately ban an IP;
-that would be unsafe as a routine health check.
+It checks Tailscale, the selected host-firewall state when UFW is configured, the internal Docker
+network, CoreDNS's generated Corefile, container states, and the CrowdSec bouncer command. It does
+not deliberately ban an IP; that would be unsafe as a routine health check.
 
-For deeper firewall inspection, see [Hardening](hardening). For DNS behavior, see [Tailnet DNS](tailnet).
+For operational firewall checks, see [Maintenance](maintenance). For DNS behavior, see
+[Tailnet DNS](tailnet).

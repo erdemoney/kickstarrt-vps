@@ -15,7 +15,7 @@ The VPS serves the internet from exactly one port: **TCP `443` (Traefik)**. `80`
 to bounce `http://` to `https://` — the entrypoint-level redirect in
 `traefik.yml`, with nothing served on it — and the HSTS header (`secHeaders@file`,
 sent on every https response) makes repeat browsers skip `:80` after their first visit. sshd
-answers only from the tailnet ([Quickstart §6](quickstart#6-lock-the-box-down-ufw)).
+answers only from the tailnet ([Quickstart §6](quickstart#6-choose-the-firewall-model)).
 Everything on `:443` is fronted by CrowdSec ([Security](security)).
 
 ## The security gate
@@ -30,12 +30,11 @@ the rule they enforce:
    (Settings → General → Authentication), Seerr (admin on first login), Decypharr (wizard
    completed). An app that goes public before its login exists is claimable by anyone.
 3. **Only then open the door** — enable the public router for each selected service with
-   `just public enable <service>`, add its A record, then
-   `sudo ufw allow 443/tcp` + `sudo ufw allow 80/tcp`. Reversible either way: delete the
-   records, or `sudo ufw delete allow 443/tcp` and `allow 80/tcp`. (These same-syntax
-   commands are what actually open Docker-published ports too, once the ufw-docker gate
-   from the [bootstrap script](quickstart#2-get-in-join-the-tailnet) routes forwarded
-   traffic through UFW.)
+   `just public enable <service>`, add its A record, then open `443/tcp` and `80/tcp` in either
+   the provider firewall or UFW. In UFW mode, use `sudo ufw allow 443/tcp` and
+   `sudo ufw allow 80/tcp`; revoke them with `sudo ufw delete allow 443/tcp` and
+   `sudo ufw delete allow 80/tcp`. These commands open Docker-published ports too when the
+   [ufw-docker](https://github.com/chaifeng/ufw-docker) gate routes forwarded traffic through UFW.
 
 One honest caveat: public traffic and tailnet traffic arrive on **different sockets**, not
 different hostnames. Traefik's two https entrypoints are published on separate IPs by
@@ -52,8 +51,9 @@ being on the tailnet is the requirement to reach the panels ([Tailnet DNS](tailn
 ## Adding a public hostname (DNS record)
 
 Public exposure requires three separate choices: a Traefik public router, a Cloudflare **A record**,
-and open firewall ports. `just public enable <service>` controls only the router; `just go-public`
-controls only UFW. Keeping these separate makes the public state explicit and reversible.
+and open firewall ports. `just public enable <service>` controls only the router; the provider
+firewall or UFW controls the network path. Keeping these separate makes the public state explicit
+and reversible.
 
 1. [DNS → Records](https://dash.cloudflare.com/?to=/:account/dns) → **Add record**.
 2. **Type `A`**, **Name** the subdomain (e.g. `jellyfin`, `seerr`), **IPv4 address** = the

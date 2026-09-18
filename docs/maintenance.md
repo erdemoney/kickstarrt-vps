@@ -28,11 +28,10 @@ nav_order: 16
 | `just wire`                     | interactively reconcile Arr/Decypharr/Prowlarr/Bazarr links and Recyclarr secrets through REST APIs; use `--dry-run` to preview |
 | `just dns`                      | print the tailnet DNS resolver setup (see [Tailnet DNS](tailnet))                 |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
-| `just lockdown`                 | apply or re-apply the UFW lockdown and Docker forwarding gate; verifies both and refuses unless the box is on the tailnet |
 | `just public enable <svc>` / `just public disable <svc>` | enable or remove a service's public Traefik router; does not change UFW or DNS |
 | `just public status`            | show which services are tailnet-only or also routed publicly     |
-| `just go-public` / `just go-public close` | open / close the public serving ports `443`/`80` (see [Quickstart §12](quickstart#12-go-public-last)) |
-| `sudo ufw-docker check`         | verify the Docker forward gate (installed by `just lockdown`; see [Hardening](hardening)) |
+| `sudo ufw status verbose`       | inspect the host firewall rules when using UFW mode (see [Quickstart §6](quickstart#6-choose-the-firewall-model)) |
+| `sudo ufw-docker check`         | verify the Docker forward gate when using UFW mode (see [ufw-docker](https://github.com/chaifeng/ufw-docker)) |
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)       |
 | `just backup` / `backup-list` / `backup-check` / `backup-prune` / `backup-restore` | restic snapshots, integrity, retention, restore — see below |
 
@@ -53,6 +52,10 @@ check (see [Updates](updates)). `just maintenance-run` runs the same flow immedi
 This updates the repository and container images only. Keep the host operating system, Docker
 Engine, Compose plugin, kernel, and other system packages up to date separately through the
 host distribution's package manager.
+
+One exception: `ufw-docker` (installed by the `prerequisites` script) is pinned to release tag
+`251123` in `scripts/prerequisites.sh` and is invisible to Renovate — bump that tag deliberately
+via PR when [upstream](https://github.com/chaifeng/ufw-docker/releases) publishes a newer release.
 
 ### Scheduled maintenance
 

@@ -3,9 +3,9 @@
 # prerequisites.sh - one-shot bootstrap for a fresh VPS (see docs/quickstart.md).
 #
 # Installs, idempotently: Tailscale, git, just, Docker (with the compose
-# plugin), and adds the invoking user to the `docker` group. Only needs
-# curl. Cross-distro: Debian/Ubuntu (apt), Fedora/RHEL (dnf/yum), openSUSE
-# (zypper), Arch (pacman) and Alpine (apk).
+# plugin), ufw-docker, and adds the invoking user to the `docker` group. Only
+# needs curl. Cross-distro: Debian/Ubuntu (apt), Fedora/RHEL (dnf/yum),
+# openSUSE (zypper), Arch (pacman) and Alpine (apk).
 #
 #     curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash
 #
@@ -15,11 +15,10 @@
 # passes, it falls back to printing the manual `sudo tailscale up` step.
 #
 # It deliberately does NOT install ufw or touch any firewall rules. The
-# lockdown is a conscious step you run with `just lockdown` (Quickstart §6):
-# that recipe installs ufw (if missing) and enables it, after refusing unless
-# the box is on the tailnet and printing+confirming what it's about to do.
-# Nothing here can lock a fresh box out, and nothing here can silently
-# dismantle a distro image's shipped firewall before the lockdown replaces it.
+# ufw-docker executable is installed for users who choose host-firewall mode,
+# but its `install --system` command is left for that explicit setup. Nothing
+# here can lock a fresh box out or silently dismantle a distro image's shipped
+# firewall.
 
 set -euo pipefail
 
@@ -161,6 +160,26 @@ install_docker() {
     fi
 }
 
+install_ufw_docker() {
+    # pinned release tag - bump this deliberately via PR when upstream
+    # publishes a newer release (Renovate does not track it)
+    local UFW_DOCKER_REF=251123
+    msg "ufw-docker"
+    if has ufw-docker; then
+        skip "already installed"
+        return
+    fi
+    curl -fsSL "https://github.com/chaifeng/ufw-docker/raw/${UFW_DOCKER_REF}/ufw-docker" \
+        -o /usr/bin/ufw-docker
+    chmod 0755 /usr/bin/ufw-docker
+    if has ufw-docker; then
+        ok "installed (firewall rules unchanged)"
+    else
+        printf 'ufw-docker install failed\n' >&2
+        exit 1
+    fi
+}
+
 ensure_docker_group() {
     msg "docker group"
     if [ "$REAL_USER" = root ]; then
@@ -209,6 +228,7 @@ main() {
     install_git
     install_just
     install_docker
+    install_ufw_docker
     ensure_docker_group
     join_tailnet
     printf '\n'
@@ -223,6 +243,6 @@ main() {
         printf '   2. tailscale ip -4     # your only SSH address\n'
     fi
     msg 'then continue with docs/quickstart.md: Section 3 to verify SSH over the tailnet, then'
-    msg 'Section 5 (just lockdown) installs ufw if needed and locks the box down.'
+    msg 'Section 6 covers the firewall choice: provider firewall mode or explicit UFW setup.'
 }
 main "$@"

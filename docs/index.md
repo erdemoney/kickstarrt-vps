@@ -43,12 +43,12 @@ into the library → Jellyfin streams to any client; Seerr handles user requests
 
 ## The access model
 
-The one fact to hold onto throughout setup, stated once here: the box answers the public
-internet from **exactly one serving port — `443` (Traefik)**, plus `80` as a pure
-`http → https` redirect, and both are opened deliberately as the
-[last setup step](quickstart#12-go-public-last). **Everything else is tailnet-only**: sshd,
-the DNS resolver, and all the admin panels, reached by name via [Tailnet DNS](tailnet). The
-whole setup runs inside that private window — the reasoning behind these choices is
+The one fact to hold onto throughout setup, stated once here: when public access is enabled, the
+box answers the public internet from **exactly one serving port — `443` (Traefik)**, plus `80`
+as a pure `http → https` redirect, and both are opened deliberately as the
+[last setup step](quickstart#12-go-public-last). **The DNS resolver and all admin panels are
+tailnet-only**; SSH follows the firewall policy you chose, reached by name via [Tailnet DNS](tailnet).
+The whole setup runs inside that private window — the reasoning behind these choices is
 collected in the [FAQ](faq).
 
 **HTTPS comes out of the box.** Traefik's ACME provider issues a **Let's Encrypt wildcard
@@ -96,8 +96,7 @@ Read the pages in order for a first deploy; after that they're reference.
 
 | Page                         | What it covers                                                        |
 | ---------------------------- | --------------------------------------------------------------------- |
-| [Quickstart](quickstart)     | the ordered walkthrough: get in via Tailscale, harden, init, first boot, app setup, go public |
-| [Hardening](hardening)       | optional extras: SSH key-only auth, fail2ban, non-root Docker         |
+| [Quickstart](quickstart)     | the ordered walkthrough: get in via Tailscale, choose the firewall, init, first boot, app setup, go public |
 | [Tailnet DNS](tailnet)       | admin panels by name over the tailnet: CoreDNS + split DNS mechanics |
 | [Decypharr](decypharr)       | debrid gateway: wizard, mounts, its side of the arr wiring            |
 | [The \*arrs](arrs)           | app wiring: internal DNS names, API keys, streaming integrations, mounts; the Recyclarr-synced quality profiles |
