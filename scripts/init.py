@@ -16,7 +16,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .common import EnvFile, ROOT, ScriptError, create_env, detect_public_ipv4, detect_tailscale_ipv4, validate_hostname, validate_subdomain
+from .common import (
+    EnvFile,
+    ROOT,
+    ScriptError,
+    create_env,
+    detect_public_ipv4,
+    detect_tailscale_ipv4,
+    validate_hostname,
+    validate_subdomain,
+)
 
 
 TRAEFIK_ENV = ROOT / "stacks" / "traefik" / ".env"
@@ -44,7 +53,11 @@ def prompt(
     while True:
         suffix = f" [{current}]" if current else (f" [{default}]" if default else "")
         try:
-            answer = getpass.getpass(f"{details.label}{suffix} (or ? for help): ") if secret else input(f"{details.label}{suffix} (or ? for help): ")
+            answer = (
+                getpass.getpass(f"{details.label}{suffix} (or ? for help): ")
+                if secret
+                else input(f"{details.label}{suffix} (or ? for help): ")
+            )
         except EOFError:
             answer = ""
         if answer.strip() == "?":
@@ -151,7 +164,9 @@ RESTIC_PASSWORD_PROMPT = Prompt(
 
 def valid_id(value: str, label: str) -> str:
     if not value.isdigit() or not 0 <= int(value) <= 65535:
-        raise ScriptError(f"invalid {label}: {value!r}; expected an integer from 0 to 65535")
+        raise ScriptError(
+            f"invalid {label}: {value!r}; expected an integer from 0 to 65535"
+        )
     return value
 
 
@@ -187,17 +202,40 @@ def verify_cloudflare(token: str) -> bool:
 
 def hash_dashboard_password(user: str, password: str) -> str:
     try:
-        result = subprocess.run(("openssl", "passwd", "-apr1", "-stdin"), input=password + "\n", capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            ("openssl", "passwd", "-apr1", "-stdin"),
+            input=password + "\n",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if result.returncode == 0 and result.stdout.strip():
             return f"'{user}:{result.stdout.strip()}'"
     except OSError:
         pass
     try:
-        result = subprocess.run(("docker", "run", "--rm", "-i", "httpd:2.4-alpine", "htpasswd", "-niB", user), input=password + "\n", capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            (
+                "docker",
+                "run",
+                "--rm",
+                "-i",
+                "httpd:2.4-alpine",
+                "htpasswd",
+                "-niB",
+                user,
+            ),
+            input=password + "\n",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     except OSError as exc:
         raise ScriptError(f"could not hash dashboard password: {exc}") from exc
     if result.returncode != 0 or ":" not in result.stdout:
-        raise ScriptError("could not hash dashboard password; install openssl or Docker")
+        raise ScriptError(
+            "could not hash dashboard password; install openssl or Docker"
+        )
     return f"'{result.stdout.strip()}'"
 
 
@@ -212,8 +250,15 @@ def configure_env(force: bool) -> list[str]:
 
     expected_config = str(ROOT / "data")
     existing_config = traefik.get("CONFIG_DIR")
-    if existing_config and Path(existing_config).expanduser().resolve() != Path(expected_config).resolve():
-        if not confirm(f"CONFIG_DIR is {existing_config!r}; change it to {expected_config!r}?", False):
+    if (
+        existing_config
+        and Path(existing_config).expanduser().resolve()
+        != Path(expected_config).resolve()
+    ):
+        if not confirm(
+            f"CONFIG_DIR is {existing_config!r}; change it to {expected_config!r}?",
+            False,
+        ):
             raise ScriptError("CONFIG_DIR must point to the repository data directory")
     for env in (traefik, media):
         if env.set("CONFIG_DIR", expected_config):
@@ -221,13 +266,19 @@ def configure_env(force: bool) -> list[str]:
 
     domain = traefik.get("DOMAIN")
     if not domain:
-        domain = prompt(DOMAIN_PROMPT, validator=lambda value: validate_hostname(value, "domain"))
+        domain = prompt(
+            DOMAIN_PROMPT, validator=lambda value: validate_hostname(value, "domain")
+        )
     else:
         try:
             domain = validate_hostname(domain, "domain")
         except ScriptError as exc:
             print(f"Invalid existing value: {exc}")
-            domain = prompt(DOMAIN_PROMPT, domain, validator=lambda value: validate_hostname(value, "domain"))
+            domain = prompt(
+                DOMAIN_PROMPT,
+                domain,
+                validator=lambda value: validate_hostname(value, "domain"),
+            )
     for env in (traefik, media):
         if env.set("DOMAIN", domain):
             changes.append("DOMAIN")
@@ -237,18 +288,28 @@ def configure_env(force: bool) -> list[str]:
     if not tailnet:
         tailnet = detected_tailnet
     if not tailnet:
-        tailnet = prompt(TAILNET_PROMPT, validator=lambda value: valid_ip(value, "TAILNET_IP"))
+        tailnet = prompt(
+            TAILNET_PROMPT, validator=lambda value: valid_ip(value, "TAILNET_IP")
+        )
     else:
         try:
             tailnet = valid_ip(tailnet, "TAILNET_IP")
         except ScriptError as exc:
             print(f"Invalid existing value: {exc}")
-            tailnet = prompt(TAILNET_PROMPT, tailnet, validator=lambda value: valid_ip(value, "TAILNET_IP"))
+            tailnet = prompt(
+                TAILNET_PROMPT,
+                tailnet,
+                validator=lambda value: valid_ip(value, "TAILNET_IP"),
+            )
         if detected_tailnet and tailnet != detected_tailnet:
-            print(f"Detected Tailscale address {detected_tailnet}, but TAILNET_IP is {tailnet}.")
+            print(
+                f"Detected Tailscale address {detected_tailnet}, but TAILNET_IP is {tailnet}."
+            )
             if confirm("Update TAILNET_IP to the detected address?", True):
                 tailnet = detected_tailnet
-                print("Afterward, update the Tailscale split-DNS nameserver if the address changed.")
+                print(
+                    "Afterward, update the Tailscale split-DNS nameserver if the address changed."
+                )
     if traefik.set("TAILNET_IP", tailnet):
         changes.append("TAILNET_IP")
 
@@ -257,15 +318,23 @@ def configure_env(force: bool) -> list[str]:
     if not public_bind:
         public_bind = detected_public_bind
     if not public_bind:
-        public_bind = prompt(PUBLIC_BIND_PROMPT, validator=lambda value: valid_ip(value, "PUBLIC_BIND"))
+        public_bind = prompt(
+            PUBLIC_BIND_PROMPT, validator=lambda value: valid_ip(value, "PUBLIC_BIND")
+        )
     else:
         try:
             public_bind = valid_ip(public_bind, "PUBLIC_BIND")
         except ScriptError as exc:
             print(f"Invalid existing value: {exc}")
-            public_bind = prompt(PUBLIC_BIND_PROMPT, public_bind, validator=lambda value: valid_ip(value, "PUBLIC_BIND"))
+            public_bind = prompt(
+                PUBLIC_BIND_PROMPT,
+                public_bind,
+                validator=lambda value: valid_ip(value, "PUBLIC_BIND"),
+            )
         if detected_public_bind and public_bind != detected_public_bind:
-            print(f"Detected public bind address {detected_public_bind}, but PUBLIC_BIND is {public_bind}.")
+            print(
+                f"Detected public bind address {detected_public_bind}, but PUBLIC_BIND is {public_bind}."
+            )
             if confirm("Update PUBLIC_BIND to the detected address?", False):
                 public_bind = detected_public_bind
     if traefik.set("PUBLIC_BIND", public_bind):
@@ -279,7 +348,15 @@ def configure_env(force: bool) -> list[str]:
         value = validate_subdomain(traefik.get(key) or default, key)
         if traefik.set(key, value):
             changes.append(key)
-    for app in ("jellyfin", "seerr", "radarr", "sonarr", "prowlarr", "bazarr", "decypharr"):
+    for app in (
+        "jellyfin",
+        "seerr",
+        "radarr",
+        "sonarr",
+        "prowlarr",
+        "bazarr",
+        "decypharr",
+    ):
         key = f"SUB_DOMAIN_{app.upper()}"
         value = validate_subdomain(media.get(key) or app, key)
         if media.set(key, value):
@@ -288,18 +365,36 @@ def configure_env(force: bool) -> list[str]:
     detected_uid, detected_gid = detected_ids()
     configured_uid = media.get("ENV_PUID")
     configured_gid = media.get("ENV_PGID")
-    uid = valid_id(configured_uid, "ENV_PUID") if configured_uid and configured_uid != "auto" else detected_uid
-    gid = valid_id(configured_gid, "ENV_PGID") if configured_gid and configured_gid != "auto" else detected_gid
-    if configured_uid and configured_gid and configured_uid != "auto" and configured_gid != "auto" and (uid, gid) != (detected_uid, detected_gid):
+    uid = (
+        valid_id(configured_uid, "ENV_PUID")
+        if configured_uid and configured_uid != "auto"
+        else detected_uid
+    )
+    gid = (
+        valid_id(configured_gid, "ENV_PGID")
+        if configured_gid and configured_gid != "auto"
+        else detected_gid
+    )
+    if (
+        configured_uid
+        and configured_gid
+        and configured_uid != "auto"
+        and configured_gid != "auto"
+        and (uid, gid) != (detected_uid, detected_gid)
+    ):
         print(
             f"Configured container identity: {uid}:{gid}\n"
             f"Current user identity:        {detected_uid}:{detected_gid}\n"
             "Keeping the configured identity is usually correct for an existing install.\n"
             "See docs/decypharr.md for ownership details."
         )
-        if force and confirm("Replace the configured container identity with the current user?", False):
+        if force and confirm(
+            "Replace the configured container identity with the current user?", False
+        ):
             uid, gid = detected_uid, detected_gid
-            print("warning: run just prepare after changing container ownership settings")
+            print(
+                "warning: run just prepare after changing container ownership settings"
+            )
     desired_uid = configured_uid if configured_uid == "auto" else uid
     desired_gid = configured_gid if configured_gid == "auto" else gid
     if media.set("ENV_PUID", desired_uid):
@@ -308,11 +403,21 @@ def configure_env(force: bool) -> list[str]:
         changes.append("ENV_PGID")
 
     if force or not traefik.get("TRAEFIK_DASHBOARD_CREDENTIALS"):
-        if confirm("Configure the Traefik dashboard credentials?", bool(traefik.get("TRAEFIK_DASHBOARD_CREDENTIALS"))):
-            user = prompt(DASHBOARD_USER_PROMPT, default="admin", validator=lambda value: validate_subdomain(value, "dashboard username"))
+        if confirm(
+            "Configure the Traefik dashboard credentials?",
+            bool(traefik.get("TRAEFIK_DASHBOARD_CREDENTIALS")),
+        ):
+            user = prompt(
+                DASHBOARD_USER_PROMPT,
+                default="admin",
+                validator=lambda value: validate_subdomain(value, "dashboard username"),
+            )
             password = prompt(DASHBOARD_PASSWORD_PROMPT, secret=True)
             if password:
-                traefik.set("TRAEFIK_DASHBOARD_CREDENTIALS", hash_dashboard_password(user, password))
+                traefik.set(
+                    "TRAEFIK_DASHBOARD_CREDENTIALS",
+                    hash_dashboard_password(user, password),
+                )
                 changes.append("TRAEFIK_DASHBOARD_CREDENTIALS")
 
     if not traefik.get("CLOUDFLARE_DNS_TOKEN") or force:
@@ -338,7 +443,10 @@ def configure_env(force: bool) -> list[str]:
             restic.set("R2_BUCKET", bucket)
             restic.set("AWS_ACCESS_KEY_ID", access)
             restic.set("AWS_DEFAULT_REGION", "auto")
-            restic.set("RESTIC_REPOSITORY", f"s3:https://{account}.r2.cloudflarestorage.com/{bucket}")
+            restic.set(
+                "RESTIC_REPOSITORY",
+                f"s3:https://{account}.r2.cloudflarestorage.com/{bucket}",
+            )
             restic.write()
             changes.append("restic configuration")
 
@@ -348,13 +456,21 @@ def configure_env(force: bool) -> list[str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create and configure stack environment files")
-    parser.add_argument("--force", action="store_true", help="re-prompt optional secrets")
+    parser = argparse.ArgumentParser(
+        description="Create and configure stack environment files"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="re-prompt optional secrets"
+    )
     args = parser.parse_args()
     try:
         print("kickstArrt setup: writing private stack environment files")
-        print("Type ? at any value prompt for an explanation and documentation reference.")
-        print("General guide: docs/quickstart.md | Ingress: docs/ingress.md | Backups: docs/maintenance.md\n")
+        print(
+            "Type ? at any value prompt for an explanation and documentation reference."
+        )
+        print(
+            "General guide: docs/quickstart.md | Ingress: docs/ingress.md | Backups: docs/maintenance.md\n"
+        )
         changes = configure_env(args.force)
         print(f"init complete; updated {len(changes)} value(s).")
         print("Review stacks/*/.env, then run: just validate && just up")

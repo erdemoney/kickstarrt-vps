@@ -57,7 +57,9 @@ def repository_initialized() -> bool:
         "snapshots",
     ]
     try:
-        result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        result = subprocess.run(
+            command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
+        )
     except OSError:
         return False
     return result.returncode == 0
@@ -101,9 +103,22 @@ def backup_prune() -> None:
 def backup_restore(snapshot: str) -> None:
     require_config()
     print("previewing what the restore would change (dry run; nothing is written) ...")
-    restic("restore", snapshot, "--target", "/", "--dry-run", "-vv", repo_mount=str(ROOT), read_only=True)
+    restic(
+        "restore",
+        snapshot,
+        "--target",
+        "/",
+        "--dry-run",
+        "-vv",
+        repo_mount=str(ROOT),
+        read_only=True,
+    )
     print()
-    print(f"Files not in the snapshot are kept; the rest get overwritten in place. Restore {snapshot} into {ROOT}/? ", end="", flush=True)
+    print(
+        f"Files not in the snapshot are kept; the rest get overwritten in place. Restore {snapshot} into {ROOT}/? ",
+        end="",
+        flush=True,
+    )
     try:
         confirmation = input()
     except EOFError:
@@ -133,8 +148,12 @@ def write_unit(path: str, content: str) -> None:
 
 def backup_schedule(calendar: str) -> None:
     if shutil.which("systemctl") is None:
-        print("no systemd (systemctl not found) - run the backup via cron instead, e.g.:")
-        print(f"  0 4 * * * cd '{ROOT}' && $(command -v just || echo 'just') backup && $(command -v just || echo 'just') backup-prune")
+        print(
+            "no systemd (systemctl not found) - run the backup via cron instead, e.g.:"
+        )
+        print(
+            f"  0 4 * * * cd '{ROOT}' && $(command -v just || echo 'just') backup && $(command -v just || echo 'just') backup-prune"
+        )
         print("(or your NAS scheduler; see docs/maintenance.md)")
         raise ScriptError("systemd is unavailable")
     if shutil.which("sudo") is None:
@@ -192,9 +211,17 @@ def backup_schedule(calendar: str) -> None:
     write_unit(SERVICE_UNIT, service)
     write_unit(TIMER_UNIT, timer)
     run(["sudo", "systemctl", "daemon-reload"], "reload systemd")
-    run(["sudo", "systemctl", "enable", "--now", "kickstarrt-restic-backup.timer"], "enable backup timer")
-    print("\ninstalled kickstarrt-restic-backup.{service,timer} - timer enabled and active; each run backs up then prunes.")
-    run(["systemctl", "list-timers", "kickstarrt-restic-backup.timer", "--no-pager"], "list backup timer")
+    run(
+        ["sudo", "systemctl", "enable", "--now", "kickstarrt-restic-backup.timer"],
+        "enable backup timer",
+    )
+    print(
+        "\ninstalled kickstarrt-restic-backup.{service,timer} - timer enabled and active; each run backs up then prunes."
+    )
+    run(
+        ["systemctl", "list-timers", "kickstarrt-restic-backup.timer", "--no-pager"],
+        "list backup timer",
+    )
     print("remove it later with 'just backup-unschedule'.")
 
 
@@ -204,8 +231,18 @@ def backup_unschedule() -> None:
         return
     if shutil.which("sudo") is None:
         raise ScriptError("sudo not found - run these commands as root")
-    subprocess.run(["sudo", "systemctl", "disable", "--now", "kickstarrt-restic-backup.timer"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    subprocess.run(["sudo", "systemctl", "reset-failed", "kickstarrt-restic-backup.timer"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    subprocess.run(
+        ["sudo", "systemctl", "disable", "--now", "kickstarrt-restic-backup.timer"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    subprocess.run(
+        ["sudo", "systemctl", "reset-failed", "kickstarrt-restic-backup.timer"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
     run(["sudo", "rm", "-f", TIMER_UNIT, SERVICE_UNIT], "remove backup units")
     run(["sudo", "systemctl", "daemon-reload"], "reload systemd")
     print("removed kickstarrt-restic-backup.{timer,service} and stopped the timer.")

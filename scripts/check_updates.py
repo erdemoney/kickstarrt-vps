@@ -11,7 +11,10 @@ from pathlib import Path
 from .common import ROOT
 
 
-COMPOSE_FILES = (ROOT / "stacks" / "traefik" / "compose.yaml", ROOT / "stacks" / "media-server" / "compose.yaml")
+COMPOSE_FILES = (
+    ROOT / "stacks" / "traefik" / "compose.yaml",
+    ROOT / "stacks" / "media-server" / "compose.yaml",
+)
 VERSION_RE = re.compile(r"^v?[0-9]+(\.[0-9]+){1,4}$")
 
 
@@ -52,19 +55,32 @@ def split_image(image: str) -> tuple[str, str, str]:
 
 def latest_docker_hub(repository: str) -> str | None:
     try:
-        data = http_json(f"https://hub.docker.com/v2/repositories/{repository}/tags?page_size=100&ordering=last_updated")
+        data = http_json(
+            f"https://hub.docker.com/v2/repositories/{repository}/tags?page_size=100&ordering=last_updated"
+        )
     except Exception:
         return None
-    return next((item["name"] for item in data.get("results", []) if VERSION_RE.match(item["name"])), None)
+    return next(
+        (
+            item["name"]
+            for item in data.get("results", [])
+            if VERSION_RE.match(item["name"])
+        ),
+        None,
+    )
 
 
 def latest_ghcr(repository: str) -> str | None:
     try:
-        token = http_json(f"https://ghcr.io/token?scope=repository:{repository}:pull")["token"]
+        token = http_json(f"https://ghcr.io/token?scope=repository:{repository}:pull")[
+            "token"
+        ]
         tags = []
         url = f"https://ghcr.io/v2/{repository}/tags/list?n=10000"
         while url:
-            request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+            request = urllib.request.Request(
+                url, headers={"Authorization": f"Bearer {token}"}
+            )
             with urllib.request.urlopen(request, timeout=20) as response:
                 tags.extend(json.load(response).get("tags", []))
                 url = ""
@@ -73,7 +89,10 @@ def latest_ghcr(repository: str) -> str | None:
                         url = link[link.index("<") + 1 : link.index(">")]
     except Exception:
         return None
-    candidates = sorted((tag for tag in tags if VERSION_RE.match(tag)), key=lambda tag: [int(part) for part in re.sub(r"^v", "", tag).split(".")])
+    candidates = sorted(
+        (tag for tag in tags if VERSION_RE.match(tag)),
+        key=lambda tag: [int(part) for part in re.sub(r"^v", "", tag).split(".")],
+    )
     return candidates[-1] if candidates else None
 
 
@@ -94,13 +113,26 @@ def main() -> int:
             else:
                 latest = "(unsupported registry)"
             latest_version = latest.lstrip("v") if isinstance(latest, str) else None
-            status = "?" if latest_version is None else ("up-to-date" if latest_version == pinned.lstrip("v") else "UPDATE")
-            rows.append((str(path.relative_to(ROOT)), service, image, latest or "-", status))
+            status = (
+                "?"
+                if latest_version is None
+                else (
+                    "up-to-date" if latest_version == pinned.lstrip("v") else "UPDATE"
+                )
+            )
+            rows.append(
+                (str(path.relative_to(ROOT)), service, image, latest or "-", status)
+            )
 
     headers = ("compose", "service", "image", "latest", "status")
     display = [list(row) for row in rows]
-    widths = [max(len(str(row[index])) for row in display + [list(headers)]) + 2 for index in range(len(headers))]
-    formatter = "  ".join("{%d:<%d}" % (index, widths[index]) for index in range(len(headers)))
+    widths = [
+        max(len(str(row[index])) for row in display + [list(headers)]) + 2
+        for index in range(len(headers))
+    ]
+    formatter = "  ".join(
+        "{%d:<%d}" % (index, widths[index]) for index in range(len(headers))
+    )
     print(formatter.format(*headers))
     print("  ".join("-" * (width - 2) for width in widths))
     for row in display:

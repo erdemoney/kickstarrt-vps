@@ -77,8 +77,12 @@ def decypharr_token(config_dir: Path) -> str:
             return token
 
     if not documents:
-        raise WireError(f"{auth_path} and {config_path} do not exist; complete Decypharr setup first")
-    raise WireError(f"{auth_path} and {config_path} do not contain a Decypharr API token")
+        raise WireError(
+            f"{auth_path} and {config_path} do not exist; complete Decypharr setup first"
+        )
+    raise WireError(
+        f"{auth_path} and {config_path} do not contain a Decypharr API token"
+    )
 
 
 def bazarr_api_key(config_dir: Path) -> tuple[Path, str]:
@@ -146,12 +150,16 @@ class DockerHTTP:
         if key:
             command.extend(["-H", f"{auth_header}: {key}"])
         if body is not None:
-            command.extend(["-H", "Content-Type: application/json", "--data", json.dumps(body)])
+            command.extend(
+                ["-H", "Content-Type: application/json", "--data", json.dumps(body)]
+            )
         if form is not None:
             for name, value in form.items():
                 command.extend(["--data-urlencode", f"{name}={value}"])
         try:
-            result = subprocess.run(command, capture_output=True, text=True, check=False)
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False
+            )
         except OSError as exc:
             raise WireError(f"could not run Docker: {exc}") from exc
         if result.returncode:
@@ -162,7 +170,9 @@ class DockerHTTP:
             raise WireError(f"{source} returned an invalid HTTP response")
         text, status = result.stdout.rsplit(marker, 1)
         if int(status) >= 400:
-            raise WireError(f"{method} {url} returned HTTP {status}: {text.strip()[:300]}")
+            raise WireError(
+                f"{method} {url} returned HTTP {status}: {text.strip()[:300]}"
+            )
         if not text.strip():
             return None
         try:
@@ -206,7 +216,9 @@ def set_field(resource: dict[str, Any], name: str, value: Any) -> None:
 
 
 def remove_field(resource: dict[str, Any], name: str) -> None:
-    resource["fields"] = [field for field in resource.get("fields", []) if field.get("name") != name]
+    resource["fields"] = [
+        field for field in resource.get("fields", []) if field.get("name") != name
+    ]
 
 
 def redacted(value: Any, name: str = "") -> str:
@@ -224,7 +236,12 @@ def arr_download_client(
     name: str,
     fields: dict[str, Any],
 ) -> Change | None:
-    current = http.request(app, "GET", f"http://{app}:{8989 if app == 'sonarr' else 7878}/api/v3/downloadclient", key)
+    current = http.request(
+        app,
+        "GET",
+        f"http://{app}:{8989 if app == 'sonarr' else 7878}/api/v3/downloadclient",
+        key,
+    )
     existing = next((x for x in current if x.get("name") == name), None)
     desired_fields = dict(fields)
     desired_fields["tvCategory" if app == "sonarr" else "movieCategory"] = app
@@ -237,12 +254,18 @@ def arr_download_client(
         for field, value in desired_fields.items():
             old = field_value(existing, field)
             if old != value:
-                changed.append(f"{field}: {redacted(old, field)} -> {redacted(value, field)}")
+                changed.append(
+                    f"{field}: {redacted(old, field)} -> {redacted(value, field)}"
+                )
                 set_field(payload, field, value)
         if existing.get("implementation") != implementation:
-            changed.append(f"implementation: {existing.get('implementation')} -> {implementation}")
+            changed.append(
+                f"implementation: {existing.get('implementation')} -> {implementation}"
+            )
             payload["implementation"] = implementation
-        secret_change = field_value(existing, "password") != desired_fields.get("password")
+        secret_change = field_value(existing, "password") != desired_fields.get(
+            "password"
+        )
         if secret_change:
             try:
                 http.request(
@@ -277,19 +300,26 @@ def arr_download_client(
         "implementation": implementation,
         "implementationName": implementation,
         "configContract": contract,
-        "fields": [{"name": field, "value": value} for field, value in desired_fields.items()],
+        "fields": [
+            {"name": field, "value": value} for field, value in desired_fields.items()
+        ],
         "priority": 0,
     }
     endpoint = f"http://{app}:{8989 if app == 'sonarr' else 7878}/api/v3/downloadclient"
     return Change(
         app,
         f"create {name}",
-        [f"{field}: {redacted(value, field)}" for field, value in desired_fields.items()],
+        [
+            f"{field}: {redacted(value, field)}"
+            for field, value in desired_fields.items()
+        ],
         lambda: http.request(app, "POST", endpoint, key, payload),
     )
 
 
-def root_folder_change(http: DockerHTTP, app: str, key: str, path: str) -> Change | None:
+def root_folder_change(
+    http: DockerHTTP, app: str, key: str, path: str
+) -> Change | None:
     port = 8989 if app == "sonarr" else 7878
     endpoint = f"http://{app}:{port}/api/v3/rootfolder"
     current = http.request(app, "GET", endpoint, key)
@@ -303,25 +333,41 @@ def root_folder_change(http: DockerHTTP, app: str, key: str, path: str) -> Chang
     )
 
 
-def decypharr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Change | None:
+def decypharr_change(
+    http: DockerHTTP, token: str, keys: dict[str, str]
+) -> Change | None:
     endpoint = "http://decypharr:8282/api/config"
     auth = f"Bearer {token}"
-    current = http.request("decypharr", "GET", endpoint, auth, auth_header="Authorization")
+    current = http.request(
+        "decypharr", "GET", endpoint, auth, auth_header="Authorization"
+    )
     arrs = list(current.get("arrs", []))
     desired = {
-        "Sonarr": {"name": "Sonarr", "host": "http://sonarr:8989", "token": keys["sonarr"]},
-        "Radarr": {"name": "Radarr", "host": "http://radarr:7878", "token": keys["radarr"]},
+        "Sonarr": {
+            "name": "Sonarr",
+            "host": "http://sonarr:8989",
+            "token": keys["sonarr"],
+        },
+        "Radarr": {
+            "name": "Radarr",
+            "host": "http://radarr:7878",
+            "token": keys["radarr"],
+        },
     }
     changed = []
     for name, item in desired.items():
-        existing = next((arr for arr in arrs if arr.get("name", "").lower() == name.lower()), None)
+        existing = next(
+            (arr for arr in arrs if arr.get("name", "").lower() == name.lower()), None
+        )
         if existing is None:
             arrs.append({**item, "skip_repair": False})
             changed.append(f"add {name}: {item['host']}")
             continue
         for field in ("host", "token"):
             if existing.get(field) != item[field]:
-                changed.append(f"{name} {field}: {redacted(existing.get(field), field)} -> {redacted(item[field], field)}")
+                changed.append(
+                    f"{name} {field}: {redacted(existing.get(field), field)} -> {redacted(item[field], field)}"
+                )
                 existing[field] = item[field]
     if not changed:
         return None
@@ -335,7 +381,9 @@ def decypharr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Chan
     )
 
 
-def prowlarr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Change | None:
+def prowlarr_change(
+    http: DockerHTTP, token: str, keys: dict[str, str]
+) -> Change | None:
     endpoint = "http://prowlarr:9696/api/v1/applications"
     current = http.request("prowlarr", "GET", endpoint, token)
     desired = {
@@ -345,12 +393,17 @@ def prowlarr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Chang
     changes: list[str] = []
     updates: list[tuple[str, dict[str, Any]]] = []
     for name, (base_url, key) in desired.items():
-        existing = next((app for app in current if app.get("name", "").lower() == name.lower()), None)
+        existing = next(
+            (app for app in current if app.get("name", "").lower() == name.lower()),
+            None,
+        )
         if existing:
             payload = json.loads(json.dumps(existing))
             local_changes = []
             if existing.get("syncLevel") != "fullSync":
-                local_changes.append(f"syncLevel: {existing.get('syncLevel')} -> fullSync")
+                local_changes.append(
+                    f"syncLevel: {existing.get('syncLevel')} -> fullSync"
+                )
                 payload["syncLevel"] = "fullSync"
             for field, value in (
                 ("baseUrl", base_url),
@@ -359,11 +412,18 @@ def prowlarr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Chang
             ):
                 old = field_value(existing, field)
                 if old != value:
-                    local_changes.append(f"{field}: {redacted(old, field)} -> {redacted(value, field)}")
+                    local_changes.append(
+                        f"{field}: {redacted(old, field)} -> {redacted(value, field)}"
+                    )
                     set_field(payload, field, value)
             if local_changes:
                 changes.extend([f"{name} {item}" for item in local_changes])
-                updates.append((f"http://prowlarr:9696/api/v1/applications/{existing['id']}", payload))
+                updates.append(
+                    (
+                        f"http://prowlarr:9696/api/v1/applications/{existing['id']}",
+                        payload,
+                    )
+                )
             continue
         payload = {
             "name": name,
@@ -386,12 +446,16 @@ def prowlarr_change(http: DockerHTTP, token: str, keys: dict[str, str]) -> Chang
 
     def apply() -> None:
         for url, payload in updates:
-            http.request("prowlarr", "PUT" if payload.get("id") else "POST", url, token, payload)
+            http.request(
+                "prowlarr", "PUT" if payload.get("id") else "POST", url, token, payload
+            )
 
     return Change("prowlarr", "update Arr applications", changes, apply)
 
 
-def bazarr_change(config_dir: Path, http: DockerHTTP, keys: dict[str, str]) -> Change | None:
+def bazarr_change(
+    config_dir: Path, http: DockerHTTP, keys: dict[str, str]
+) -> Change | None:
     config_path, bazarr_key = bazarr_api_key(config_dir)
     endpoint = "http://bazarr:6767/api/system/settings"
     current = http.request("bazarr", "GET", endpoint, bazarr_key)
@@ -417,8 +481,14 @@ def bazarr_change(config_dir: Path, http: DockerHTTP, keys: dict[str, str]) -> C
     }
     desired.update(
         {
-            "settings-sonarr-apikey": (stored_keys["settings-sonarr-apikey"], keys["sonarr"]),
-            "settings-radarr-apikey": (stored_keys["settings-radarr-apikey"], keys["radarr"]),
+            "settings-sonarr-apikey": (
+                stored_keys["settings-sonarr-apikey"],
+                keys["sonarr"],
+            ),
+            "settings-radarr-apikey": (
+                stored_keys["settings-radarr-apikey"],
+                keys["radarr"],
+            ),
         }
     )
 
@@ -464,7 +534,9 @@ def recyclarr_change(config_dir: Path, keys: dict[str, str]) -> Change | None:
 
     def apply() -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary = tempfile.mkstemp(prefix=".secrets.", dir=path.parent, text=True)
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=".secrets.", dir=path.parent, text=True
+        )
         try:
             os.fchmod(descriptor, 0o600)
             with os.fdopen(descriptor, "w", encoding="utf-8") as output:
@@ -479,13 +551,32 @@ def recyclarr_change(config_dir: Path, keys: dict[str, str]) -> Change | None:
 
         compose = ROOT / "stacks" / "media-server" / "compose.yaml"
         run_command(
-            ["docker", "compose", "-f", str(compose), "up", "-d", "--force-recreate", "recyclarr"],
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(compose),
+                "up",
+                "-d",
+                "--force-recreate",
+                "recyclarr",
+            ],
             "recreate recyclarr",
         )
         for attempt in range(1, 4):
             try:
                 run_command(
-                    ["docker", "compose", "-f", str(compose), "exec", "-T", "recyclarr", "recyclarr", "sync"],
+                    [
+                        "docker",
+                        "compose",
+                        "-f",
+                        str(compose),
+                        "exec",
+                        "-T",
+                        "recyclarr",
+                        "recyclarr",
+                        "sync",
+                    ],
                     "initial recyclarr sync",
                 )
                 return
@@ -494,7 +585,9 @@ def recyclarr_change(config_dir: Path, keys: dict[str, str]) -> Change | None:
                     raise
                 time.sleep(10)
 
-    return Change("recyclarr", "update API secrets and run initial sync", changed, apply)
+    return Change(
+        "recyclarr", "update API secrets and run initial sync", changed, apply
+    )
 
 
 def confirm(change: Change) -> bool:
@@ -506,17 +599,30 @@ def confirm(change: Change) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Interactively wire the media services")
-    parser.add_argument("--dry-run", action="store_true", help="discover and display changes without applying them")
-    parser.add_argument("--yes", action="store_true", help="apply all planned changes without prompting")
+    parser = argparse.ArgumentParser(
+        description="Interactively wire the media services"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="discover and display changes without applying them",
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="apply all planned changes without prompting"
+    )
     args = parser.parse_args()
     if not args.dry_run and not args.yes and not sys.stdin.isatty():
-        print("refusing to mutate services without a terminal; use --yes explicitly", file=sys.stderr)
+        print(
+            "refusing to mutate services without a terminal; use --yes explicitly",
+            file=sys.stderr,
+        )
         return 2
 
     config_dir = Path(env_value("CONFIG_DIR", str(ROOT / "data"))).expanduser()
     try:
-        keys = {app: api_key(app, config_dir) for app in ("sonarr", "radarr", "prowlarr")}
+        keys = {
+            app: api_key(app, config_dir) for app in ("sonarr", "radarr", "prowlarr")
+        }
         token = decypharr_token(config_dir)
         http = DockerHTTP()
         changes: list[Change] = []
@@ -530,16 +636,29 @@ def main() -> int:
                     "QBittorrent",
                     "QBittorrentSettings",
                     "Decypharr (debrid)",
-                    {"host": "decypharr", "port": 8282, "username": f"http://{app}:{port}", "password": keys[app]},
+                    {
+                        "host": "decypharr",
+                        "port": 8282,
+                        "username": f"http://{app}:{port}",
+                        "password": keys[app],
+                    },
                 ),
                 (
                     "Sabnzbd",
                     "SabnzbdSettings",
                     "Decypharr (usenet)",
-                    {"host": "decypharr", "port": 8282, "urlBase": "/sabnzbd", "username": f"http://{app}:{port}", "password": keys[app]},
+                    {
+                        "host": "decypharr",
+                        "port": 8282,
+                        "urlBase": "/sabnzbd",
+                        "username": f"http://{app}:{port}",
+                        "password": keys[app],
+                    },
                 ),
             ):
-                change = arr_download_client(http, app, keys[app], implementation, contract, name, fields)
+                change = arr_download_client(
+                    http, app, keys[app], implementation, contract, name, fields
+                )
                 if change:
                     changes.append(change)
         for change in (
@@ -573,8 +692,14 @@ def main() -> int:
         try:
             change.apply()
         except WireError as exc:
-            print(f"error applying {change.service}/{change.description}: {exc}", file=sys.stderr)
-            print(f"Applied {applied} checkpoint(s); stopping to avoid cascading changes.", file=sys.stderr)
+            print(
+                f"error applying {change.service}/{change.description}: {exc}",
+                file=sys.stderr,
+            )
+            print(
+                f"Applied {applied} checkpoint(s); stopping to avoid cascading changes.",
+                file=sys.stderr,
+            )
             return 1
         print(f"Applied: {change.service} - {change.description}")
         applied += 1

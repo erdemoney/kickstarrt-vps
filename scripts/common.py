@@ -24,7 +24,11 @@ class EnvFile:
 
     def __init__(self, path: Path):
         self.path = path
-        self.lines = path.read_text(encoding="utf-8").splitlines(keepends=True) if path.exists() else []
+        self.lines = (
+            path.read_text(encoding="utf-8").splitlines(keepends=True)
+            if path.exists()
+            else []
+        )
 
     def get(self, key: str, default: str = "") -> str:
         value = default
@@ -61,7 +65,9 @@ class EnvFile:
 
     def write(self, mode: int = 0o600) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent, text=True)
+        fd, temporary = tempfile.mkstemp(
+            prefix=f".{self.path.name}.", dir=self.path.parent, text=True
+        )
         try:
             os.fchmod(fd, mode)
             with os.fdopen(fd, "w", encoding="utf-8") as output:
@@ -94,7 +100,9 @@ def create_env(example: Path, destination: Path) -> None:
 
 def atomic_write(path: Path, content: str, mode: int = 0o600) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent, text=True)
+    fd, temporary = tempfile.mkstemp(
+        prefix=f".{path.name}.", dir=path.parent, text=True
+    )
     try:
         os.fchmod(fd, mode)
         with os.fdopen(fd, "w", encoding="utf-8") as output:
@@ -109,7 +117,9 @@ def atomic_write(path: Path, content: str, mode: int = 0o600) -> None:
         raise ScriptError(f"could not write {path}: {exc}") from exc
 
 
-def run(command: Sequence[str], label: str, *, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+def run(
+    command: Sequence[str], label: str, *, input_text: str | None = None
+) -> subprocess.CompletedProcess[str]:
     try:
         result = subprocess.run(command, input=input_text, text=True, check=False)
     except OSError as exc:
@@ -152,7 +162,9 @@ def detect_public_ipv4() -> str:
     except ScriptError:
         pass
     try:
-        output = capture(("ip", "-4", "-o", "addr", "show", "scope", "global"), "public IP detection")
+        output = capture(
+            ("ip", "-4", "-o", "addr", "show", "scope", "global"), "public IP detection"
+        )
         candidates.extend(part.split("/")[0] for part in output.split() if "/" in part)
     except ScriptError:
         pass
@@ -162,7 +174,12 @@ def detect_public_ipv4() -> str:
             address = ipaddress.ip_address(candidate)
         except ValueError:
             continue
-        if address.version == 4 and not address.is_loopback and not address.is_link_local and address not in tailnet:
+        if (
+            address.version == 4
+            and not address.is_loopback
+            and not address.is_link_local
+            and address not in tailnet
+        ):
             return str(address)
     return ""
 
@@ -173,7 +190,9 @@ def require_commands(commands: Iterable[str]) -> None:
         raise ScriptError(f"missing required command(s): {', '.join(missing)}")
 
 
-HOSTNAME_RE = re.compile(r"^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?$")
+HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?$"
+)
 SUBDOMAIN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
 

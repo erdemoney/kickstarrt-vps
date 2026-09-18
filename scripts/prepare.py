@@ -8,7 +8,15 @@ import shutil
 import sys
 from pathlib import Path
 
-from .common import EnvFile, ROOT, ScriptError, capture, detect_public_ipv4, detect_tailscale_ipv4, run
+from .common import (
+    EnvFile,
+    ROOT,
+    ScriptError,
+    capture,
+    detect_public_ipv4,
+    detect_tailscale_ipv4,
+    run,
+)
 
 
 MEDIA_ENV = ROOT / "stacks" / "media-server" / ".env"
@@ -48,7 +56,10 @@ def ensure_owned(paths: list[Path], puid: int, pgid: int) -> None:
     missing_or_wrong = []
     for path in paths:
         try:
-            if Path(capture(("findmnt", "-rno", "TARGET", str(path)), "mount check")) == path:
+            if (
+                Path(capture(("findmnt", "-rno", "TARGET", str(path)), "mount check"))
+                == path
+            ):
                 continue
         except ScriptError:
             pass
@@ -67,10 +78,23 @@ def ensure_owned(paths: list[Path], puid: int, pgid: int) -> None:
             os.chown(path, puid, pgid)
         return
     if shutil.which("sudo") is None:
-        print("warning: no root or sudo available; cannot prepare /mnt/debrid", file=sys.stderr)
+        print(
+            "warning: no root or sudo available; cannot prepare /mnt/debrid",
+            file=sys.stderr,
+        )
         return
-    run(("sudo", "mkdir", "-p", *[str(path) for path in missing_or_wrong]), "create media directories")
-    run(("sudo", "chown", *[f"{puid}:{pgid}"] + [str(path) for path in missing_or_wrong]), "own media directories")
+    run(
+        ("sudo", "mkdir", "-p", *[str(path) for path in missing_or_wrong]),
+        "create media directories",
+    )
+    run(
+        (
+            "sudo",
+            "chown",
+            *[f"{puid}:{pgid}"] + [str(path) for path in missing_or_wrong],
+        ),
+        "own media directories",
+    )
 
 
 def main() -> int:
@@ -80,19 +104,42 @@ def main() -> int:
         config_dir = Path(value(media, "CONFIG_DIR", str(ROOT / "data"))).expanduser()
         puid, pgid = configured_ids(media)
 
-        ensure_owned([Path("/mnt/debrid") / name for name in ("", "decypharr", "shows", "movies")], puid, pgid)
-        directories = ("jellyfin/config", "seerr/config", "radarr", "sonarr", "prowlarr", "recyclarr", "bazarr/config", "decypharr/configs", "crowdsec/config", "crowdsec/data")
+        ensure_owned(
+            [
+                Path("/mnt/debrid") / name
+                for name in ("", "decypharr", "shows", "movies")
+            ],
+            puid,
+            pgid,
+        )
+        directories = (
+            "jellyfin/config",
+            "seerr/config",
+            "radarr",
+            "sonarr",
+            "prowlarr",
+            "recyclarr",
+            "bazarr/config",
+            "decypharr/configs",
+            "crowdsec/config",
+            "crowdsec/data",
+        )
         for directory in directories:
             (config_dir / directory).mkdir(parents=True, exist_ok=True)
         (config_dir / "traefik" / "logs").mkdir(parents=True, exist_ok=True)
         acme = config_dir / "traefik" / "acme.json"
         if acme.is_dir():
-            raise ScriptError(f"{acme} must be a file, not a directory; remove it and rerun just prepare")
+            raise ScriptError(
+                f"{acme} must be a file, not a directory; remove it and rerun just prepare"
+            )
         acme.touch(exist_ok=True)
         acme.chmod(0o600)
 
         changed = False
-        for key, detector in (("TAILNET_IP", detect_tailscale), ("PUBLIC_BIND", detect_public_bind)):
+        for key, detector in (
+            ("TAILNET_IP", detect_tailscale),
+            ("PUBLIC_BIND", detect_public_bind),
+        ):
             if not value(traefik, key):
                 detected = detector()
                 if detected:

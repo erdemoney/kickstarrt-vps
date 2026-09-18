@@ -30,7 +30,9 @@ def require_just() -> str:
 def require_clean_tree() -> None:
     status = capture(("git", "status", "--porcelain"), "check Git working tree")
     if status:
-        raise ScriptError("Git working tree is not clean; commit or remove local changes first")
+        raise ScriptError(
+            "Git working tree is not clean; commit or remove local changes first"
+        )
 
 
 def commit() -> str:
@@ -48,7 +50,10 @@ def run_maintenance() -> None:
     if deployed == previous:
         print("repository is already up to date; refreshing the stacks anyway")
     run((just, "update-all"), "update all stacks")
-    run((sys.executable, "-m", "scripts.health", "--deployment"), "post-maintenance health check")
+    run(
+        (sys.executable, "-m", "scripts.health", "--deployment"),
+        "post-maintenance health check",
+    )
     print("maintenance completed successfully")
 
 
@@ -79,7 +84,9 @@ def write_unit(path: str, content: str) -> None:
 
 def schedule(calendar: str) -> None:
     if shutil.which("systemctl") is None:
-        raise ScriptError("systemd is unavailable; run 'just maintenance-run' manually instead")
+        raise ScriptError(
+            "systemd is unavailable; run 'just maintenance-run' manually instead"
+        )
     if shutil.which("sudo") is None:
         raise ScriptError("sudo not found - install sudo before scheduling")
     just = require_just()
@@ -138,7 +145,10 @@ def schedule(calendar: str) -> None:
     write_unit(SERVICE_UNIT, service)
     write_unit(TIMER_UNIT, timer)
     run(("sudo", "systemctl", "daemon-reload"), "reload systemd")
-    run(("sudo", "systemctl", "enable", "--now", f"{SERVICE_NAME}.timer"), "enable maintenance timer")
+    run(
+        ("sudo", "systemctl", "enable", "--now", f"{SERVICE_NAME}.timer"),
+        "enable maintenance timer",
+    )
     print(f"\ninstalled {SERVICE_NAME}.{{service,timer}} - timer enabled and active")
     status()
     print("remove it later with 'just maintenance-unschedule'.")
@@ -147,7 +157,10 @@ def schedule(calendar: str) -> None:
 def status() -> None:
     if shutil.which("systemctl") is None:
         raise ScriptError("systemd is unavailable")
-    run(("systemctl", "list-timers", f"{SERVICE_NAME}.timer", "--no-pager"), "list maintenance timer")
+    run(
+        ("systemctl", "list-timers", f"{SERVICE_NAME}.timer", "--no-pager"),
+        "list maintenance timer",
+    )
 
 
 def unschedule() -> None:
