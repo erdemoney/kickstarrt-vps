@@ -52,7 +52,7 @@ The same wiring is documented with the rest of the service integrations in [The 
 ## 4. Request flow
 
 After the integrations are connected, users can search Seerr and request movies or shows.
-Seerr pushes approved requests to Radarr or Sonarr, which handle indexers, downloads, and
+Seerr pushes approved requests to Radarr or Sonarr, which handle indexers and debrid streaming
 imports. Once the item is available in the configured library, Jellyfin scans it and Seerr
 updates the request status.
 

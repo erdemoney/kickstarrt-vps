@@ -16,7 +16,7 @@ work.
 | ---------------------------- | ------------------ | ------------------ | --------------------------------------- |
 | Torrentio (custom Cardigann) | torrent aggregator | needs a debrid key | debrid-cached streams through Decypharr |
 | TorBox (custom Cardigann)    | torrent search API | needs a TorBox key | TorBox's cached torrents directly       |
-| AltHub                       | Usenet             | $20 lifetime       | cheap Newznab companion to Usenet       |
+| AltHub                       | Usenet             | $20 lifetime       | Usenet streaming through TorBox         |
 
 Detailed recommendations live in [Services](services).
 
@@ -78,4 +78,5 @@ streaming.
 1. Buy / register (see [Services](services)), then take the **API key + Newznab URL** from the
    indexer's profile page.
 2. Prowlarr → Indexers → **+** → **Newznab**: paste the URL and API key, enable, test, save.
-3. It syncs to Sonarr/Radarr automatically via the Apps configured earlier.
+3. It syncs to Sonarr/Radarr automatically via the Apps configured earlier. With TorBox Pro and
+   Decypharr, the resulting Usenet media is streamed through the debrid mount.

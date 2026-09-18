@@ -5,19 +5,19 @@ nav_order: 13
 
 # Recommended services
 
-Subscription/indexer picks that pair with the stack. Wiring ran through
+Debrid provider picks that pair with the stack. Wiring runs through
 [Indexers](indexers) and [Decypharr](decypharr).
 
-## Torbox — debrid + Usenet
+## Torbox — debrid + Usenet streaming
 
-- **Plan**: **Pro, ~$10/mo** — recommended for Usenet.
-- **What it is**: a debrid provider (like Real-Debrid, but with its own Usenet support) that plugs
-  straight into **Decypharr**. Torrents grabbed from Prowlarr get resolved to cached streams, and
-  the Pro plan gives Decypharr's Usenet engine a backend too.
+- **Plan**: **Pro, ~$10/mo** — recommended for Usenet streaming.
+- **What it is**: a debrid provider with Usenet support that plugs straight into **Decypharr**.
+  Torrent results from Prowlarr are resolved to cached streams, and the Pro plan gives Decypharr's
+  Usenet engine a backend too.
 - **Setup**: create an account, grab an API key from the dashboard, add Torbox as a debrid
   provider in Decypharr's wizard / config (`provider: "torbox"`).
-- **Pricing**: check <https://torbox.app> — Pro is the sweet spot if you want Usenet without a
-  separate provider.
+- **Pricing**: check <https://torbox.app> — Pro is the sweet spot if you want Usenet streaming
+  without a separate provider.
 
 ## AltHub — Usenet indexer
 

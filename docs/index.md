@@ -100,14 +100,14 @@ Read the pages in order for a first deploy; after that they're reference.
 | [Hardening](hardening)       | optional extras: SSH key-only auth, fail2ban, non-root Docker         |
 | [Tailnet DNS](tailnet)       | admin panels by name over the tailnet: CoreDNS + split DNS mechanics |
 | [Decypharr](decypharr)       | debrid gateway: wizard, mounts, its side of the arr wiring            |
-| [The \*arrs](arrs)           | app wiring: internal DNS names, API keys, download clients, mounts; the Recyclarr-synced quality profiles |
+| [The \*arrs](arrs)           | app wiring: internal DNS names, API keys, streaming integrations, mounts; the Recyclarr-synced quality profiles |
 | [Jellyfin](jellyfin)         | playback setup: libraries on the Decypharr mount, no-video-transcode policy |
 | [Seerr](seerr)               | user requests and Jellyfin/Radarr/Sonarr integration                 |
-| [Indexers](indexers)         | Prowlarr, the Torrentio debrid indexer, AltHub                        |
+| [Indexers](indexers)         | Prowlarr, debrid indexers, and AltHub for TorBox Usenet streaming    |
 | [Additional services](additional-services) | how to extend the stack safely with more containers |
 | [Security](security)         | layered security model: Tailscale, UFW, Docker forwarding, Traefik, and CrowdSec |
 | [Ingress](ingress)           | direct `:443`: the security gate, DNS records, certificates, dashboard |
-| [Services](services)         | recommended debrid/Usenet subscriptions                               |
+| [Services](services)         | recommended debrid and Usenet streaming providers                    |
 | [Updates](updates)           | Renovate PR pipeline + CI checks end to end                           |
 | [Maintenance](maintenance)   | ops recipes, backups, troubleshooting                                 |
 | [FAQ](faq)                   | the design decisions, answered                                        |

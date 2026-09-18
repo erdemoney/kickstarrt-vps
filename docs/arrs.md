@@ -29,9 +29,9 @@ just wire             # review and confirm each checkpoint
 just wire --yes       # non-interactive use after reviewing the dry run
 ```
 
-The command handles Arr root folders and Decypharr download clients, Decypharr's Arr
-integrations, Prowlarr's Sonarr/Radarr application links, Bazarr's Sonarr/Radarr connections,
-and Recyclarr's native secret file plus initial sync. Jellyfin, Seerr, subtitle providers,
+The command handles Arr root folders and Decypharr's streaming integrations, Prowlarr's
+Sonarr/Radarr application links, Bazarr's Sonarr/Radarr connections, and Recyclarr's native
+secret file plus initial sync. Jellyfin, Seerr, subtitle providers,
 language profiles, indexer choices, and the Decypharr provider/mount wizard remain GUI steps
 because they require user-specific choices or first-run authentication.
 
@@ -66,19 +66,11 @@ Rule of thumb: when any UI asks for another app's **URL + API key**, use the
 link from inside the network:
 `docker exec <service> curl -fsS http://sonarr:8989/ping`.
 
-## Download clients
-
-`just wire` provisions the Decypharr qBittorrent-compatible and SABnzbd-compatible clients for
-Sonarr and Radarr. It uses the internal service name `decypharr`, the Arr API keys, and the
-correct categories and URL base. Run `just wire --dry-run` before the first apply; only adjust
-priorities or protocol choices manually if your setup differs from the documented Decypharr
-configuration. See [Decypharr](decypharr#integration-with-sonarrradarr) for the provider side.
-
 ## Root folders
 
 Sonarr/Radarr root folders must point at paths inside their own containers. The Decypharr DFS
 mount (`/mnt/decypharr`) is a **read-only virtual filesystem** — its root only ever holds
-Decypharr's own entries (`downloads/`, `torrents/`, `nzbs/`, provider folders, virtual
+Decypharr's own entries (provider folders, virtual
 folders), and creating directories under it fails with `Operation not supported`, even as root.
 The library therefore lives in **plain directories on the shared bind tree**, siblings of the
 mount:

@@ -55,19 +55,6 @@ Homarr is a lightweight dashboard. Add it to the media stack with a persistent
 `$CONFIG_DIR/homarr` directory and a tailnet-only Traefik router. Point its widgets at internal
 URLs such as `http://sonarr:8989`, `http://radarr:7878`, and `http://jellyfin:8096`.
 
-### qBittorrent
-
-qBittorrent is an alternative local torrent client. It needs deliberate download storage and
-should not be confused with Decypharr's qBittorrent-compatible API. If you add it as an Arr
-download client, use its internal service name and port, then choose its priority explicitly.
-Local torrent data changes the storage and backup assumptions of this repository.
-
-### SABnzbd
-
-SABnzbd is an alternative local Usenet client. It needs persistent configuration and download
-paths, plus a review of ownership and backup requirements. If you use it instead of Decypharr's
-SABnzbd-compatible endpoint, configure the Arrs with the internal URL and the correct URL base.
-
 ## Validate the extension
 
 ```bash

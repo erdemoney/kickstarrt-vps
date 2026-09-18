@@ -5,9 +5,9 @@ nav_order: 5
 
 # Decypharr (debrid gateway)
 
-Decypharr mounts your debrid provider as a FUSE filesystem and exposes qBittorrent- and
-SABnzbd-compatible APIs, so Sonarr/Radarr see "instant" debrid files instead of a download
-queue. It runs from the media-server stack with the FUSE plumbing already in the compose
+Decypharr mounts your debrid provider as a FUSE filesystem, so Sonarr/Radarr see instant debrid
+files for streaming rather than locally downloaded media. It runs from the media-server stack
+with the FUSE plumbing already in the compose
 (`/mnt/debrid:/mnt:rshared`, `/dev/fuse`, `SYS_ADMIN`, `apparmor:unconfined`) — nothing to
 add.
 
@@ -18,16 +18,14 @@ Wizard order:
 
 1. **Authentication** — create the admin username/password. The **API token shown once** after
    setup completes is Decypharr's *own* API credential: save it (regenerates via
-   `POST /api/refresh-token`). It is **not** the password
-   the \*arrs' download-client config asks for — that's the arr's own API key
-   ([The \*arrs](arrs#download-clients-sonarrradarr--decypharr)).
+   `POST /api/refresh-token`). It is **not** the credential used by the \*arr integrations —
+   those use each app's own API key ([The \*arrs](arrs)).
 2. **Debrid account** — add at least one provider (Real-Debrid, AllDebrid, Debrid-Link,
    Torbox, Premiumize) with its API key; Torbox also provides Usenet ([Services](services)).
-3. **Usenet (optional)** — NNTP server details, only if downloading from Usenet.
-4. **Download Folder Path** — `/mnt/decypharr/downloads` — where Decypharr stages the symlinks
+3. **Download Folder Path** — `/mnt/decypharr/downloads` — where Decypharr stages the symlinks
    the \*arrs import. Imports copy those symlinks (never the backing data) into the \*arr root
    folders ([The \*arrs](arrs#imports-are-symlinks-not-hardlinks)).
-5. **Mount System** — pick **DFS**, mount path `/mnt/decypharr` (what the \*arrs import from),
+4. **Mount System** — pick **DFS**, mount path `/mnt/decypharr` (what the \*arrs import from),
    and a cache dir. Keep the **Cache Directory** default `/tmp/decypharr-cache`: it's a
    disposable chunk cache (re-warms on demand; wiping it on redeploys costs nothing) and
    keeping it in the container keeps it out of restic backups and `$CONFIG_DIR`. Don't point
@@ -36,7 +34,7 @@ Wizard order:
    at a few GB so the rolling cache can't fill the system disk.
 
 Outside the wizard: the mount root is a **read-only virtual filesystem** — Decypharr's own
-entries only (`downloads/`, `torrents/`, `nzbs/`, provider folders, virtual folders) — so
+provider folders and virtual folders — so
 `mkdir` under `/mnt/decypharr/*` fails with `Operation not supported`, even as root. The \*arr
 **root folders** are plain siblings of the mount on the shared bind, not subpaths of it:
 Sonarr → `/mnt/shows`, Radarr → `/mnt/movies` (`just prepare` creates and owns both to
@@ -47,8 +45,8 @@ Config is written to `$CONFIG_DIR/decypharr/configs/config.json`.
 
 ## Integration with Sonarr/Radarr
 
-The wiring has two sides; the \*arr-UI side (download clients, root folders) is documented in
-[The \*arrs](arrs#download-clients-sonarrradarr--decypharr). Decypharr's own side:
+The wiring has two sides; the \*arr-UI side (streaming integration and root folders) is documented
+in [The \*arrs](arrs). Decypharr's own side:
 
 - **Outbound** — Decypharr → Settings → **Arrs**: it auto-detects apps that hit it; give each
   arr's host (`http://sonarr:8989`, never the public URL) and API key.
