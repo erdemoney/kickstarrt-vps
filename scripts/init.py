@@ -464,12 +464,11 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        print("kickstArrt setup: writing private stack environment files")
         print(
-            "Type ? at any value prompt for an explanation and documentation reference."
-        )
-        print(
-            "General guide: docs/quickstart.md | Ingress: docs/ingress.md | Backups: docs/maintenance.md\n"
+            "kickstArrt setup\n"
+            "  Private stack environment files will be created or updated.\n"
+            "  Enter ? at any prompt for help.\n"
+            "  Docs: docs/quickstart.md | docs/ingress.md | docs/maintenance.md\n"
         )
         changes = configure_env(args.force)
         print(f"init complete; updated {len(changes)} value(s).")

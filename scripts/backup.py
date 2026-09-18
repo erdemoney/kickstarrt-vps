@@ -164,13 +164,14 @@ def backup_schedule(calendar: str) -> None:
 
     just_bin = shutil.which("just")
     print(
-        f"This installs a systemd timer that runs '{just_bin} backup' followed by",
-        f"'{just_bin} backup-prune' in '{ROOT}' on calendar '{calendar}' (prune runs",
-        "only after a successful backup). Two files are written under /etc/systemd/system",
-        "with sudo and the timer is enabled + started:",
-        sep="\n",
+        "Backup timer\n"
+        f"  Command : {just_bin} backup && {just_bin} backup-prune\n"
+        f"  Workdir : {ROOT}\n"
+        f"  Schedule: {calendar}\n"
+        "  Behavior: prune runs only after a successful backup\n"
+        f"  Units   : {TIMER_UNIT}\n"
+        f"            {SERVICE_UNIT}"
     )
-    print(f"  {TIMER_UNIT}\n  {SERVICE_UNIT}")
     try:
         confirmation = input("Proceed? [y/N] ")
     except EOFError:

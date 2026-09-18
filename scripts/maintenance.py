@@ -99,10 +99,14 @@ def schedule(calendar: str) -> None:
     user = getpass.getuser()
     home = str(Path.home())
     print(
-        f"This installs a systemd timer that runs '{just} maintenance-run' in '{ROOT}'\n"
-        f"as user '{user}' on calendar '{calendar}' (local server time).\n"
-        "The timer does not catch up missed runs, and two maintenance runs cannot overlap.\n"
-        f"Two files are written under /etc/systemd/system with sudo:\n  {TIMER_UNIT}\n  {SERVICE_UNIT}"
+        "Maintenance timer\n"
+        f"  Command : {just} maintenance-run\n"
+        f"  Workdir : {ROOT}\n"
+        f"  Schedule: {calendar} (local server time)\n"
+        f"  User    : {user}\n"
+        "  Behavior: no catch-up; runs cannot overlap\n"
+        f"  Units   : {TIMER_UNIT}\n"
+        f"            {SERVICE_UNIT}"
     )
     try:
         confirmation = input("Proceed? [y/N] ")

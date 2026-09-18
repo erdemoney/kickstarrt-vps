@@ -43,6 +43,7 @@ networks:
 # removed" and "ufw in charge" (the hole you'd otherwise get on the next boot).
 
 # Apply the tailnet-only firewall lockdown (idempotent; asks before executing).
+[group('Security')]
 lockdown:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -51,13 +52,12 @@ lockdown:
         echo "Join the tailnet first: sudo tailscale up" >&2
         exit 1
     fi
-    echo "About to lock the box down:"
-    echo "  - install ufw if needed (also swaps out a distro-shipped iptables-persistent)"
-    echo "  - ufw default-deny incoming (tailnet 22/53/443 allowed, no public ports)"
-    echo "  - ufw --force enable"
-    echo "  - re-apply the ufw-docker DOCKER-USER forward gate (and ufw-docker.service)"
-    echo "This only re-applies the tailnet lockdown - public 443/80 rules you added are untouched."
-    echo "If this SSH session is still over the public IP, ufw will DROP it - reconnect over the tailnet."
+    echo "Firewall lockdown"
+    echo "  UFW    : install if needed (may replace iptables-persistent); deny incoming and enable"
+    echo "  Tailnet: allow SSH, DNS, and HTTPS"
+    echo "  Docker : re-apply the ufw-docker forwarding gate"
+    echo "  Public : ports 80/443 are unchanged"
+    echo "WARNING: if this SSH session uses the public IP, ufw will drop it. Reconnect over the tailnet."
     read -r -p "Continue? [y/N] " lockdown_confirm
     if [ "$lockdown_confirm" != "y" ] && [ "$lockdown_confirm" != "Y" ]; then
         echo "aborted."
@@ -135,6 +135,7 @@ lockdown:
 # public/private toggle.
 
 # Open (or close) the public serving ports (Quickstart §12).
+[group('Security')]
 go-public action="open":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -243,6 +244,7 @@ update service:
     fi
 
 # Compare pinned image tags against what the registries publish (read-only).
+[group('Diagnostics')]
 check-updates:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -284,6 +286,7 @@ logs-svc service:
     echo "no service '{{ service }}' in any stack" >&2
     exit 1
 # Read-only host, firewall, DNS, and container health checks.
+[group('Diagnostics')]
 health:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -323,6 +326,7 @@ shell service:
 # CONFIG_DIR is read from stacks/media-server/.env (fallback the repo's data/ dir).
 
 # Install all custom Cardigann indexer definitions for Prowlarr (idempotent).
+[group('Integrations')]
 add-indexers:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -356,6 +360,7 @@ add-indexers:
 # Docker's private service names remain usable without publishing new ports.
 
 # Reconcile the stable cross-service wiring through the applications' REST APIs.
+[group('Integrations')]
 wire *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -366,6 +371,7 @@ wire *ARGS:
 # TAILNET_IP:53, restricted to DNS -> the domain only (see docs/tailnet.md).
 
 # Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
+[group('Security')]
 dns:
     #!/usr/bin/env bash
     set -euo pipefail
