@@ -251,12 +251,6 @@ update service:
         exit 1
     fi
 
-# Compare pinned image tags against what the registries publish (read-only).
-[group('Diagnostics')]
-check-updates:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec python3 -m scripts.check_updates
 # Bring the whole stack up (ensures networks + config dirs exist first)
 # `just prepare` reads CONFIG_DIR from stacks/media-server/.env
 

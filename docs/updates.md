@@ -29,8 +29,7 @@ removed in a later commit.
 [Renovate](https://ghcr.io/renovatebot/renovate) runs self-hosted in a GitHub Actions workflow
 and opens pull requests that bump the pinned image tags in `stacks/*/compose.yaml`. Review and
 merge the PR, then the server can pull and re-create the containers during its scheduled
-maintenance window. It's the automation upgrade over the local `just check-updates` (which stays
-useful for a quick CLI look).
+maintenance window.
 
 ## How it works
 

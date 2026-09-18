@@ -18,7 +18,6 @@ nav_order: 15
 | `just maintenance-schedule`     | install the overnight maintenance timer (default: 03:00 local time)              |
 | `just maintenance-status`       | show the next maintenance run                                                     |
 | `just maintenance-unschedule`   | stop and remove the maintenance timer                                             |
-| `just check-updates`            | compare pinned tags against registries; exits 1 if anything is newer              |
 | `just health`                   | read-only host, firewall, DNS, and container health panel                         |
 | `just logs <stack>`             | tail logs for a stack                                                             |
 | `just logs-svc <svc>`           | tail logs for one service, e.g. `just logs-svc jellyfin` (found across all stacks) |
@@ -45,8 +44,7 @@ first run.
 
 The update flow the repo is built around: Renovate opens a PR → CI and review → merge → the
 overnight maintenance timer runs `git pull --ff-only`, `just update-all`, and a deployment health
-check (see [Updates](updates)). `just maintenance-run` runs the same flow immediately;
-`just check-updates` gives the registry picture without changing anything.
+check (see [Updates](updates)). `just maintenance-run` runs the same flow immediately.
 
 ### Scheduled maintenance
 
