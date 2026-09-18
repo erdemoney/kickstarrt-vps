@@ -100,7 +100,7 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erdemoney/kickstarrt-vps/main/scripts/prerequisites.sh | sudo bash   # git, just, docker + tailscale join; prints your tailnet SSH address
 git clone git@github.com:<you>/kickstarrt-vps.git && cd kickstarrt-vps
-just init             # configures detected values and prompts for required/optional secrets (re-runs reconcile drift; 'just init force' re-prompts)
+just init             # configures detected values and prompts for required/optional secrets (re-runs reconcile drift; 'just init --force' re-prompts)
 just dns              # paste the printed nameserver into Tailscale (one-time; see Quickstart §7)
 just up               # networks -> config dirs -> the whole stack; panels resolve on your tailnet immediately
 ```

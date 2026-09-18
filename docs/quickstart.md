@@ -137,7 +137,7 @@ type `?` for a short explanation, an example, and the relevant documentation ref
   the app name as its default and can be edited in the `.env` files later.
 - `ENV_PUID`/`ENV_PGID` use the running user's uid/gid, so container files match your user
   (fallback `1000` if you run as root). If an existing installation uses different IDs, init
-  reports the mismatch and keeps them; `just init force` can explicitly replace them.
+  reports the mismatch and keeps them; `just init --force` can explicitly replace them.
 - An optional username/password prompt writes `TRAEFIK_DASHBOARD_CREDENTIALS` for the
   [Traefik dashboard](ingress#traefik-dashboard).
 - `CLOUDFLARE_DNS_TOKEN` — enter it when ready; `just init` verifies it against Cloudflare.
@@ -147,7 +147,7 @@ type `?` for a short explanation, an example, and the relevant documentation ref
 
 It's safe to re-run: values that are already set are kept, so a re-run only asks for what's
 missing (e.g. a restic step you deferred) or detects machine values that changed. To re-prompt
-optional credentials, run `just init force`. The full variable list, with comments, is in
+optional credentials, run `just init --force`. The full variable list, with comments, is in
 `stacks/traefik/.env.example` and `stacks/media-server/.env.example`. The main secrets worth
 understanding are:
 

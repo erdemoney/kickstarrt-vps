@@ -11,14 +11,14 @@ default:
 # Full first-time setup. The implementation lives in scripts/init.py so it can
 # validate input and update env files atomically.
 
-# Full first-time setup (idempotent; `just init force` re-prompts).
+# Full first-time setup (idempotent; `just init --force` re-prompts).
 init FORCE="":
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{ FORCE }}" in
         ""|n|N|no|No|NO|0|false|False|FALSE) exec python3 -m scripts.init ;;
         f|F|force|Force|FORCE|-f|--force|y|Y|yes|Yes|YES|1|true|True|TRUE) exec python3 -m scripts.init --force ;;
-        *) echo "unknown init mode '{{ FORCE }}' (use 'force')" >&2; exit 2 ;;
+        *) echo "unknown init mode '{{ FORCE }}' (use '--force')" >&2; exit 2 ;;
     esac
 
 # Create the shared Docker network (idempotent). The subnet is pinned inside
@@ -30,18 +30,20 @@ init FORCE="":
 networks:
     docker network inspect internal >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/16 internal
 
-# Enable or disable public Traefik routers without editing Compose files.
 # This deliberately does not change UFW rules or DNS records.
+
+# Enable or disable public Traefik routers without editing Compose files.
 [group('Security')]
 public *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
     exec python3 -m scripts.public {{ ARGS }}
 
-# Validate every compose file against the Docker Compose schema.
-# Read-only: never creates or edits a .env. Safe placeholder values are supplied through
-# the shell environment for required deployment settings when they are not already set.
+# Read-only: never creates or edits a .env. Safe placeholder values are supplied
+# through the shell environment for required deployment settings when they are not
+# already set.
 
+# Validate every compose file against the Docker Compose schema.
 validate:
     @for s in {{ stack_list }}; do \
         echo "-- stacks/$s/compose.yaml" \
@@ -60,26 +62,30 @@ update-all:
         && docker compose -f "stacks/$s/compose.yaml" up -d || exit 1 \
     ; done
 
-# Pull the reviewed default branch, update changed containers, and verify the result.
 # This is also the entry point used by the optional overnight systemd timer.
+
+# Pull the reviewed default branch, update changed containers, and verify the result.
 [group('Maintenance')]
 maintenance-run:
     #!/usr/bin/env bash
     set -euo pipefail
     exec python3 -m scripts.maintenance run
 
+# Install the overnight maintenance systemd timer (default: 03:00 local time).
 [group('Maintenance')]
 maintenance-schedule ON_CALENDAR="*-*-* 03:00:00":
     #!/usr/bin/env bash
     set -euo pipefail
     exec python3 -m scripts.maintenance schedule "{{ ON_CALENDAR }}"
 
+# Show the next maintenance run.
 [group('Maintenance')]
 maintenance-status:
     #!/usr/bin/env bash
     set -euo pipefail
     exec python3 -m scripts.maintenance status
 
+# Stop and remove the maintenance timer.
 [group('Maintenance')]
 maintenance-unschedule:
     #!/usr/bin/env bash
@@ -247,44 +253,49 @@ dns:
 # config state too). If you point CONFIG_DIR at external storage, cover it with native
 # snapshots / a second restic profile. Configure .env.restic with `just init`, or copy
 # .env.restic.example by hand.
-
 # Initialize the restic repository (idempotent).
-
 [group('Backups')]
 backup-init:
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup init
 
+# Snapshot the repo working tree with restic.
 [group('Backups')]
 backup:
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup backup
 
+# List restic snapshots.
 [group('Backups')]
 backup-list:
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup list
 
+# Verify restic repository integrity.
 [group('Backups')]
 backup-check:
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup check
 
+# Forget + prune old snapshots per RESTIC_KEEP_*.
 [group('Backups')]
 backup-prune:
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup prune
 
+# Dry-run preview, then restore restic snapshots.
 [group('Backups')]
 backup-restore SNAPSHOT="latest":
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup restore "{{ SNAPSHOT }}"
 
+# Install a systemd timer for daily backup + prune.
 [group('Backups')]
 backup-schedule ON_CALENDAR="daily":
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup schedule "{{ ON_CALENDAR }}"
 
+# Stop and remove the backup timer.
 [group('Backups')]
 backup-unschedule:
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup unschedule
 
-# Prepare runtime directories and ACME storage (idempotent; called by `just up`).
 # The implementation lives in scripts/prepare.py.
 
+# Create config dirs and `acme.json` (0600); called by `just up`.
 prepare:
     #!/usr/bin/env bash
     set -euo pipefail
