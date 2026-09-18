@@ -38,10 +38,10 @@ Two consequences of the split-DNS registration, both worth knowing up front:
   fallback, so between registering the resolver (quickstart §7) and first boot (§8)
   resolution is dead. Expected, and it heals at first boot.
 
-The server side is handled by the standard flow: `just init` fills `TAILNET_IP`, `just up`
-renders the Corefile from the tracked template and starts CoreDNS bound to `TAILNET_IP:53`
-only (it deliberately doesn't bind `0.0.0.0:53` — systemd-resolved already holds the
-loopback). Reachability is enforced in two places: the ufw rules from
+The server side is handled by the standard flow: `just init` fills `TAILNET_IP`, and CoreDNS
+reads the tracked Corefile directly, substituting `DOMAIN` and `TAILNET_IP` from its container
+environment at startup. It starts bound to `TAILNET_IP:53` only (it deliberately doesn't bind
+`0.0.0.0:53` — systemd-resolved already holds the loopback). Reachability is enforced in two places: the ufw rules from
 [Quickstart §6](quickstart#6-lock-the-box-down-ufw) allow `53` and `443` from the tailnet,
 and the ufw-docker gate installed by [`just lockdown`](quickstart#6-lock-the-box-down-ufw)
 is what makes those rules apply to this container at all — published ports ride Docker's

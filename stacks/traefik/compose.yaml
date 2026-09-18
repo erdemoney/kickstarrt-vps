@@ -91,6 +91,9 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in the stack .env}
+      TAILNET_IP: ${TAILNET_IP:?set TAILNET_IP in the stack .env}
     # Tailnet DNS resolver (see docs/tailnet.md): answers *.DOMAIN with the VPS's
     # tailnet IP so admin panels resolve by name on the tailnet. Bound to the
     # tailnet IP only (systemd-resolved holds 127.0.0.53). Published ports ride
@@ -102,7 +105,7 @@ services:
       - ${TAILNET_IP:?set TAILNET_IP in the stack .env}:53:53/tcp
     command: ["-conf", "/Corefile"]
     volumes:
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/coredns/Corefile:/Corefile:ro
+      - ../../data/traefik/coredns.Corefile:/Corefile:ro
     networks:
       - internal
     labels:

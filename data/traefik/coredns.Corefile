@@ -1,14 +1,13 @@
 .:53 {
     # Tailnet DNS: answer every *.DOMAIN (and the apex) with the VPS's tailnet
     # address, so admin panels resolve by name on the tailnet and go straight to
-    # Traefik :443. Rendered by `just prepare` (see docs/tailnet.md); placeholders
-    # @DOMAIN@ / @TAILNET_IP@ are substituted from stacks/traefik/.env.
+    # Traefik :443. CoreDNS substitutes DOMAIN and TAILNET_IP at startup.
     template IN A {
-        match "^(.+\.)?@DOMAIN@\.?$"
-        answer "{{ .Name }} 60 IN A @TAILNET_IP@"
+        match "^(.+\.)?{$DOMAIN}\.?$"
+        answer "{{ .Name }} 60 IN A {$TAILNET_IP}"
     }
     template IN AAAA {
-        match "^(.+\.)?@DOMAIN@\.?$"
+        match "^(.+\.)?{$DOMAIN}\.?$"
         answer "{{ .Name }} 60 IN AAAA ::"
     }
     errors

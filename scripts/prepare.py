@@ -8,7 +8,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .common import EnvFile, ROOT, ScriptError, atomic_write, capture, detect_public_ipv4, detect_tailscale_ipv4, run
+from .common import EnvFile, ROOT, ScriptError, capture, detect_public_ipv4, detect_tailscale_ipv4, run
 
 
 MEDIA_ENV = ROOT / "stacks" / "media-server" / ".env"
@@ -73,19 +73,6 @@ def ensure_owned(paths: list[Path], puid: int, pgid: int) -> None:
     run(("sudo", "chown", *[f"{puid}:{pgid}"] + [str(path) for path in missing_or_wrong]), "own media directories")
 
 
-def render_configs(config_dir: Path, traefik: EnvFile) -> None:
-    corefile = ROOT / "data" / "traefik" / "coredns.Corefile"
-    domain = value(traefik, "DOMAIN")
-    tailnet = value(traefik, "TAILNET_IP")
-    if corefile.exists() and domain and tailnet:
-        rendered = corefile.read_text(encoding="utf-8").replace("@DOMAIN@", domain).replace("@TAILNET_IP@", tailnet)
-        # CoreDNS runs unprivileged; unlike acme.json this file contains no secrets.
-        atomic_write(config_dir / "coredns" / "Corefile", rendered, 0o644)
-        print(f"tailnet DNS: rendered {config_dir / 'coredns' / 'Corefile'} (*.{domain} -> {tailnet})")
-    elif corefile.exists():
-        print("warning: DOMAIN/TAILNET_IP missing; tailnet DNS is disabled", file=sys.stderr)
-
-
 def main() -> int:
     try:
         media = EnvFile(MEDIA_ENV)
@@ -114,7 +101,6 @@ def main() -> int:
                     print(f"filled {key}={detected} in stacks/traefik/.env")
         if changed:
             traefik.write()
-        render_configs(config_dir, traefik)
         try:
             os.chown(config_dir, puid, pgid)
         except OSError:

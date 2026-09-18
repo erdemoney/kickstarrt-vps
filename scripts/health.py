@@ -101,7 +101,7 @@ def main() -> int:
     else:
         results.append(("TAILNET_IP", False, "not configured"))
 
-    corefile = config_dir / "coredns" / "Corefile"
+    corefile = ROOT / "data" / "traefik" / "coredns.Corefile"
     readable = corefile.is_file() and bool(corefile.stat().st_mode & 0o004)
     results.append(("CoreDNS Corefile", readable, "readable" if readable else f"missing or not world-readable: {corefile}"))
 
