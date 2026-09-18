@@ -35,7 +35,7 @@ more third-party hop.
 ## Why is there no Let's Encrypt account to create?
 
 Let's Encrypt has no signup, dashboard, or email verification. Traefik registers an ACME
-account on first start and stores it in `$CONFIG_DIR/traefik/acme.json`; the cert is issued
+account on first start and stores it in `data/traefik/acme.json`; the cert is issued
 via the **DNS-01** challenge (Traefik creates and deletes `_acme-challenge` TXT records
 through Cloudflare), which is why the wildcard exists before any DNS record points at the box
 and no inbound port is needed. The ACME account is registered without contact information;

@@ -24,7 +24,7 @@ services:
       PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/jellyfin/config:/config
+      - ../../data/jellyfin/config:/config
       - /mnt/debrid:/mnt:rslave
     tmpfs:
       - /transcodes
@@ -57,7 +57,7 @@ services:
       LOG_LEVEL: info
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/seerr/config:/app/config
+      - ../../data/seerr/config:/app/config
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.seerr.entrypoints=${SEERR_ENTRYPOINTS:-https-tailnet}"
@@ -80,7 +80,7 @@ services:
       PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/radarr:/config
+      - ../../data/radarr:/config
       - /mnt/debrid:/mnt:rslave
     labels:
       - "traefik.enable=true"
@@ -112,7 +112,7 @@ services:
       PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/sonarr:/config
+      - ../../data/sonarr:/config
       - /mnt/debrid:/mnt:rslave
     labels:
       - "traefik.enable=true"
@@ -140,7 +140,7 @@ services:
       PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/prowlarr:/config
+      - ../../data/prowlarr:/config
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.prowlarr.entrypoints=${PROWLARR_ENTRYPOINTS:-https-tailnet}"
@@ -175,7 +175,7 @@ services:
       CRON_SCHEDULE: "@daily"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/recyclarr:/config
+      - ../../data/recyclarr:/config
     # just wire writes /config/secrets.yml after the Arrs are configured. Keep
     # the stock Recyclarr entrypoint; this guard only prevents a noisy restart
     # loop before the first `just wire` run.
@@ -209,7 +209,7 @@ services:
       PGID: ${ENV_PGID:-1000}
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/bazarr/config:/config
+      - ../../data/bazarr/config:/config
       - /mnt/debrid:/mnt:rslave
     labels:
       - "traefik.enable=true"
@@ -243,7 +243,7 @@ services:
       PGID: ${ENV_PGID:-1000}
     volumes:
       - /mnt/debrid:/mnt:rshared
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/decypharr/configs:/app
+      - ../../data/decypharr/configs:/app
     cap_add:
       - SYS_ADMIN
     devices:

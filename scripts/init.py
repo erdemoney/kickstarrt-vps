@@ -13,7 +13,6 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable
 
 from .common import (
@@ -247,22 +246,6 @@ def configure_env(force: bool) -> list[str]:
     media = EnvFile(MEDIA_ENV)
     restic = EnvFile(RESTIC_ENV)
     changes: list[str] = []
-
-    expected_config = str(ROOT / "data")
-    existing_config = traefik.get("CONFIG_DIR")
-    if (
-        existing_config
-        and Path(existing_config).expanduser().resolve()
-        != Path(expected_config).resolve()
-    ):
-        if not confirm(
-            f"CONFIG_DIR is {existing_config!r}; change it to {expected_config!r}?",
-            False,
-        ):
-            raise ScriptError("CONFIG_DIR must point to the repository data directory")
-    for env in (traefik, media):
-        if env.set("CONFIG_DIR", expected_config):
-            changes.append("CONFIG_DIR")
 
     domain = traefik.get("DOMAIN")
     if not domain:

@@ -83,7 +83,9 @@ stacks/                  compose files (one folder per stack) + .env per stack
   media-server/          jellyfin, seerr, radarr, sonarr, prowlarr,
                          recyclarr, bazarr, decypharr
 data/                    runtime config that lives in code
-  traefik/               traefik.yml, dynamic.yml, crowdsec-acquis.yaml
+  traefik/               traefik.yml, dynamic.yml
+  crowdsec/              acquis.yaml
+  coredns/               Corefile
   recyclarr/             shipped Direct Play (+ Sonarr Direct Play (Anime)) quality profiles + bootstrap (synced by recyclarr)
 .github/                 CI checks (workflow) + Renovate pipeline (workflow + global config)
 docs/                    this wiki (GitHub Pages)
@@ -113,9 +115,8 @@ Read the pages in order for a first deploy; after that they're reference.
 | [FAQ](faq)                   | the design decisions, answered                                        |
 | [Oracle Cloud (free tier)](oci) | appendix: free VPS from zero to a running box                        |
 
-All absolute host paths in this wiki are written as the compose env vars they map to —
-`$CONFIG_DIR` (app configs) is the repo's own `data/` dir, written into
-`stacks/traefik/.env` and `stacks/media-server/.env` by `just init`. Media is served from
+All app config lives under the repo's own `data/` dir — `just init` writes the stack `.env`s
+and `just prepare` creates each app's runtime subdirectory there. Media is served from
 the debrid FUSE mount, so there is no local media directory to configure.
 
 For managing Radarr/Sonarr from your phone, see [Ruddarr](arrs#managing-from-your-phone).

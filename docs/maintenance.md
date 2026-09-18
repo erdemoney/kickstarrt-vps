@@ -89,7 +89,7 @@ not attempt an automatic rollback.
 ## Backups
 
 This is a pure-debrid stack — the host holds nothing but config, so the whole backup story is
-one target: the **config directory** (everything under `$CONFIG_DIR` — `acme.json`, the
+one target: the **config directory** — the repo's `data/` dir (`acme.json`, the
 Traefik configs, and each app's own state like the \*arr databases). Nothing in compose is
 precious — any container is one `just up` from a clean slate. The config directory is the
 only state you can't rebuild; if you snapshot exactly one thing, snapshot that (provider
@@ -200,7 +200,7 @@ restored/updated, and asks for confirmation before writing anything. Files prese
 but missing from the snapshot are kept (no `--delete`); restored files overwrite current ones
 in place. It re-creates the repo working tree (`data/` + all `.env` files); `.env.restic`
 survives restores. Drill a restore into a scratch clone periodically — an untested backup is
-a gamble. Note the offsite-repo point: `$CONFIG_DIR` is the repo's own `data/` dir, so a
+a gamble. Note the offsite-repo point: all app config lives in the repo's own `data/` dir, so a
 restic snapshot already covers everything this host can't rebuild; the R2 repository exists
 for the case local snapshots can't help — the box itself disappearing.
 

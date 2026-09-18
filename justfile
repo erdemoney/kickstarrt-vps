@@ -30,8 +30,7 @@ prepare:
 validate:
     @for s in {{ stack_list }}; do \
         echo "-- stacks/$s/compose.yaml" \
-        && CONFIG_DIR="${CONFIG_DIR:-/tmp/just-validate}" \
-           DOMAIN="${DOMAIN:-example.test}" \
+        && DOMAIN="${DOMAIN:-example.test}" \
            docker compose -f "stacks/$s/compose.yaml" config -q || exit 1 \
     ; done
 
@@ -45,7 +44,7 @@ networks:
     docker network inspect internal >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/16 internal
 
 # Bring the whole stack up (ensures networks + config dirs exist first)
-# `just prepare` reads CONFIG_DIR from stacks/media-server/.env
+# `just prepare` creates the repo's data/ config directories.
 
 # Bring the whole stack up (ensures networks + config dirs exist first).
 up: networks prepare
@@ -169,7 +168,6 @@ health:
 # step; add + key just the ones you want in the UI. Fetches the repo archive
 # (curl + tar only, no git/API), copies its Custom/ dir into prowlarr's config
 # dir, and restarts prowlarr. Idempotent; re-run to re-install. Run on the server.
-# CONFIG_DIR is read from stacks/media-server/.env (fallback the repo's data/ dir).
 
 # Install all custom Cardigann indexer definitions for Prowlarr (idempotent).
 [group('Integrations')]
@@ -177,10 +175,7 @@ add-indexers:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    CONFIG_DIR=$(sed -n 's|^CONFIG_DIR=\(.*\)|\1|p' stacks/media-server/.env 2>/dev/null | tail -n1) || true
-    CONFIG_DIR="${CONFIG_DIR:-{{ justfile_directory() }}/data}"
-
-    DEST="$CONFIG_DIR/prowlarr/Definitions/Custom"
+    DEST="{{ justfile_directory() }}/data/prowlarr/Definitions/Custom"
     TMP="$(mktemp -d)"
     trap 'rm -rf "$TMP"' EXIT
 
@@ -240,9 +235,7 @@ dns:
 # in .env.restic - RESTIC_REPOSITORY selects any backend (local, sftp:, s3:, b2:, rclone: ...)
 # and RESTIC_PASSWORD encrypts it; everything in that file is forwarded via docker run
 # --env-file, so backend credentials added there are forwarded too. Scope: the repo working
-# tree - every .env plus data/ (with the default layout that includes the $CONFIG_DIR app
-# config state too). If you point CONFIG_DIR at external storage, cover it with native
-# snapshots / a second restic profile. Configure .env.restic with `just init`, or copy
+# tree - every .env plus data/ (where all app config state lives). Configure .env.restic with `just init`, or copy
 # .env.restic.example by hand.
 # Initialize the restic repository (idempotent).
 [group('Backups')]

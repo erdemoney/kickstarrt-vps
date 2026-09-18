@@ -36,7 +36,7 @@ service name, for example `http://sonarr:8989`; they should not use public hostn
 1. Pin the image to a version that supports the VPS architecture and avoid `latest`.
 2. Add `restart: unless-stopped` and `no-new-privileges:true` unless the service has a documented
    reason not to use them.
-3. Give persistent state its own `$CONFIG_DIR/<service>` directory and add that directory to the
+3. Give persistent state its own `data/<service>` directory and add that directory to the
    backup scope. Do not bind-mount the repository source tree.
 4. Run the container with `ENV_PUID`/`ENV_PGID` where the image supports them, and document any
    ownership or elevated capability requirement.
@@ -54,7 +54,7 @@ service name, for example `http://sonarr:8989`; they should not use public hostn
 ### Homarr
 
 Homarr is a lightweight dashboard. Add it to the media stack with a persistent
-`$CONFIG_DIR/homarr` directory and a tailnet-only Traefik router. Point its widgets at internal
+`data/homarr` directory and a tailnet-only Traefik router. Point its widgets at internal
 URLs such as `http://sonarr:8989`, `http://radarr:7878`, and `http://jellyfin:8096`.
 
 ## Validate the extension

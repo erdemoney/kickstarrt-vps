@@ -30,17 +30,6 @@ class WireError(RuntimeError):
     pass
 
 
-def env_value(name: str, default: str = "") -> str:
-    """Read a simple KEY=value from the stack env, then honor the environment."""
-    if name in os.environ:
-        return os.environ[name]
-    if MEDIA_ENV.exists():
-        for line in MEDIA_ENV.read_text(encoding="utf-8").splitlines():
-            if line.startswith(f"{name}="):
-                return line.split("=", 1)[1].strip().strip('"').strip("'")
-    return default
-
-
 def api_key(app: str, config_dir: Path) -> str:
     path = config_dir / app / "config.xml"
     try:
@@ -618,7 +607,7 @@ def main() -> int:
         )
         return 2
 
-    config_dir = Path(env_value("CONFIG_DIR", str(ROOT / "data"))).expanduser()
+    config_dir = ROOT / "data"
     try:
         keys = {
             app: api_key(app, config_dir) for app in ("sonarr", "radarr", "prowlarr")

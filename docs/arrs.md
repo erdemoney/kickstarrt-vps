@@ -182,7 +182,7 @@ of `data/recyclarr/configs/sonarr.yml` (e.g. score `Anime Dual Audio` / `Uncenso
 positively if the household prefers them).
 
 > Migrating from the old Profilarr setup? Nothing to migrate — its container and panel are
-> gone; the leftover `$CONFIG_DIR/profilarr` dir is inert and safe to delete.
+> gone; the leftover `data/profilarr` dir is inert and safe to delete.
 
 ## Managing from your phone
 

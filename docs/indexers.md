@@ -37,7 +37,7 @@ streaming.
 
    (The manual step it automates: put every `*.yml` from
    `https://github.com/dreulavelle/Prowlarr-Indexers/tree/main/Custom` into
-   `$CONFIG_DIR/prowlarr/Definitions/Custom` and recreate prowlarr.) Definitions are **inert
+   `data/prowlarr/Definitions/Custom` and recreate prowlarr.) Definitions are **inert
    until you add them in Prowlarr**, so installing the whole set saves a pick-a-name step.
 
    Currently shipped (all are `Custom/<name>.yml` from that repo):

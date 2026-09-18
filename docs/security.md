@@ -50,7 +50,7 @@ the public ports remain closed until the documented `ufw allow` commands open `8
 ## CrowdSec
 
 CrowdSec runs in the `traefik` stack. Traefik's JSON access log feeds the detection engine via
-`$CONFIG_DIR/traefik/crowdsec-acquis.yaml`; the `crowdsecurity/traefik` and
+`data/crowdsec/acquis.yaml`; the `crowdsecurity/traefik` and
 `crowdsecurity/http-cve` collections provide the detection scenarios. The Traefik bouncer plugin
 enforces decisions on both HTTPS entrypoints using `CROWDSEC_BOUNCER_API_KEY`.
 

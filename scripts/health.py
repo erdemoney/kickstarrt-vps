@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             results.append(("TAILNET_IP", False, "not configured"))
 
-        corefile = ROOT / "data" / "traefik" / "coredns.Corefile"
+        corefile = ROOT / "data" / "coredns" / "Corefile"
         readable = corefile.is_file() and bool(corefile.stat().st_mode & 0o004)
         results.append(
             (

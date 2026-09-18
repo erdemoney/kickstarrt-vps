@@ -126,8 +126,6 @@ Now run `just init` — it creates each stack's private `.env`, detects safe def
 the values it writes, and prompts only for the settings that need a decision. At any value prompt,
 type `?` for a short explanation, an example, and the relevant documentation reference.
 
-- `CONFIG_DIR` isn't asked: always the repo's own `data/` dir — app configs, `acme.json`, and
-  Traefik's static config live there, and it's exactly what the backups cover.
 - `TAILNET_IP` is auto-filled from `tailscale ip -4`; if the configured address later differs,
   init detects the drift and asks before updating it. Update the Tailscale DNS nameserver too.
 - `PUBLIC_BIND` is detected from the default route; if it later differs, init asks before

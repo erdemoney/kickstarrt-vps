@@ -32,10 +32,10 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/traefik.yml:/traefik.yml:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/acme.json:/acme.json
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/logs:/var/log/traefik
+      - ../../data/traefik/traefik.yml:/traefik.yml:ro
+      - ../../data/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ../../data/traefik/acme.json:/acme.json
+      - ../../data/traefik/logs:/var/log/traefik
     networks:
       - internal
     labels:
@@ -70,10 +70,10 @@ services:
       BOUNCER_KEY_TRAEFIK: ${CROWDSEC_BOUNCER_API_KEY}
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/crowdsec/config:/etc/crowdsec
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/crowdsec/data:/var/lib/crowdsec/data
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/logs:/logs:ro
-      - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/traefik/crowdsec-acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      - ../../data/crowdsec/config:/etc/crowdsec
+      - ../../data/crowdsec/data:/var/lib/crowdsec/data
+      - ../../data/traefik/logs:/logs:ro
+      - ../../data/crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml:ro
     networks:
       - internal
     labels:
@@ -105,7 +105,7 @@ services:
       - ${TAILNET_IP:?set TAILNET_IP in the stack .env}:53:53/tcp
     command: ["-conf", "/Corefile"]
     volumes:
-      - ../../data/traefik/coredns.Corefile:/Corefile:ro
+      - ../../data/coredns/Corefile:/Corefile:ro
     networks:
       - internal
     labels:

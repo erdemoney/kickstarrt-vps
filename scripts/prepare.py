@@ -101,7 +101,7 @@ def main() -> int:
     try:
         media = EnvFile(MEDIA_ENV)
         traefik = EnvFile(TRAEFIK_ENV)
-        config_dir = Path(value(media, "CONFIG_DIR", str(ROOT / "data"))).expanduser()
+        config_dir = ROOT / "data"
         puid, pgid = configured_ids(media)
 
         ensure_owned(

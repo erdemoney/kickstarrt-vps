@@ -99,7 +99,7 @@ Traefik's static config is tracked at `data/traefik/traefik.yml` and mounted dir
 Compose. **Edit this file.** It is not generated or overwritten by `just up`. The
 entrypoint bind IPs (`PUBLIC_BIND` / `TAILNET_IP`) are published from
 `stacks/traefik/compose.yaml`'s ports instead of the static config — see that file's port comment.
-`dynamic.yml` and `crowdsec-acquis.yaml` need no rendering and are mounted as tracked files
+`dynamic.yml` and `data/crowdsec/acquis.yaml` need no rendering and are mounted as tracked files
 (`dynamic.yml` resolves its one secret at runtime with Traefik's Go templating).
 
 ## Traefik dashboard
