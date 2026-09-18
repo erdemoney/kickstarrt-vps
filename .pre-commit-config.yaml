@@ -27,6 +27,16 @@ repos:
       - id: ruff-check
       - id: ruff-format
 
+  # Keep the justfile formatted when `just` is available; skip otherwise
+  - repo: local
+    hooks:
+      - id: just-fmt
+        name: just --fmt
+        entry: bash -c 'if command -v just >/dev/null 2>&1; then just --fmt; fi'
+        language: system
+        files: ^justfile$
+        pass_filenames: false
+
   # Scan staged changes for hardcoded secrets / API keys (auto-downloads via Go)
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1

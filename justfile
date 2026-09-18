@@ -12,32 +12,15 @@ default:
 # validate input and update env files atomically.
 
 # Full first-time setup (idempotent; `just init --force` re-prompts).
-init FORCE="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    case "{{ FORCE }}" in
-        ""|n|N|no|No|NO|0|false|False|FALSE) exec python3 -m scripts.init ;;
-        f|F|force|Force|FORCE|-f|--force|y|Y|yes|Yes|YES|1|true|True|TRUE) exec python3 -m scripts.init --force ;;
-        *) echo "unknown init mode '{{ FORCE }}' (use '--force')" >&2; exit 2 ;;
-    esac
+[arg("force", long="force", value="--force", help="re-prompt optional secrets")]
+init force="":
+    python3 -m scripts.init {{ force }}
 
-# Create the shared Docker network (idempotent). The subnet is pinned inside
-# 172.16.0.0/12 so the ufw-docker forward gate covers this network's egress
-# with its default RFC1918 subnets when host-firewall mode is configured.
-# Only change it if you re-provision the gate with `sudo ufw-docker install --docker-subnets`.
+# The implementation lives in scripts/prepare.py.
 
-# Create the shared Docker network (idempotent).
-networks:
-    docker network inspect internal >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/16 internal
-
-# This deliberately does not change UFW rules or DNS records.
-
-# Enable or disable public Traefik routers without editing Compose files.
-[group('Security')]
-public *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec python3 -m scripts.public {{ ARGS }}
+# Create config dirs and `acme.json` (0600); called by `just up`.
+prepare:
+    python3 -m scripts.prepare
 
 # Read-only: never creates or edits a .env. Safe placeholder values are supplied
 # through the shell environment for required deployment settings when they are not
@@ -51,46 +34,25 @@ validate:
            DOMAIN="${DOMAIN:-example.test}" \
            docker compose -f "stacks/$s/compose.yaml" config -q || exit 1 \
     ; done
-# Update all containers to the images referenced in compose (pull + recreate changed ones)
-update-all:
-    @for s in {{ stack_list }}; do \
-        echo "-- pulling $s" \
-        && docker compose -f "stacks/$s/compose.yaml" pull || exit 1 \
-    ; done
+
+# Create the shared Docker network (idempotent). The subnet is pinned inside
+# 172.16.0.0/12 so the ufw-docker forward gate covers this network's egress
+# with its default RFC1918 subnets when host-firewall mode is configured.
+# Only change it if you re-provision the gate with `sudo ufw-docker install --docker-subnets`.
+
+# Create the shared Docker network (idempotent).
+networks:
+    docker network inspect internal >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/16 internal
+
+# Bring the whole stack up (ensures networks + config dirs exist first)
+# `just prepare` reads CONFIG_DIR from stacks/media-server/.env
+
+# Bring the whole stack up (ensures networks + config dirs exist first).
+up: networks prepare
     @for s in {{ stack_list }}; do \
         echo "-- $s" \
         && docker compose -f "stacks/$s/compose.yaml" up -d || exit 1 \
     ; done
-
-# This is also the entry point used by the optional overnight systemd timer.
-
-# Pull the reviewed default branch, update changed containers, and verify the result.
-[group('Maintenance')]
-maintenance-run:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec python3 -m scripts.maintenance run
-
-# Install the overnight maintenance systemd timer (default: 03:00 local time).
-[group('Maintenance')]
-maintenance-schedule ON_CALENDAR="*-*-* 03:00:00":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec python3 -m scripts.maintenance schedule "{{ ON_CALENDAR }}"
-
-# Show the next maintenance run.
-[group('Maintenance')]
-maintenance-status:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec python3 -m scripts.maintenance status
-
-# Stop and remove the maintenance timer.
-[group('Maintenance')]
-maintenance-unschedule:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec python3 -m scripts.maintenance unschedule
 
 # Pull + recreate one service, searched across all stacks, e.g. `just update jellyfin`.
 update service:
@@ -111,21 +73,15 @@ update service:
         exit 1
     fi
 
-# Bring the whole stack up (ensures networks + config dirs exist first)
-# `just prepare` reads CONFIG_DIR from stacks/media-server/.env
-
-# Bring the whole stack up (ensures networks + config dirs exist first).
-up: networks prepare
+# Update all containers to the images referenced in compose (pull + recreate changed ones)
+update-all:
+    @for s in {{ stack_list }}; do \
+        echo "-- pulling $s" \
+        && docker compose -f "stacks/$s/compose.yaml" pull || exit 1 \
+    ; done
     @for s in {{ stack_list }}; do \
         echo "-- $s" \
         && docker compose -f "stacks/$s/compose.yaml" up -d || exit 1 \
-    ; done
-
-# Tear the whole stack down
-down:
-    @for s in {{ stack_list }}; do \
-        echo "-- $s" \
-        && docker compose -f "stacks/$s/compose.yaml" down || exit 1 \
     ; done
 
 # Restart one stack, e.g. `just restart traefik`
@@ -147,12 +103,6 @@ logs-svc service:
     done
     echo "no service '{{ service }}' in any stack" >&2
     exit 1
-# Read-only host, firewall, DNS, and container health checks.
-[group('Diagnostics')]
-health:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec python3 -m scripts.health
 
 # Open an interactive shell in a running service's container (searched across all
 # stacks), e.g. `just shell jellyfin`. Tries bash first, falls back to sh for
@@ -178,6 +128,40 @@ shell service:
         exec docker exec -it "$cid" bash
     fi
     exec docker exec -it "$cid" sh
+
+# Tear the whole stack down
+down:
+    @for s in {{ stack_list }}; do \
+        echo "-- $s" \
+        && docker compose -f "stacks/$s/compose.yaml" down || exit 1 \
+    ; done
+
+# This is also the entry point used by the optional overnight systemd timer.
+
+# Pull the reviewed default branch, update changed containers, and verify the result.
+[group('Maintenance')]
+maintenance-run:
+    python3 -m scripts.maintenance run
+
+# Install the overnight maintenance systemd timer (default: 03:00 local time).
+[group('Maintenance')]
+maintenance-schedule ON_CALENDAR="*-*-* 03:00:00":
+    python3 -m scripts.maintenance schedule "{{ ON_CALENDAR }}"
+
+# Show the next maintenance run.
+[group('Maintenance')]
+maintenance-status:
+    python3 -m scripts.maintenance status
+
+# Stop and remove the maintenance timer.
+[group('Maintenance')]
+maintenance-unschedule:
+    python3 -m scripts.maintenance unschedule
+
+# Read-only host, firewall, DNS, and container health checks.
+[group('Diagnostics')]
+health:
+    python3 -m scripts.health
 
 # Install all custom Cardigann indexer definitions for Prowlarr from the
 # Prowlarr-Indexers repo (Torrentio, TorBox, comet, zilean, ...). Definitions are
@@ -222,11 +206,18 @@ add-indexers:
 # Docker's private service names remain usable without publishing new ports.
 
 # Reconcile the stable cross-service wiring through the applications' REST APIs.
+[arg("yes", long="yes", value="--yes", help="apply all planned changes without prompting")]
+[arg("dry_run", long="dry-run", value="--dry-run", help="discover and display changes without applying them")]
 [group('Integrations')]
-wire *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    python3 scripts/wire.py {{ ARGS }}
+wire dry_run="" yes="":
+    python3 scripts/wire.py {{ dry_run }} {{ yes }}
+
+# This deliberately does not change UFW rules or DNS records.
+
+# Enable or disable public Traefik routers without editing Compose files.
+[group('Security')]
+public action *SERVICES:
+    python3 -m scripts.public {{ action }} {{ SERVICES }}
 
 # Show the tailnet DNS resolver setup (CoreDNS in the traefik stack).
 # The matching Tailscale admin setting is one-time: DNS -> Nameservers -> add
@@ -292,11 +283,3 @@ backup-schedule ON_CALENDAR="daily":
 [group('Backups')]
 backup-unschedule:
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup unschedule
-
-# The implementation lives in scripts/prepare.py.
-
-# Create config dirs and `acme.json` (0600); called by `just up`.
-prepare:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec python3 -m scripts.prepare
