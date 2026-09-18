@@ -38,9 +38,8 @@ Let's Encrypt has no signup, dashboard, or email verification. Traefik registers
 account on first start and stores it in `$CONFIG_DIR/traefik/acme.json`; the cert is issued
 via the **DNS-01** challenge (Traefik creates and deletes `_acme-challenge` TXT records
 through Cloudflare), which is why the wildcard exists before any DNS record points at the box
-and no inbound port is needed. `ACME_EMAIL` is just the contact address on the account — it
-must be on a domain you control (their API rejects reserved ones like `@example.com`), it
-doesn't receive mail, and since June 2025 Let's Encrypt doesn't even store it.
+and no inbound port is needed. The ACME account is registered without contact information;
+Let's Encrypt no longer stores account email addresses or sends certificate expiration notices.
 
 ## Why do the admin panels have no public DNS records?
 

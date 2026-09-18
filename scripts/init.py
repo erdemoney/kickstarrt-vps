@@ -307,10 +307,6 @@ def configure_env(force: bool) -> list[str]:
     if media.set("ENV_PGID", desired_gid):
         changes.append("ENV_PGID")
 
-    acme = traefik.get("ACME_EMAIL") or f"admin@{domain}"
-    if traefik.set("ACME_EMAIL", acme):
-        changes.append("ACME_EMAIL")
-
     if force or not traefik.get("TRAEFIK_DASHBOARD_CREDENTIALS"):
         if confirm("Configure the Traefik dashboard credentials?", bool(traefik.get("TRAEFIK_DASHBOARD_CREDENTIALS"))):
             user = prompt(DASHBOARD_USER_PROMPT, default="admin", validator=lambda value: validate_subdomain(value, "dashboard username"))

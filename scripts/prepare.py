@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare host directories and rendered configuration consumed by Compose."""
+"""Prepare host directories and configuration consumed by Compose."""
 
 from __future__ import annotations
 
@@ -74,17 +74,6 @@ def ensure_owned(paths: list[Path], puid: int, pgid: int) -> None:
 
 
 def render_configs(config_dir: Path, traefik: EnvFile) -> None:
-    template = ROOT / "data" / "traefik" / "traefik.template.yml"
-    if template.exists():
-        tailnet = value(traefik, "TAILNET_IP")
-        public_bind = value(traefik, "PUBLIC_BIND")
-        if not tailnet or not public_bind:
-            raise ScriptError("TAILNET_IP and PUBLIC_BIND are required; run just init or set them in stacks/traefik/.env")
-        email = value(traefik, "ACME_EMAIL")
-        atomic_write(config_dir / "traefik" / "traefik.yml", template.read_text(encoding="utf-8").replace("${ACME_EMAIL}", email), 0o600)
-        if not email:
-            print("warning: ACME_EMAIL is empty; certificates will not be issued", file=sys.stderr)
-
     corefile = ROOT / "data" / "traefik" / "coredns.Corefile"
     domain = value(traefik, "DOMAIN")
     tailnet = value(traefik, "TAILNET_IP")

@@ -10,7 +10,7 @@ nav_order: 15
 | Command                         | What it does                                                                      |
 | ------------------------------- | --------------------------------------------------------------------------------- |
 | `just init`                     | create/reconcile `.env` files and fill interactive secrets (idempotent)           |
-| `just up`                       | create networks, config dirs, `acme.json` + rendered `traefik.yml`, then bring up every stack |
+| `just up`                       | create networks, config dirs, `acme.json` + generated CoreDNS config, then bring up every stack |
 | `just down`                     | tear every stack down                                                             |
 | `just update-all`               | pull fresh images + recreate changed containers                                   |
 | `just update <svc>`             | pull + recreate one service, searched across all stacks, e.g. `just update jellyfin` |
@@ -20,7 +20,7 @@ nav_order: 15
 | `just logs-svc <svc>`           | tail logs for one service, e.g. `just logs-svc jellyfin` (found across all stacks) |
 | `just restart <stack>`          | restart a stack                                                                   |
 | `just validate`                 | `docker compose config -q` on every stack (read-only — never writes a `.env`)     |
-| `just prepare`                  | create config dirs, `acme.json` (0600), and rendered Traefik/CoreDNS config (called by `just up`) |
+| `just prepare`                  | create config dirs, `acme.json` (0600), and generated CoreDNS config (called by `just up`) |
 | `just add-indexers`             | install all custom Prowlarr indexer definitions (Torrentio, TorBox, comet, …; see [Indexers](indexers)) |
 | `just wire`                     | interactively reconcile Arr/Decypharr/Prowlarr/Bazarr links and Recyclarr secrets through REST APIs; use `--dry-run` to preview |
 | `just dns`                      | print the tailnet DNS resolver setup (see [Tailnet DNS](tailnet))                 |

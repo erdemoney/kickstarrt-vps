@@ -19,7 +19,7 @@ services:
       # Specific-IP publishes, one per entrypoint: docker binds each mapping to
       # its own host IP, so nothing listens on 0.0.0.0:80/443. PUBLIC_BIND (the
       # provider-mapped IP) reaches the container's public https listener (:8443,
-      # traefik.template.yml: PUBLIC_BIND:80 -> :80 redirect, PUBLIC_BIND:443 ->
+      # traefik.yml: PUBLIC_BIND:80 -> :80 redirect, PUBLIC_BIND:443 ->
       # :8443 = the https entrypoint, which only public apps use). TAILNET_IP
       # reaches the https-tailnet listener (:443, panels only). Because the two
       # listeners are different sockets, a panel Host: header coming in on the

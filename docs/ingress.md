@@ -13,7 +13,7 @@ There is no Cloudflare Tunnel; the box serves its own static public IP.
 
 The VPS serves the internet from exactly one port: **TCP `443` (Traefik)**. `80` exists only
 to bounce `http://` to `https://` — the entrypoint-level redirect in
-`traefik.template.yml`, with nothing served on it — and the HSTS header (`secHeaders@file`,
+`traefik.yml`, with nothing served on it — and the HSTS header (`secHeaders@file`,
 sent on every https response) makes repeat browsers skip `:80` after their first visit. sshd
 answers only from the tailnet ([Quickstart §6](quickstart#6-lock-the-box-down-ufw)).
 Everything on `:443` is fronted by CrowdSec ([Security](security)).
@@ -40,7 +40,7 @@ One honest caveat: public traffic and tailnet traffic arrive on **different sock
 different hostnames. Traefik's two https entrypoints are published on separate IPs by
 `stacks/traefik/compose.yaml`: `PUBLIC_BIND` (the provider-mapped IP) reaches the `https`
 entrypoint, and `TAILNET_IP` (the box's tailnet address) reaches the `https-tailnet`
-entrypoint (`traefik.template.yml`). `jellyfin` and `seerr` have routers on **both**
+entrypoint (`traefik.yml`). `jellyfin` and `seerr` have routers on **both**
 entrypoints — they're public anyway, so being able to reach them by name on the tailnet costs
 nothing and keeps first-run setup possible before [going public](quickstart#12-go-public-last) —
 while every panel and the dashboard use only `https-tailnet`. Nothing listens on
@@ -78,13 +78,12 @@ or app exists, and no inbound ports are required. Renewals and per-app HTTPS are
 (`tls=true` on every router). Confirm issuance in the Traefik dashboard's ACME panel.
 
 There is **no Let's Encrypt account to create** —
-[why](faq#why-is-there-no-lets-encrypt-account-to-create). `ACME_EMAIL` just needs to be an
-address on a real domain you control (the API rejects reserved ones like `@example.com`); it
-needn't receive mail. While experimenting, use the **staging CA** — Let's Encrypt rate limits
+[why](faq#why-is-there-no-lets-encrypt-account-to-create). Traefik registers an account without
+contact information. While experimenting, use the **staging CA** — Let's Encrypt rate limits
 "last up to one week and cannot be overridden":
 
 ```yaml
-caServer: https://acme-staging-v02.api.letsencrypt.org/directory   # in data/traefik/traefik.template.yml
+caServer: https://acme-staging-v02.api.letsencrypt.org/directory   # in data/traefik/traefik.yml
 ```
 
 then `just up`. Staging certs are untrusted (browsers warn — expected); switching back to
@@ -96,12 +95,10 @@ just down && rm -f data/traefik/acme.json && just up   # dirs re-creates it 0600
 
 ### Editing Traefik's config
 
-Traefik's static config is **rendered, not copied**: the repo tracks
-`data/traefik/traefik.template.yml`, and `just up` renders it to
-`$CONFIG_DIR/traefik/traefik.yml` (untracked) with your `ACME_EMAIL` filled in. **Edit the
-template, never the rendered file** — `just up` overwrites the output every run. The
+Traefik's static config is tracked at `data/traefik/traefik.yml` and mounted directly by
+Compose. **Edit this file.** It is not generated or overwritten by `just up`. The
 entrypoint bind IPs (`PUBLIC_BIND` / `TAILNET_IP`) are published from
-`stacks/traefik/compose.yaml`'s ports instead of the template — see that file's port comment.
+`stacks/traefik/compose.yaml`'s ports instead of the static config — see that file's port comment.
 `dynamic.yml` and `crowdsec-acquis.yaml` need no rendering and are mounted as tracked files
 (`dynamic.yml` resolves its one secret at runtime with Traefik's Go templating).
 

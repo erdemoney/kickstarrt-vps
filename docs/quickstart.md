@@ -122,7 +122,7 @@ the values it writes, and prompts only for the settings that need a decision. At
 type `?` for a short explanation, an example, and the relevant documentation reference.
 
 - `CONFIG_DIR` isn't asked: always the repo's own `data/` dir — app configs, `acme.json`, and
-  Traefik's rendered config live there, and it's exactly what the backups cover.
+  Traefik's static config live there, and it's exactly what the backups cover.
 - `TAILNET_IP` is auto-filled from `tailscale ip -4`; if the configured address later differs,
   init detects the drift and asks before updating it. Update the Tailscale DNS nameserver too.
 - `PUBLIC_BIND` is detected from the default route; if it later differs, init asks before
@@ -133,8 +133,6 @@ type `?` for a short explanation, an example, and the relevant documentation ref
 - `ENV_PUID`/`ENV_PGID` use the running user's uid/gid, so container files match your user
   (fallback `1000` if you run as root). If an existing installation uses different IDs, init
   reports the mismatch and keeps them; `just init force` can explicitly replace them.
-- `ACME_EMAIL` defaults to `admin@<DOMAIN>` — any address on a domain you control; it
-  needn't receive mail ([why](faq#why-is-there-no-lets-encrypt-account-to-create)).
 - An optional username/password prompt writes `TRAEFIK_DASHBOARD_CREDENTIALS` for the
   [Traefik dashboard](ingress#traefik-dashboard).
 - `CLOUDFLARE_DNS_TOKEN` — enter it when ready; `just init` verifies it against Cloudflare.
