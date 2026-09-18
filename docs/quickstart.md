@@ -246,8 +246,10 @@ just up
 
 ### Verify the first boot
 
-`just up` runs preparation, creates the networks and config directories, renders the static
-configuration, and starts both stacks. Use the read-only health panel for the routine checks:
+`just up` runs preparation, creates the networks and runtime directories, and starts both stacks.
+The tracked Traefik and CoreDNS configuration is mounted directly; CoreDNS receives its domain
+and tailnet address through the container environment. Use the read-only health panel for the
+routine checks:
 
 ```bash
 just health

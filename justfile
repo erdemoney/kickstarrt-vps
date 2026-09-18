@@ -175,15 +175,15 @@ go-public action="open":
     echo "public serving ports open: Cloudflare -> VPS :443 -> Traefik -> CrowdSec -> the apps."
     echo "Close them again any time with: just go-public close"
 
-# Validate every compose file against the docker compose schema.
-# Read-only: never creates or edits a .env (compose treats .env as optional and the
-# shell environment outranks it, so CONFIG_DIR is supplied here just for the check).
+# Validate every compose file against the Docker Compose schema.
+# Read-only: never creates or edits a .env. Safe placeholder values are supplied through
+# the shell environment for required deployment settings when they are not already set.
 
-# Validate every compose file against the docker compose schema.
 validate:
     @for s in {{ stack_list }}; do \
         echo "-- stacks/$s/compose.yaml" \
         && CONFIG_DIR="${CONFIG_DIR:-/tmp/just-validate}" \
+           DOMAIN="${DOMAIN:-example.test}" \
            docker compose -f "stacks/$s/compose.yaml" config -q || exit 1 \
     ; done
 # Update all containers to the images referenced in compose (pull + recreate changed ones)
@@ -394,10 +394,9 @@ backup-schedule ON_CALENDAR="daily":
 backup-unschedule:
     RESTIC_IMAGE="{{ restic_image }}" exec python3 -m scripts.backup unschedule
 
-# Prepare everything on disk that compose bind-mounts (idempotent; called by `just up`).
+# Prepare runtime directories and ACME storage (idempotent; called by `just up`).
 # The implementation lives in scripts/prepare.py.
 
-# Prepare everything on disk that compose bind-mounts (idempotent; called by `just up`).
 prepare:
     #!/usr/bin/env bash
     set -euo pipefail

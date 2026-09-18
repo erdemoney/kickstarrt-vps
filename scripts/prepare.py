@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare host directories and configuration consumed by Compose."""
+"""Prepare runtime directories and host settings consumed by Compose."""
 
 from __future__ import annotations
 
