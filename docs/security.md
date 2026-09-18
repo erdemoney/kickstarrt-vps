@@ -24,9 +24,10 @@ security justify.
 
 ### Public services
 
-Only Jellyfin and Seerr are intended to be public. They use Traefik's public entrypoint after
-the final Quickstart step. Public DNS records are Cloudflare DNS-only A records; Cloudflare does
-not proxy media traffic. The public ports are closed until `just go-public` opens `80` and `443`.
+Jellyfin and Seerr are the intended public services, but their routers are tailnet-only by default.
+Run `just public enable <service>` to opt a service into Traefik's public entrypoint. Public DNS
+records are Cloudflare DNS-only A records; Cloudflare does not proxy media traffic. The public
+ports are closed until `just go-public` opens `80` and `443`.
 
 ## Security layers
 

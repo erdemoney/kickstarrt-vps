@@ -29,7 +29,8 @@ the rule they enforce:
    auth is on: Jellyfin (admin on first login), Sonarr/Radarr/Prowlarr/Bazarr
    (Settings → General → Authentication), Seerr (admin on first login), Decypharr (wizard
    completed). An app that goes public before its login exists is claimable by anyone.
-3. **Only then open the door** — A records for `seerr` + `jellyfin`, then
+3. **Only then open the door** — enable the public router for each selected service with
+   `just public enable <service>`, add its A record, then
    `sudo ufw allow 443/tcp` + `sudo ufw allow 80/tcp`. Reversible either way: delete the
    records, or `sudo ufw delete allow 443/tcp` and `allow 80/tcp`. (These same-syntax
    commands are what actually open Docker-published ports too, once the ufw-docker gate
@@ -40,10 +41,9 @@ One honest caveat: public traffic and tailnet traffic arrive on **different sock
 different hostnames. Traefik's two https entrypoints are published on separate IPs by
 `stacks/traefik/compose.yaml`: `PUBLIC_BIND` (the provider-mapped IP) reaches the `https`
 entrypoint, and `TAILNET_IP` (the box's tailnet address) reaches the `https-tailnet`
-entrypoint (`traefik.yml`). `jellyfin` and `seerr` have routers on **both**
-entrypoints — they're public anyway, so being able to reach them by name on the tailnet costs
-nothing and keeps first-run setup possible before [going public](quickstart#12-go-public-last) —
-while every panel and the dashboard use only `https-tailnet`. Nothing listens on
+entrypoint (`traefik.yml`). `jellyfin` and `seerr` default to the `https-tailnet` entrypoint
+and can be opted into the public entrypoint with `just public enable <service>`, while every
+panel and the dashboard use only `https-tailnet`. Nothing listens on
 `0.0.0.0:80/443`, so off-tailnet peers cannot even reach a panel socket: a panel `Host:`
 header sent at the public IP lands on an entrypoint with **no router for it** (404), and any
 other host IP refuses the connection. No per-router IP allow-list exists to attach or forget;
@@ -51,9 +51,9 @@ being on the tailnet is the requirement to reach the panels ([Tailnet DNS](tailn
 
 ## Adding a public hostname (DNS record)
 
-Public exposure is controlled by **A records** in Cloudflare DNS — not by anything on the box.
-Traefik already serves every app on its subdomain the moment `just up` runs; whether the world
-can *reach* it depends on DNS and the firewall.
+Public exposure requires three separate choices: a Traefik public router, a Cloudflare **A record**,
+and open firewall ports. `just public enable <service>` controls only the router; `just go-public`
+controls only UFW. Keeping these separate makes the public state explicit and reversible.
 
 1. [DNS → Records](https://dash.cloudflare.com/?to=/:account/dns) → **Add record**.
 2. **Type `A`**, **Name** the subdomain (e.g. `jellyfin`, `seerr`), **IPv4 address** = the

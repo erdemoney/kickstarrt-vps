@@ -44,7 +44,8 @@ Direct Traefik `:443` ingress (Cloudflare is DNS-only — no video crosses its n
                  ▼
   Docker "internal" network
   ┌─────────────────────────────┐
-  │ jellyfin     seerr          │   jellyfin + seerr also served on the tailnet
+  │ jellyfin     seerr          │   jellyfin + seerr are tailnet-only by default;
+  │                             │   opt in with `just public enable <service>`
   │ radarr       sonarr         │
   │ prowlarr     bazarr         │   everything else (panels, dashboard):
   │ recyclarr    decypharr      │   https-tailnet only
@@ -75,7 +76,7 @@ library → Jellyfin streams to any client. Zero local storage, immediately play
 - **Nothing stored locally** — imports are symlinks into the debrid mount: instant,
   near-zero disk usage
 - **Automatic TLS** — Traefik issues a `*.DOMAIN` Let's Encrypt wildcard via Cloudflare
-  DNS-01; every app UI ships on HTTPS from the public internet
+  DNS-01; services can be opted into public HTTPS with `just public enable <service>`
 - **Layered security** — Tailscale private administration, deny-incoming UFW plus the Docker
   forwarding gate, Traefik TLS and entrypoint isolation, CrowdSec WAF, and application logins;
   `just health` checks the deployment without changing it
@@ -105,7 +106,7 @@ just up               # networks -> config dirs -> the whole stack; panels resol
 ```
 
 After setup: point Jellyfin/Seerr at your debrid and \*arrs ([the docs](https://erdemoney.github.io/kickstarrt-vps/)),
-then go public with two DNS records and two ufw rules.
+then optionally enable public routers, add DNS records, and open the UFW ports.
 
 Requires [Docker](https://docs.docker.com/engine/install/) (check the
 [post-install steps](https://docs.docker.com/engine/install/linux-postinstall/) to run it

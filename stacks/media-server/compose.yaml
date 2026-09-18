@@ -32,13 +32,13 @@ services:
     # software. Keep the library direct-play friendly (see docs/services.md).
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.jellyfin.entrypoints=https,https-tailnet"
+      - "traefik.http.routers.jellyfin.entrypoints=${JELLYFIN_ENTRYPOINTS:-https-tailnet}"
       - "traefik.http.routers.jellyfin.rule=Host(`${SUB_DOMAIN_JELLYFIN}.${DOMAIN}`)"
       - "traefik.http.routers.jellyfin.tls=true"
-      # both entrypoints: public https + the tailnet one, so tailnet clients reach it
-      # by name too (CoreDNS resolves *.DOMAIN to TAILNET_IP). No crowdsec label on
-      # purpose: the entrypoints apply crowdsec@file to every router (see
-      # traefik.yml) - attaching it here too would run it twice.
+      # The default is tailnet-only. `just public enable jellyfin` adds the public
+      # entrypoint without requiring a Compose file edit.
+      # No crowdsec label on purpose: the entrypoints apply crowdsec@file to every
+      # router (see traefik.yml) - attaching it here too would run it twice.
       - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8096/health"]
@@ -60,7 +60,7 @@ services:
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/seerr/config:/app/config
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.seerr.entrypoints=https,https-tailnet"
+      - "traefik.http.routers.seerr.entrypoints=${SEERR_ENTRYPOINTS:-https-tailnet}"
       - "traefik.http.routers.seerr.rule=Host(`${SUB_DOMAIN_SEERR}.${DOMAIN}`)"
       - "traefik.http.routers.seerr.tls=true"
       - "traefik.http.services.seerr.loadbalancer.server.port=5055"
@@ -84,7 +84,7 @@ services:
       - /mnt/debrid:/mnt:rslave
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.radarr.entrypoints=https-tailnet"
+      - "traefik.http.routers.radarr.entrypoints=${RADARR_ENTRYPOINTS:-https-tailnet}"
       - "traefik.http.routers.radarr.rule=Host(`${SUB_DOMAIN_RADARR}.${DOMAIN}`)"
       - "traefik.http.routers.radarr.tls=true"
       # private panel: on the https-tailnet entrypoint, published only on TAILNET_IP
@@ -116,7 +116,7 @@ services:
       - /mnt/debrid:/mnt:rslave
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sonarr.entrypoints=https-tailnet"
+      - "traefik.http.routers.sonarr.entrypoints=${SONARR_ENTRYPOINTS:-https-tailnet}"
       - "traefik.http.routers.sonarr.rule=Host(`${SUB_DOMAIN_SONARR}.${DOMAIN}`)"
       - "traefik.http.routers.sonarr.tls=true"
       - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
@@ -143,7 +143,7 @@ services:
       - ${CONFIG_DIR:?set CONFIG_DIR in the stack .env}/prowlarr:/config
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.prowlarr.entrypoints=https-tailnet"
+      - "traefik.http.routers.prowlarr.entrypoints=${PROWLARR_ENTRYPOINTS:-https-tailnet}"
       - "traefik.http.routers.prowlarr.rule=Host(`${SUB_DOMAIN_PROWLARR}.${DOMAIN}`)"
       - "traefik.http.routers.prowlarr.tls=true"
       - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
@@ -213,7 +213,7 @@ services:
       - /mnt/debrid:/mnt:rslave
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.bazarr.entrypoints=https-tailnet"
+      - "traefik.http.routers.bazarr.entrypoints=${BAZARR_ENTRYPOINTS:-https-tailnet}"
       - "traefik.http.routers.bazarr.rule=Host(`${SUB_DOMAIN_BAZARR}.${DOMAIN}`)"
       - "traefik.http.routers.bazarr.tls=true"
       - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
@@ -250,7 +250,7 @@ services:
       - /dev/fuse:/dev/fuse:rwm
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.decypharr.entrypoints=https-tailnet"
+      - "traefik.http.routers.decypharr.entrypoints=${DECYPHARR_ENTRYPOINTS:-https-tailnet}"
       - "traefik.http.routers.decypharr.rule=Host(`${SUB_DOMAIN_DECYPHARR}.${DOMAIN}`)"
       - "traefik.http.routers.decypharr.tls=true"
       - "traefik.http.services.decypharr.loadbalancer.server.port=8282"

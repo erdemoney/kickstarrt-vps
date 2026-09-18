@@ -53,9 +53,9 @@ collected in the [FAQ](faq).
 
 **HTTPS comes out of the box.** Traefik's ACME provider issues a **Let's Encrypt wildcard
 certificate for `*.DOMAIN`** via the Cloudflare DNS-01 challenge (`CLOUDFLARE_DNS_TOKEN`),
-renewed automatically — every service's UI ships on HTTPS from the public internet the moment
-you point its [A record](ingress) at the VPS, and on the tailnet before that. No per-app TLS
-configuration is involved.
+renewed automatically. Every service's UI is available on the tailnet immediately; opt a service
+into public routing with `just public enable <service>`, then add its [A record](ingress) and open
+the firewall separately. No per-app TLS configuration is involved.
 
 ## VPS sizing
 

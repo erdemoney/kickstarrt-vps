@@ -176,6 +176,14 @@ go-public action="open":
     echo "public serving ports open: Cloudflare -> VPS :443 -> Traefik -> CrowdSec -> the apps."
     echo "Close them again any time with: just go-public close"
 
+# Enable or disable public Traefik routers without editing Compose files.
+# This deliberately does not change UFW rules or DNS records.
+[group('Security')]
+public *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec python3 -m scripts.public {{ ARGS }}
+
 # Validate every compose file against the Docker Compose schema.
 # Read-only: never creates or edits a .env. Safe placeholder values are supplied through
 # the shell environment for required deployment settings when they are not already set.

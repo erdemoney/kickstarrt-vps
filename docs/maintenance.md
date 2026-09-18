@@ -30,6 +30,8 @@ nav_order: 15
 | `just dns`                      | print the tailnet DNS resolver setup (see [Tailnet DNS](tailnet))                 |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |
 | `just lockdown`                 | apply or re-apply the UFW lockdown and Docker forwarding gate; verifies both and refuses unless the box is on the tailnet |
+| `just public enable <svc>` / `just public disable <svc>` | enable or remove a service's public Traefik router; does not change UFW or DNS |
+| `just public status`            | show which services are tailnet-only or also routed publicly     |
 | `just go-public` / `just go-public close` | open / close the public serving ports `443`/`80` (see [Quickstart §12](quickstart#12-go-public-last)) |
 | `sudo ufw-docker check`         | verify the Docker forward gate (installed by `just lockdown`; see [Hardening](hardening)) |
 | `just backup-init`              | create the restic repository in `RESTIC_REPOSITORY` (idempotent; see below)       |

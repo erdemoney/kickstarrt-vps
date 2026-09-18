@@ -63,6 +63,16 @@ class EnvFile:
         self.lines = updated
         return changed
 
+    def unset(self, key: str) -> bool:
+        """Remove all occurrences of a key and report whether anything changed."""
+        prefix = f"{key}="
+        updated = [
+            line for line in self.lines if not line.rstrip("\n").startswith(prefix)
+        ]
+        changed = len(updated) != len(self.lines)
+        self.lines = updated
+        return changed
+
     def write(self, mode: int = 0o600) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd, temporary = tempfile.mkstemp(

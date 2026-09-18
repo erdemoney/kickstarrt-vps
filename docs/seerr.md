@@ -13,8 +13,8 @@ use the normal indexer and Decypharr workflow to acquire and import the media.
 
 Open `https://seerr.<DOMAIN>` from a tailnet device during setup. Seerr's first-login wizard
 creates its administrator account and lets you sign in with Jellyfin. The Seerr panel is
-available on both the public HTTPS and tailnet entrypoints; only publish it after the initial
-setup and authentication settings are complete ([Ingress](ingress)).
+tailnet-only by default. After setup, use `just public enable seerr` if you want to publish it,
+then separately configure DNS and UFW ([Ingress](ingress)).
 
 Seerr stores its configuration under `$CONFIG_DIR/seerr/config`, so recreating the container
 does not remove its users or integrations.

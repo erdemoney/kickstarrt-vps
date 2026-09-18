@@ -318,11 +318,19 @@ after merging one, update the server with `git pull && just update-all`. See [Up
 When every app is set up and has auth on: add the two hostnames users actually need, then open
 the serving ports — in that order.
 
-1. In Cloudflare DNS, add **A records** for `seerr.<DOMAIN>` and `jellyfin.<DOMAIN>` pointing
+1. Enable the public Traefik routers for the services you want to publish. The default is
+   tailnet-only, and this changes routing only — it does not touch UFW or DNS:
+
+```bash
+just public enable jellyfin seerr
+```
+
+   Use `just public status` to review the current router selection. In Cloudflare DNS, add **A
+   records** for each enabled hostname, such as `seerr.<DOMAIN>` and `jellyfin.<DOMAIN>`, pointing
    at the VPS's **public IP**, **Proxy status: DNS only** (grey cloud — never proxied,
    [why](faq#why-cant-i-proxy-media-through-cloudflare)). Detailed steps in
    [Ingress → Adding a public hostname](ingress#adding-a-public-hostname-dns-record).
-2. Open the public ports:
+2. Open the public ports separately:
 
 ```bash
 just go-public
@@ -336,10 +344,11 @@ Because the ufw-docker gate routes container traffic through UFW, these two rule
 what lets Docker-forwarded `:443`/`:80` through — the same syntax that opened the tailnet
 doors in §6.
 
-That's it — the stack is public on those two hostnames: Cloudflare DNS → VPS `:443` →
+That's it — the enabled services are public on their configured hostnames: Cloudflare DNS → VPS `:443` →
 Traefik → CrowdSec → the apps. Admin panels stay off the public DNS and are reached over the
 tailnet by name ([Tailnet DNS](tailnet)). Fully reversible: delete the records, or
-`just go-public close` — the tailnet doors stay intact either way.
+`just go-public close` — the tailnet doors stay intact either way. To remove a public router, run
+`just public disable <service>`; this does not change UFW.
 
 From here: [Indexers](indexers) and [Services](services) can be set up any time after the
 stack is up; [Updates & CI](updates) and [Maintenance](maintenance) are the ongoing-ops pages.
