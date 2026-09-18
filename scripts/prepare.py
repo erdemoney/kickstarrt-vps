@@ -39,10 +39,10 @@ def configured_ids(media: EnvFile) -> tuple[int, int]:
     uid = media.get("ENV_PUID")
     gid = media.get("ENV_PGID")
     try:
-        puid = int(uid) if uid and uid != "auto" else (os.getuid() or 1000)
-        pgid = int(gid) if gid and gid != "auto" else (os.getgid() or 1000)
+        puid = int(uid) if uid else (os.getuid() or 1000)
+        pgid = int(gid) if gid else (os.getgid() or 1000)
     except ValueError as exc:
-        raise ScriptError("ENV_PUID and ENV_PGID must be numeric or 'auto'") from exc
+        raise ScriptError("ENV_PUID and ENV_PGID must be numeric") from exc
     if os.getuid() == 0 and not uid:
         puid = 1000
     if os.getgid() == 0 and not gid:

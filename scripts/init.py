@@ -365,23 +365,9 @@ def configure_env(force: bool) -> list[str]:
     detected_uid, detected_gid = detected_ids()
     configured_uid = media.get("ENV_PUID")
     configured_gid = media.get("ENV_PGID")
-    uid = (
-        valid_id(configured_uid, "ENV_PUID")
-        if configured_uid and configured_uid != "auto"
-        else detected_uid
-    )
-    gid = (
-        valid_id(configured_gid, "ENV_PGID")
-        if configured_gid and configured_gid != "auto"
-        else detected_gid
-    )
-    if (
-        configured_uid
-        and configured_gid
-        and configured_uid != "auto"
-        and configured_gid != "auto"
-        and (uid, gid) != (detected_uid, detected_gid)
-    ):
+    uid = valid_id(configured_uid, "ENV_PUID") if configured_uid else detected_uid
+    gid = valid_id(configured_gid, "ENV_PGID") if configured_gid else detected_gid
+    if configured_uid and configured_gid and (uid, gid) != (detected_uid, detected_gid):
         print(
             f"Configured container identity: {uid}:{gid}\n"
             f"Current user identity:        {detected_uid}:{detected_gid}\n"
@@ -395,11 +381,9 @@ def configure_env(force: bool) -> list[str]:
             print(
                 "warning: run just prepare after changing container ownership settings"
             )
-    desired_uid = configured_uid if configured_uid == "auto" else uid
-    desired_gid = configured_gid if configured_gid == "auto" else gid
-    if media.set("ENV_PUID", desired_uid):
+    if media.set("ENV_PUID", uid):
         changes.append("ENV_PUID")
-    if media.set("ENV_PGID", desired_gid):
+    if media.set("ENV_PGID", gid):
         changes.append("ENV_PGID")
 
     if force or not traefik.get("TRAEFIK_DASHBOARD_CREDENTIALS"):
