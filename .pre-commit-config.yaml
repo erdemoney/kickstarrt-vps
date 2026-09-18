@@ -20,6 +20,12 @@ repos:
       - id: shellcheck
         files: ^scripts/
 
+  # Basic Python linting for the repository
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      - id: ruff-check
+
   # Scan staged changes for hardcoded secrets / API keys (auto-downloads via Go)
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1

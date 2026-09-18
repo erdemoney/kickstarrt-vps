@@ -28,8 +28,9 @@ removed in a later commit.
 
 [Renovate](https://ghcr.io/renovatebot/renovate) runs self-hosted in a GitHub Actions workflow
 and opens pull requests that bump the pinned image tags in `stacks/*/compose.yaml`. Review and
-merge the PR, then pull and re-create the containers on the server. It's the automation upgrade
-over the local `just check-updates` (which stays useful for a quick CLI look).
+merge the PR, then the server can pull and re-create the containers during its scheduled
+maintenance window. It's the automation upgrade over the local `just check-updates` (which stays
+useful for a quick CLI look).
 
 ## How it works
 
@@ -74,10 +75,21 @@ A GitHub App install is _not_ needed — this is the self-hosted action setup.
 
 ```
 # 1. On GitHub: review + merge the Renovate PR
-# 2. On the server running the stack:
-git pull
-just update-all        # recreate changed containers
+# 2. The server's overnight timer runs automatically:
+just maintenance-run   # equivalent manual operation
 ```
+
+Enable the timer once on the server with:
+
+```
+just maintenance-schedule             # daily at 03:00 local time
+just maintenance-schedule "*-*-* 04:30:00"
+```
+
+The job uses `git pull --ff-only`, so local edits or a non-fast-forward branch stop the deployment
+rather than being merged or overwritten. It updates Compose services and verifies Docker plus every
+expected container; see
+[Maintenance](maintenance#scheduled-maintenance) for logs and failure handling.
 
 Minor/patch PRs are safe to apply whenever (pinned tags, images pulled on demand). Major-bump
 PRs deserve reading the release notes first.

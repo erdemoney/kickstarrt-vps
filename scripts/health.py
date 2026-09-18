@@ -7,13 +7,11 @@ import json
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 from .common import EnvFile, ROOT, ScriptError, capture
 
 
 STACKS = ("traefik", "media-server")
-MEDIA_ENV = ROOT / "stacks" / "media-server" / ".env"
 TRAEFIK_ENV = ROOT / "stacks" / "traefik" / ".env"
 
 
@@ -75,35 +73,35 @@ def compose_services(stack: str, results: list[tuple[str, bool, str]]) -> None:
         results.append((f"{stack} services", False, str(exc)))
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    deployment_only = argv is not None and "--deployment" in argv
     results: list[tuple[str, bool, str]] = []
-    media = EnvFile(MEDIA_ENV)
     traefik = EnvFile(TRAEFIK_ENV)
-    config_dir = Path(media.get("CONFIG_DIR", str(ROOT / "data"))).expanduser()
 
     check_command("Docker", ("docker", "info"), results, success_detail="available")
-    check_command("Tailscale", ("tailscale", "ip", "-4"), results, success_detail=None)
-    check_command("UFW active", ("sudo", "ufw", "status"), results, success_detail="active")
-    check_command("Docker firewall gate", ("sudo", "ufw-docker", "check"), results, success_detail="configured")
-    check_command("internal network", ("docker", "network", "inspect", "internal"), results, success_detail="available")
-    if shutil.which("docker"):
-        ok, bouncers = command_output(("docker", "exec", "crowdsec", "cscli", "bouncers", "list"))
-        registered = "traefik" in bouncers.lower()
-        detail = "registered" if ok and registered else bouncers[-240:] if bouncers else "traefik bouncer unavailable"
-        results.append(("CrowdSec bouncer", ok and registered, detail))
-    else:
-        results.append(("CrowdSec bouncer", False, "docker is not installed"))
+    if not deployment_only:
+        check_command("Tailscale", ("tailscale", "ip", "-4"), results, success_detail=None)
+        check_command("UFW active", ("sudo", "ufw", "status"), results, success_detail="active")
+        check_command("Docker firewall gate", ("sudo", "ufw-docker", "check"), results, success_detail="configured")
+        check_command("internal network", ("docker", "network", "inspect", "internal"), results, success_detail="available")
+        if shutil.which("docker"):
+            ok, bouncers = command_output(("docker", "exec", "crowdsec", "cscli", "bouncers", "list"))
+            registered = "traefik" in bouncers.lower()
+            detail = "registered" if ok and registered else bouncers[-240:] if bouncers else "traefik bouncer unavailable"
+            results.append(("CrowdSec bouncer", ok and registered, detail))
+        else:
+            results.append(("CrowdSec bouncer", False, "docker is not installed"))
 
-    configured_tailnet = traefik.get("TAILNET_IP")
-    if configured_tailnet:
-        ok, detected = command_output(("tailscale", "ip", "-4"))
-        results.append(("TAILNET_IP", ok and detected.splitlines()[:1] == [configured_tailnet], f"configured {configured_tailnet}; detected {detected or 'unavailable'}"))
-    else:
-        results.append(("TAILNET_IP", False, "not configured"))
+        configured_tailnet = traefik.get("TAILNET_IP")
+        if configured_tailnet:
+            ok, detected = command_output(("tailscale", "ip", "-4"))
+            results.append(("TAILNET_IP", ok and detected.splitlines()[:1] == [configured_tailnet], f"configured {configured_tailnet}; detected {detected or 'unavailable'}"))
+        else:
+            results.append(("TAILNET_IP", False, "not configured"))
 
-    corefile = ROOT / "data" / "traefik" / "coredns.Corefile"
-    readable = corefile.is_file() and bool(corefile.stat().st_mode & 0o004)
-    results.append(("CoreDNS Corefile", readable, "readable" if readable else f"missing or not world-readable: {corefile}"))
+        corefile = ROOT / "data" / "traefik" / "coredns.Corefile"
+        readable = corefile.is_file() and bool(corefile.stat().st_mode & 0o004)
+        results.append(("CoreDNS Corefile", readable, "readable" if readable else f"missing or not world-readable: {corefile}"))
 
     for stack in STACKS:
         compose_services(stack, results)
@@ -121,4 +119,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

@@ -14,6 +14,10 @@ nav_order: 15
 | `just down`                     | tear every stack down                                                             |
 | `just update-all`               | pull fresh images + recreate changed containers                                   |
 | `just update <svc>`             | pull + recreate one service, searched across all stacks, e.g. `just update jellyfin` |
+| `just maintenance-run`          | fast-forward Git, update all stacks, then run the health checks                   |
+| `just maintenance-schedule`     | install the overnight maintenance timer (default: 03:00 local time)              |
+| `just maintenance-status`       | show the next maintenance run                                                     |
+| `just maintenance-unschedule`   | stop and remove the maintenance timer                                             |
 | `just check-updates`            | compare pinned tags against registries; exits 1 if anything is newer              |
 | `just health`                   | read-only host, firewall, DNS, and container health panel                         |
 | `just logs <stack>`             | tail logs for a stack                                                             |
@@ -37,9 +41,39 @@ large files, merge markers, case conflicts, private keys and staged-secret scann
 the same set plus a full-history secret scan. Gitleaks is auto-downloaded by pre-commit on
 first run.
 
-The update flow the repo is built around: Renovate opens a PR → merge → `git pull` +
-`just update-all` (see [Updates](updates)); `just check-updates` gives the same picture from
-the CLI.
+The update flow the repo is built around: Renovate opens a PR → CI and review → merge → the
+overnight maintenance timer runs `git pull --ff-only`, `just update-all`, and a deployment health
+check (see [Updates](updates)). `just maintenance-run` runs the same flow immediately;
+`just check-updates` gives the registry picture without changing anything.
+
+### Scheduled maintenance
+
+The optional systemd timer applies merged Renovate updates during a quiet window. Install it with
+the default schedule of 03:00 in the server's local timezone:
+
+```
+just maintenance-schedule
+```
+
+Choose another systemd calendar expression when needed:
+
+```
+just maintenance-schedule "*-*-* 04:30:00"
+just maintenance-status
+```
+
+Each run requires a clean Git worktree, uses `git pull --ff-only`, updates the stacks, and verifies
+Docker plus every expected container. A lock prevents an unattended run from overlapping a manual
+`just maintenance-run`. The timer does not catch up missed runs after downtime, avoiding an
+unexpected daytime deployment. Output is available with:
+
+```
+journalctl -u kickstarrt-maintenance.service
+```
+
+Remove the timer with `just maintenance-unschedule`. If a run fails, inspect the journal and run
+`just maintenance-run` manually after resolving the issue; this first version deliberately does
+not attempt an automatic rollback.
 
 ## Backups
 

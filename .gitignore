@@ -3,6 +3,10 @@
 !.env.example
 !.env.restic.example
 
+# Python administration scripts
+__pycache__/
+*.py[cod]
+
 # data/ is app config state (untracked, never commit). `data/*` auto-covers any
 # new runtime subdir; only the traefik + recyclarr config-as-code files are
 # tracked. Traefik's static config and the other config-as-code files are mounted

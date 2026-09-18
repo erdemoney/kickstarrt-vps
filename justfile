@@ -197,6 +197,32 @@ update-all:
         && docker compose -f "stacks/$s/compose.yaml" up -d || exit 1 \
     ; done
 
+# Pull the reviewed default branch, update changed containers, and verify the result.
+# This is also the entry point used by the optional overnight systemd timer.
+[group('Maintenance')]
+maintenance-run:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec python3 -m scripts.maintenance run
+
+[group('Maintenance')]
+maintenance-schedule ON_CALENDAR="*-*-* 03:00:00":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec python3 -m scripts.maintenance schedule "{{ ON_CALENDAR }}"
+
+[group('Maintenance')]
+maintenance-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec python3 -m scripts.maintenance status
+
+[group('Maintenance')]
+maintenance-unschedule:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec python3 -m scripts.maintenance unschedule
+
 # Pull + recreate one service, searched across all stacks, e.g. `just update jellyfin`.
 update service:
     #!/usr/bin/env bash
