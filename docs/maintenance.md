@@ -50,6 +50,10 @@ The update flow the repo is built around: Renovate opens a PR → CI and review 
 overnight maintenance timer runs `git pull --ff-only`, `just update-all`, and a deployment health
 check (see [Updates](updates)). `just maintenance-run` runs the same flow immediately.
 
+This updates the repository and container images only. Keep the host operating system, Docker
+Engine, Compose plugin, kernel, and other system packages up to date separately through the
+host distribution's package manager.
+
 ### Scheduled maintenance
 
 The optional systemd timer applies merged Renovate updates during a quiet window. Install it with
