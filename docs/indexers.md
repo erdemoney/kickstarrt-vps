@@ -15,15 +15,14 @@ work.
 | Indexer                      | Type               | Cost               | Where it fits                           |
 | ---------------------------- | ------------------ | ------------------ | --------------------------------------- |
 | Torrentio (custom Cardigann) | torrent aggregator | needs a debrid key | debrid-cached streams through Decypharr |
-| TorBox (custom Cardigann)    | torrent search API | needs a TorBox key | TorBox's cached torrents directly       |
 | AltHub                       | Usenet             | $20 lifetime       | Usenet streaming through TorBox         |
 
 Detailed recommendations live in [Services](services).
 
-## Custom indexers (Torrentio, TorBox, comet, …)
+## Custom indexers (Torrentio, comet, …)
 
 Prowlarr can run **custom Cardigann indexers**: YAML definitions that talk to a torrent
-aggregator / search API (Torrentio, TorBox, comet, zilean, knightcrawler, ...), so results
+aggregator / search API (Torrentio, comet, zilean, knightcrawler, ...), so results
 flow through the normal Prowlarr → Sonarr/Radarr sync and grabs go to Decypharr for debrid
 streaming.
 
@@ -45,7 +44,6 @@ streaming.
    | Name          | What it is                                      | Needs                        |
    | ------------- | ----------------------------------------------- | ---------------------------- |
    | torrentio     | Torrentio aggregator (ezTV, 1337x, TPB, …)      | debrid provider key          |
-   | torbox        | TorBox search API                               | TorBox API key               |
    | comet         | Comet search API                                | service URL + key            |
    | zilean        | DMM/zilean search                               | service URL (self-host or paid) |
    | aiostreams    | AioStreams search                               | service URL + key            |
@@ -63,10 +61,10 @@ streaming.
    A missing name is not a bug — the repo just added or renamed it; re-run
    `just add-indexers` to pick up any changes.
 
-2. Prowlarr → **Indexers** → `+` → search the name (e.g. **Torrentio**, **TorBox Torrents**)
+2. Prowlarr → **Indexers** → `+` → search the name (e.g. **Torrentio**)
    → add it.
    - Fill in whatever the definition asks for (see the "Needs" column above) — e.g. Torrentio
-     wants your **Real-Debrid (or supported-debrid) API key**; TorBox wants its **API key**.
+     wants your **Real-Debrid (or supported-debrid) API key**.
    - Torrentio example: `default_opts` holds the provider list plus `qualityfilter=scr,cam`;
      tweak the providers or sort if you want.
    - Save, enable, and confirm a green test; enable for movies/TV in the Sync Profile.

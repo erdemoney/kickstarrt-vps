@@ -312,7 +312,7 @@ it's configured.
    and set the transcode path → [Jellyfin](jellyfin).
 4. **Seerr** — connect Jellyfin at `http://jellyfin:8096`, then connect Radarr and Sonarr with
    their internal URLs and API keys → [Seerr setup](seerr).
-5. **Indexers** — add at least one debrid indexer such as Torrentio or TorBox; AltHub can be
+5. **Indexers** — add at least one debrid indexer such as Torrentio; AltHub can be
    added for TorBox Usenet streaming → [Indexers](indexers).
 
 `just wire --dry-run` previews the changes, and `just wire` applies each confirmed checkpoint.

@@ -24,7 +24,7 @@ nav_order: 16
 | `just restart <stack>`          | restart a stack                                                                   |
 | `just validate`                 | `docker compose config -q` on every stack (read-only — never writes a `.env`)     |
 | `just prepare`                  | create config dirs and `acme.json` (0600) (called by `just up`) |
-| `just add-indexers`             | install all custom Prowlarr indexer definitions (Torrentio, TorBox, comet, …; see [Indexers](indexers)) |
+| `just add-indexers`             | install all custom Prowlarr indexer definitions (Torrentio, comet, …; the dead TorBox definition is skipped — see [Indexers](indexers)) |
 | `just wire`                     | interactively reconcile Arr/Decypharr/Prowlarr/Bazarr links and Recyclarr secrets through REST APIs; use `--dry-run` to preview |
 | `just dns`                      | print the tailnet DNS resolver setup (see [Tailnet DNS](tailnet))                 |
 | `just networks`                 | create the shared `internal` network (pinned subnet `172.30.0.0/16`)                   |

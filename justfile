@@ -163,11 +163,13 @@ health:
     python3 -m scripts.health
 
 # Install all custom Cardigann indexer definitions for Prowlarr from the
-# Prowlarr-Indexers repo (Torrentio, TorBox, comet, zilean, ...). Definitions are
-# inert until enabled in Prowlarr, so installing every one saves a pick-a-name
-# step; add + key just the ones you want in the UI. Fetches the repo archive
-# (curl + tar only, no git/API), copies its Custom/ dir into prowlarr's config
-# dir, and restarts prowlarr. Idempotent; re-run to re-install. Run on the server.
+# Prowlarr-Indexers repo (Torrentio, comet, zilean, ...). TorBox's definition is
+# skipped: its search API was decommissioned (search-api.torbox.app no longer
+# resolves), so the indexer can never connect. Definitions are inert until
+# enabled in Prowlarr, so installing every one saves a pick-a-name step; add +
+# key just the ones you want in the UI. Fetches the repo archive (curl + tar
+# only, no git/API), copies its Custom/ dir into prowlarr's config dir, and
+# restarts prowlarr. Idempotent; re-run to re-install. Run on the server.
 
 # Install all custom Cardigann indexer definitions for Prowlarr (idempotent).
 [group('Integrations')]
@@ -188,8 +190,17 @@ add-indexers:
     [ -d "$SRC" ] || { echo "error: Custom/ not found in the downloaded archive" >&2; exit 1; }
 
     mkdir -p "$DEST"
-    cp "$SRC"/*.yml "$DEST"/
-    echo "installed $(printf '%s\n' "$SRC"/*.yml | wc -l) indexer definitions into $DEST"
+    count=0
+    for f in "$SRC"/*.yml; do
+        case "$(basename "$f")" in
+            torbox*.yml) ;;
+            *)
+                cp "$f" "$DEST"/
+                count=$((count + 1))
+                ;;
+        esac
+    done
+    echo "installed $count indexer definitions into $DEST"
 
     docker compose -f stacks/media-server/compose.yaml restart prowlarr 2>/dev/null \
         || echo "note: prowlarr is not running, the definition will load on next just up"
