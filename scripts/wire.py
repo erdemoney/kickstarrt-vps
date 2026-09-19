@@ -292,7 +292,7 @@ def arr_download_client(
         "fields": [
             {"name": field, "value": value} for field, value in desired_fields.items()
         ],
-        "priority": 0,
+        "priority": 1,
     }
     endpoint = f"http://{app}:{8989 if app == 'sonarr' else 7878}/api/v3/downloadclient"
     return Change(
