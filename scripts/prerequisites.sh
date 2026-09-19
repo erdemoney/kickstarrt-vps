@@ -111,7 +111,7 @@ install_just() {
         skip "already installed ($(just --version))"
         return
     fi
-    if ! curl -fsSL --proto '=https' --tlsv1.2 https://just.systems/install.sh | sh -s -- --to /usr/local/bin; then
+    if ! curl -fsSL --proto '=https' --tlsv1.2 https://just.systems/install.sh | bash -s -- --to /usr/local/bin; then
         if [ -n "$PM" ]; then
             "${PM_DEPS[@]}" just
         fi
