@@ -255,6 +255,59 @@ services:
       - "traefik.http.routers.decypharr.tls=true"
       - "traefik.http.services.decypharr.loadbalancer.server.port=8282"
 
+  zilean:
+    # DebridMediaManager-sourced aggregator, usable as a Torznab indexer from
+    # Prowlarr. Maintained fork (upstream ipromknight/zilean is dead). No web UI
+    # worth exposing, so no Traefik labels and no published ports: Prowlarr alone
+    # talks to it at http://zilean:8181 over the internal network (see
+    # docs/indexers.md). The one-time first DMM sync is the heavy one (10-30 min
+    # CPU, resumable on restart); subsequent syncs are incremental.
+    image: ghcr.io/thoroslives/zilean:v3.10.1
+    container_name: zilean
+    <<: *common
+    init: true
+    depends_on:
+      zilean-postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: zilean-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: zilean
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${ZILEAN_POSTGRES_PASSWORD:?set ZILEAN_POSTGRES_PASSWORD in stacks/media-server/.env}
+      # Optional: a GitHub token avoids API rate limits during the DMM hashlist
+      # sync (see .env.example).
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ../../data/zilean:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8181/healthchecks/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  zilean-postgres:
+    # Zilean's index database. shm_size is required: the default 64m fails the
+    # bulk DMM upserts with "No space left on device". Never publish the port -
+    # unlike every other container, this one has real credentials on Postgres.
+    image: postgres:16.15-alpine3.24
+    container_name: zilean-postgres
+    <<: *common
+    shm_size: 256m
+    environment:
+      POSTGRES_DB: zilean
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${ZILEAN_POSTGRES_PASSWORD:?set ZILEAN_POSTGRES_PASSWORD in stacks/media-server/.env}
+    volumes:
+      - ../../data/zilean-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d zilean"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
   default:
     name: internal

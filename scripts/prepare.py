@@ -121,6 +121,8 @@ def main() -> int:
             "recyclarr",
             "bazarr/config",
             "decypharr/configs",
+            "zilean",
+            "zilean-pg",
             "crowdsec/config",
             "crowdsec/data",
         )

@@ -60,6 +60,7 @@ break CORS, and add latency; they are for browsers only).
 | recyclarr | —                      | —    | automatic — nothing to paste (see below)        |
 | bazarr    | `http://bazarr:6767`    | 6767 | (outbound only)                                 |
 | decypharr | `http://decypharr:8282` | 8282 | Settings → API token (shown once after wizard)  |
+| zilean    | `http://zilean:8181`    | 8181 | (indexer; no API key — see [Indexers](indexers)) |
 
 Rule of thumb: when any UI asks for another app's **URL + API key**, use the
 `http://<service>:<port>` from the table and the key from the target app. Sanity-check any

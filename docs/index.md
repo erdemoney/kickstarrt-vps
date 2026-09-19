@@ -29,12 +29,13 @@ hosts.
                           |
                           v
               Docker "internal" network
-              +------------------------------+
-              | jellyfin     seerr           |   jellyfin + seerr also served on the tailnet
-              | radarr       sonarr          |
-              | prowlarr     bazarr          |   everything else (panels, dashboard):
-              | recyclarr    decypharr       |   https-tailnet only
-              +------------------------------+
+              +-----------------------------+
+              | jellyfin     seerr          |   jellyfin + seerr also served on the tailnet
+              | radarr       sonarr         |
+              | prowlarr     bazarr         |   everything else (panels, dashboard):
+              | recyclarr    decypharr      |   https-tailnet only
+              | zilean       zilean-postgres|   zilean: internal-only Prowlarr indexer
+              +-----------------------------+
 ```
 
 Media flow: Prowlarr finds releases (incl. the Torrentio debrid indexer) → Sonarr/Radarr grab
@@ -81,7 +82,7 @@ doesn't, so use **Ubuntu 26.04 Minimal** there instead. The full Oracle walkthro
 stacks/                  compose files (one folder per stack) + .env per stack
   traefik/               edge router on :443, CrowdSec container, CoreDNS, plugin + ACME
   media-server/          jellyfin, seerr, radarr, sonarr, prowlarr,
-                         recyclarr, bazarr, decypharr
+                         recyclarr, bazarr, decypharr, zilean (+ zilean-postgres)
 data/                    runtime config that lives in code
   traefik/               traefik.yml, dynamic.yml
   crowdsec/              acquis.yaml

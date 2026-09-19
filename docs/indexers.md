@@ -45,7 +45,7 @@ streaming.
    | ------------- | ----------------------------------------------- | ---------------------------- |
    | torrentio     | Torrentio aggregator (ezTV, 1337x, TPB, …)      | debrid provider key          |
    | comet         | Comet search API                                | service URL + key            |
-   | zilean        | DMM/zilean search                               | service URL (self-host or paid) |
+   | zilean        | DMM/zilean search                               | service URL — self-hosted in this stack |
    | aiostreams    | AioStreams search                               | service URL + key            |
    | aiostreams-api| AioStreams API search                           | API key                      |
    | annatar       | Annatar search API                              | service URL + key            |
@@ -70,6 +70,28 @@ streaming.
    - Save, enable, and confirm a green test; enable for movies/TV in the Sync Profile.
 3. It syncs to Sonarr/Radarr like any indexer. For precise hits in Prowlarr search use
    `{imdbid:tt123456}` / `{imdbid:tt1234567}{season:00}{episode:00}`.
+
+### Self-hosted Zilean
+
+The media stack runs **Zilean** (`stacks/media-server/compose.yaml`) — a DMM
+(DebridMediaManager) sourced index, backed by its own Postgres database. It is
+internal-only: no Traefik router, no published ports. Prowlarr reaches it over the
+`internal` network, so in the Prowlarr indexer form just use the service URL
+`http://zilean:8181` with **no API key** (the shipped Cardigann definition has no
+`settings`, so only the base URL needs filling in). Add it like any custom indexer
+above.
+
+Notes:
+- **First DMM sync is the heavy one**: ~10–30 min of sustained CPU (more on a 2 vCPU box)
+  parsing the shared hashlists, and the service only begins serving results after
+  `DMM sync complete` appears in `just logs-svc zilean`. The fork's sync is **resumable** —
+  if it's interrupted (reboot, OOM), it picks up where it left off on the next start.
+  Later syncs are incremental and light.
+- The `zilean` indexer needs no debrid account and returns cached/debrid-ready releases;
+  pair it with Torrentio or a provider indexer rather than running it alone.
+  Use `{imdbid:tt123456}` queries for precise hits.
+- On a low-RAM box the initial sync may be tight; run it once (e.g. overnight) and let it
+  finish before relying on the indexer.
 
 ## Adding a regular Usenet indexer (e.g. AltHub)
 

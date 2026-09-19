@@ -327,6 +327,10 @@ def configure_env(force: bool) -> list[str]:
         traefik.set("CROWDSEC_BOUNCER_API_KEY", secrets.token_hex(32))
         changes.append("CROWDSEC_BOUNCER_API_KEY")
 
+    if not media.get("ZILEAN_POSTGRES_PASSWORD"):
+        media.set("ZILEAN_POSTGRES_PASSWORD", secrets.token_hex(32))
+        changes.append("ZILEAN_POSTGRES_PASSWORD")
+
     for key, default in (("SUB_DOMAIN_TRAEFIK", "traefik"),):
         value = validate_subdomain(traefik.get(key) or default, key)
         if traefik.set(key, value):
